@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if NETFRAMEWORK
+using System;
 using System.Text;
 using Torch.Managers.PatchManager;
 using VRage.Utils;
@@ -41,3 +42,4 @@ static class KeenLogPatch_PrepareLog_Patch
         return _tmpStringBuilder;
     }
 }
+#endif
