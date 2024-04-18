@@ -1,0 +1,78 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8-windows</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
+    <AssemblyName>AdvancedProfiler</AssemblyName>
+    <RootNamespace>AdvancedProfiler</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Torch">
+      <HintPath>..\TorchRef\$(TargetFramework)\Torch.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Torch.API">
+      <HintPath>..\TorchRef\$(TargetFramework)\Torch.API.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="IndexRange" Version="1.0.3" />
+    <PackageReference Include="NLog" Version="4.4.12">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Nullable" Version="1.3.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <DedicatedServer64>G:\torch-server\DedicatedServer64</DedicatedServer64>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="HavokWrapper">
+      <HintPath>$(DedicatedServer64)\HavokWrapper.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="VRage.Library">
+      <HintPath>$(DedicatedServer64)\VRage.Library.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="VRage">
+      <HintPath>$(DedicatedServer64)\VRage.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="VRage.Render">
+      <HintPath>$(DedicatedServer64)\VRage.Render.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="VRage.Game">
+      <HintPath>$(DedicatedServer64)\VRage.Game.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Sandbox.Common">
+      <HintPath>$(DedicatedServer64)\Sandbox.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Sandbox.Game">
+      <HintPath>$(DedicatedServer64)\Sandbox.Game.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="manifest.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

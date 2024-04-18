@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34714.143
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedProfilerPlugin", "AdvancedProfilerPlugin\AdvancedProfilerPlugin.csproj", "{73AE126A-21AA-4A34-B444-931B12345B57}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{73AE126A-21AA-4A34-B444-931B12345B57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{73AE126A-21AA-4A34-B444-931B12345B57}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{73AE126A-21AA-4A34-B444-931B12345B57}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{73AE126A-21AA-4A34-B444-931B12345B57}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5B6710A6-93DC-49E6-BFC7-3723D4DA6298}
+	EndGlobalSection
+EndGlobal
