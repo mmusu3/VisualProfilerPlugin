@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -15,30 +16,20 @@ static class MyPhysics_Patches
 {
     public static void Patch(PatchContext ctx)
     {
-        var source = typeof(MyPhysics).GetPublicInstanceMethod(nameof(MyPhysics.LoadData));
-        var target = typeof(MyPhysics_Patches).GetNonPublicStaticMethod(nameof(Transpile_LoadData));
-
-        ctx.GetPattern(source).Transpilers.Add(target);
-
-        source = typeof(MyPhysics).GetNonPublicInstanceMethod("UnloadData");
-        target = typeof(MyPhysics_Patches).GetNonPublicStaticMethod(nameof(Transpile_UnloadData));
-
-        ctx.GetPattern(source).Transpilers.Add(target);
-
+        Transpile(ctx, nameof(MyPhysics.LoadData), _public: true, _static: false);
+        Transpile(ctx, "UnloadData", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "SimulateInternal", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "ExecuteParallelRayCasts", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "StepWorldsMeasured", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "StepSingleWorld", _public: false, _static: false);
-
-        // TODO: Transpiler
-        PatchPrefixSuffixPair(ctx, "StepWorldsParallel", _public: false, _static: false);
+        Transpile(ctx, "StepWorldsParallel", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "EnableOptimizations", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "DisableOptimizations", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "UpdateActiveRigidBodies", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "UpdateCharacters", _public: false, _static: false);
     }
 
-    static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
+    static MethodInfo GetSourceMethod(string methodName, bool _public, bool _static)
     {
         MethodInfo source;
 
@@ -57,6 +48,20 @@ static class MyPhysics_Patches
                 source = typeof(MyPhysics).GetNonPublicInstanceMethod(methodName);
         }
 
+        return source;
+    }
+
+    static void Transpile(PatchContext patchContext, string methodName, bool _public, bool _static)
+    {
+        var source = GetSourceMethod(methodName, _public, _static);
+        var transpiler = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("Transpile_" + methodName);
+
+        patchContext.GetPattern(source).Transpilers.Add(transpiler);
+    }
+
+    static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
+    {
+        var source = GetSourceMethod(methodName, _public, _static);
         var prefix = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
         var suffix = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("Suffix_" + methodName);
 
@@ -98,6 +103,7 @@ static class MyPhysics_Patches
 
     static void InitProfiling(HkJobQueue m_jobQueue, HkJobThreadPool m_threadPool)
     {
+        // TODO: May add too much overhead
         HkTaskProfiler.HookJobQueue(m_jobQueue);
 
         m_threadPool.RunOnEachWorker(delegate
@@ -201,17 +207,131 @@ static class MyPhysics_Patches
         __local_timer.Stop();
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_StepWorldsParallel(ref ProfilerTimer __local_timer)
+    static IEnumerable<MsilInstruction> Transpile_StepWorldsParallel(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
     {
-        __local_timer = Profiler.Start("MyPhysics.StepWorldsParallel");
-        return true;
-    }
+        Plugin.Log.Debug($"Patching {nameof(MyPhysics)}.StepWorldsParallel.");
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_StepWorldsParallel(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
+        const int expectedParts = 7;
+        int patchedParts = 0;
+
+        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)]);
+        var profilerStartMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)]);
+        var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
+
+        var executePendingCriticalOperationsMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.ExecutePendingCriticalOperations));
+        var initMTStepMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.InitMtStep));
+        var waitPolicySetter = typeof(HkJobQueue).GetProperty(nameof(HkJobQueue.WaitPolicy), BindingFlags.Instance | BindingFlags.Public)?.SetMethod;
+        var processAllJobsMethod = typeof(HkJobQueue).GetPublicInstanceMethod(nameof(HkJobQueue.ProcessAllJobs));
+        var waitForCompletionMethod = typeof(HkJobThreadPool).GetPublicInstanceMethod(nameof(HkJobThreadPool.WaitForCompletion));
+        var finishMtStepMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.FinishMtStep));
+        var markForWriteMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.MarkForWrite));
+
+        var timerLocal1 = __localCreator(typeof(ProfilerTimer));
+        var timerLocal2 = __localCreator(typeof(ProfilerTimer));
+
+        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("StepWorldsParallel");
+        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod);
+        yield return timerLocal1.AsValueStore();
+
+        var instructions = instructionStream.ToArray();
+
+        for (int i = 0; i < instructions.Length; i++)
+        {
+            var ins = instructions[i];
+            var nextIns = i < instructions.Length - 1 ? instructions[i + 1] : null;
+
+            if (ins.OpCode == OpCodes.Ldloc_S && nextIns != null)
+            {
+                if (nextIns.OpCode == OpCodes.Callvirt)
+                {
+                    if (nextIns.Operand is MsilOperandInline<MethodBase> call && call.Value == executePendingCriticalOperationsMethod)
+                    {
+                        yield return new MsilInstruction(OpCodes.Ldc_I4_0); // Block 0
+                        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Init HKWorld update");
+                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2);
+                        yield return timerLocal2.AsValueStore();
+                        patchedParts++;
+                    }
+                }
+                else if (nextIns.OpCode == OpCodes.Ldsfld && i < instructions.Length - 3 && instructions[i + 3].OpCode == OpCodes.Callvirt)
+                {
+                    if (instructions[i + 3].Operand is MsilOperandInline<MethodBase> call && call.Value == finishMtStepMethod)
+                    {
+                        yield return new MsilInstruction(OpCodes.Ldc_I4_3); // Block 3
+                        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Finish HKWorld update");
+                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2);
+                        yield return timerLocal2.AsValueStore();
+                        patchedParts++;
+                    }
+                }
+            }
+            else if (ins.OpCode == OpCodes.Ldsfld && nextIns != null && nextIns.OpCode == OpCodes.Ldc_I4_0
+                && i < instructions.Length - 2 && instructions[i + 2].OpCode == OpCodes.Callvirt)
+            {
+                if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call && call.Value == waitPolicySetter)
+                {
+                    yield return new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ins); // Block 1
+                    yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Process jobs");
+                    yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2);
+                    yield return timerLocal2.AsValueStore();
+                    patchedParts++;
+                }
+            }
+            else if (ins.OpCode == OpCodes.Ret)
+            {
+                break;
+            }
+
+            yield return ins;
+
+            if (ins.OpCode == OpCodes.Pop && i > 0 && instructions[i - 1].OpCode == OpCodes.Callvirt)
+            {
+                if (instructions[i - 1].Operand is MsilOperandInline<MethodBase> call && call.Value == initMTStepMethod)
+                {
+                    yield return timerLocal2.AsValueLoad();
+                    yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                    patchedParts++;
+                }
+            }
+            else if (ins.OpCode == OpCodes.Callvirt)
+            {
+                if (ins.Operand is MsilOperandInline<MethodBase> call)
+                {
+                    if (call.Value == processAllJobsMethod)
+                    {
+                        yield return timerLocal2.AsValueLoad();
+                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                        // Start next
+                        yield return new MsilInstruction(OpCodes.Ldc_I4_2); // Block 2
+                        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Wait for Havok thread pool");
+                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2);
+                        yield return timerLocal2.AsValueStore();
+                        patchedParts++;
+                    }
+                    else if (call.Value == waitForCompletionMethod)
+                    {
+                        yield return timerLocal2.AsValueLoad();
+                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                        patchedParts++;
+                    }
+                    else if (call.Value == markForWriteMethod)
+                    {
+                        yield return timerLocal2.AsValueLoad();
+                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                        patchedParts++;
+                    }
+                }
+            }
+        }
+
+        yield return timerLocal1.AsValueLoad().SwapLabelsAndTryCatchOperations(instructions[^1]);
+        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+        yield return new MsilInstruction(OpCodes.Ret);
+
+        if (patchedParts != expectedParts)
+            Plugin.Log.Error($"Failed to patch {nameof(MyPhysics)}.StepWorldsParallel. {patchedParts} out of {expectedParts} code parts matched.");
+        else
+            Plugin.Log.Debug("Patch successful.");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
