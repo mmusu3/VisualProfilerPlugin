@@ -351,9 +351,24 @@ class ProfilerEventsGraphControl : Control
 
                 var extraString = stringBuilder3;
 
-                if (_event.ExtraValue is { } extraValue)
+                if (_event.ExtraValueType != ProfilerEvent.ExtraValueTypeOption.None)
                 {
-                    extraString.Append("Extra Value: ").AppendFormat("{0:n0}", extraValue);
+                    var formatString = _event.ExtraValueFormat ?? "Extra Value: {0:n0}";
+
+                    switch (_event.ExtraValueType)
+                    {
+                    case ProfilerEvent.ExtraValueTypeOption.Long:
+                        extraString.AppendFormat(formatString, _event.ExtraValue.LongValue);
+                        break;
+                    case ProfilerEvent.ExtraValueTypeOption.Double:
+                        extraString.AppendFormat(formatString, _event.ExtraValue.DoubleValue);
+                        break;
+                    case ProfilerEvent.ExtraValueTypeOption.Float:
+                        extraString.AppendFormat(formatString, _event.ExtraValue.FloatValue);
+                        break;
+                    default:
+                        break;
+                    }
 
                     float extraStringWidth = MeasureString(extraString.ToString(), fontFace, FontSize).X;
 

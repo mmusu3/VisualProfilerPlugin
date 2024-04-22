@@ -85,7 +85,9 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_UpdateBeforeSimulation(ref ProfilerTimer __local_timer, HashSet<MyEntity> __field_m_entitiesForUpdate)
     {
-        __local_timer = Profiler.Start("UpdateBeforeSimulation", __field_m_entitiesForUpdate.Count);
+        __local_timer = Profiler.Start("UpdateBeforeSimulation", profileMemory: true,
+            new(__field_m_entitiesForUpdate.Count, "Num entities: {0:n0}"));
+
         return true;
     }
 
@@ -99,7 +101,9 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateBeforeSimulation10(ref ProfilerTimer __local_timer,
         MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate10, MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate10Heavy)
     {
-        __local_timer = Profiler.Start("UpdateBeforeSimulation10", __field_m_entitiesForUpdate10.Count + __field_m_entitiesForUpdate10Heavy.Count);
+        __local_timer = Profiler.Start("UpdateBeforeSimulation10", profileMemory: true,
+            new(__field_m_entitiesForUpdate10.Count + __field_m_entitiesForUpdate10Heavy.Count, "Num entities: {0:n0}"));
+
         return true;
     }
 
@@ -113,7 +117,9 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateBeforeSimulation100(ref ProfilerTimer __local_timer,
         MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate100, MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate100Heavy)
     {
-        __local_timer = Profiler.Start("UpdateBeforeSimulation100", __field_m_entitiesForUpdate100.Count + __field_m_entitiesForUpdate100Heavy.Count);
+        __local_timer = Profiler.Start("UpdateBeforeSimulation100", profileMemory: true,
+            new(__field_m_entitiesForUpdate100.Count + __field_m_entitiesForUpdate100Heavy.Count, "Num entities: {0:n0}"));
+
         return true;
     }
 
@@ -157,7 +163,9 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateAfterSimulation(ref ProfilerTimer __local_timer,
         HashSet<MyEntity> __field_m_entitiesForUpdate, HashSet<MyEntity> __field_m_entitiesForUpdateAfter)
     {
-        __local_timer = Profiler.Start("UpdateAfterSimulation", __field_m_entitiesForUpdate.Count + __field_m_entitiesForUpdateAfter.Count);
+        __local_timer = Profiler.Start("UpdateAfterSimulation", profileMemory: true,
+            new(__field_m_entitiesForUpdate.Count + __field_m_entitiesForUpdateAfter.Count, "Num entities: {0:n0}"));
+
         return true;
     }
 
@@ -171,7 +179,9 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateAfterSimulation10(ref ProfilerTimer __local_timer,
         MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate10, MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate10Heavy)
     {
-        __local_timer = Profiler.Start("UpdateAfterSimulation10", __field_m_entitiesForUpdate10.Count + __field_m_entitiesForUpdate10Heavy.Count);
+        __local_timer = Profiler.Start("UpdateAfterSimulation10", profileMemory: true,
+            new(__field_m_entitiesForUpdate10.Count + __field_m_entitiesForUpdate10Heavy.Count, "Num entities: {0:n0}"));
+
         return true;
     }
 
@@ -185,7 +195,9 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateAfterSimulation100(ref ProfilerTimer __local_timer,
         MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate100, MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate100Heavy)
     {
-        __local_timer = Profiler.Start("UpdateAfterSimulation100", __field_m_entitiesForUpdate100.Count + __field_m_entitiesForUpdate100Heavy.Count);
+        __local_timer = Profiler.Start("UpdateAfterSimulation100", profileMemory: true,
+            new(__field_m_entitiesForUpdate100.Count + __field_m_entitiesForUpdate100Heavy.Count, "Num entities: {0:n0}"));
+
         return true;
     }
 
@@ -201,7 +213,9 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_PerformParallelUpdate(ref ProfilerTimer __local_timer,
         HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelFirst, HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelLast)
     {
-        __local_timer = Profiler.Start("PerformParallelUpdate", __field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count);
+        __local_timer = Profiler.Start("PerformParallelUpdate", profileMemory: true,
+            new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}"));
+
         return true;
     }
 

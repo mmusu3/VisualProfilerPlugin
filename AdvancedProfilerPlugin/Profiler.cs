@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace AdvancedProfiler;
@@ -17,6 +18,76 @@ public struct ProfilerEvent
         SinglePoint = 2
     }
 
+    public enum ExtraValueTypeOption
+    {
+        None = 0,
+        Long = 1,
+        Double = 2,
+        Float = 3
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    public struct ExtraValueUnion
+    {
+        [FieldOffset(0)]
+        public long LongValue;
+
+        [FieldOffset(0)]
+        public double DoubleValue;
+
+        [FieldOffset(0)]
+        public float FloatValue;
+
+        public ExtraValueUnion(long value)
+        {
+            LongValue = value;
+            Unsafe.SkipInit(out DoubleValue);
+            Unsafe.SkipInit(out FloatValue);
+        }
+
+        public ExtraValueUnion(double value)
+        {
+            Unsafe.SkipInit(out LongValue);
+            DoubleValue = value;
+            Unsafe.SkipInit(out FloatValue);
+        }
+
+        public ExtraValueUnion(float value)
+        {
+            Unsafe.SkipInit(out LongValue);
+            Unsafe.SkipInit(out DoubleValue);
+            FloatValue = value;
+        }
+    }
+
+    public struct ExtraData
+    {
+        public ExtraValueTypeOption Type;
+        public ExtraValueUnion Value;
+        public string? Format;
+
+        public ExtraData(long value, string? format = null)
+        {
+            Type = ExtraValueTypeOption.Long;
+            Value = new(value);
+            Format = format;
+        }
+
+        public ExtraData(double value, string? format = null)
+        {
+            Type = ExtraValueTypeOption.Double;
+            Value = new(value);
+            Format = format;
+        }
+
+        public ExtraData(float value, string? format = null)
+        {
+            Type = ExtraValueTypeOption.Float;
+            Value = new(value);
+            Format = format;
+        }
+    }
+
     public string Name;
     public long StartTime;
     public long EndTime;
@@ -24,7 +95,10 @@ public struct ProfilerEvent
     public long MemoryBefore;
     public long MemoryAfter;
     public int Depth;
-    public long? ExtraValue;
+    public ExtraValueTypeOption ExtraValueType;
+    public ExtraValueUnion ExtraValue;
+    public string? ExtraValueFormat;
+
     // TODO: Event chains for async task tracking
     // public int Next;
 
@@ -149,16 +223,6 @@ public sealed class ProfilerTimer : IDisposable
         return subTimers[timerIndex];
     }
 
-    public void Start(long extraValue)
-    {
-        Assert.NotNull(group);
-        Assert.False(group.activeTimer == this);
-
-        group.activeTimer = this;
-
-        StartInternal(extraValue);
-    }
-
     public void Start()
     {
         Assert.NotNull(group);
@@ -166,10 +230,16 @@ public sealed class ProfilerTimer : IDisposable
 
         group.activeTimer = this;
 
-        StartInternal();
+        StartInternal(default);
     }
 
-    internal void StartInternal(long? extraValue = null)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void StartInternal()
+    {
+        StartInternal(default);
+    }
+
+    internal void StartInternal(ProfilerEvent.ExtraData extraValueData)
     {
         if (isRunning)
         {
@@ -190,7 +260,9 @@ public sealed class ProfilerTimer : IDisposable
             _event = ref group.StartEvent(out eventIndex);
             _event.Name = Name;
             _event.Depth = Depth;
-            _event.ExtraValue = extraValue;
+            _event.ExtraValueType = extraValueData.Type;
+            _event.ExtraValue = extraValueData.Value;
+            _event.ExtraValueFormat = extraValueData.Format;
         }
         else
         {
@@ -618,11 +690,11 @@ public class ProfilerGroup
         return timer;
     }
 
-    public ProfilerTimer StartTimer(string name, long extraValue, bool profileMemory)
+    public ProfilerTimer StartTimer(string name, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
     {
         var timer = GetOrCreateTimer(name, profileMemory);
         activeTimer = timer;
-        timer.StartInternal(extraValue);
+        timer.StartInternal(extraValueData);
 
         return timer;
     }
@@ -782,21 +854,21 @@ public static class Profiler
         return group.activeTimer != null;
     }
 
-    public static ProfilerTimer Start(string name, long extraValue, bool profileMemory = true)
+    public static ProfilerTimer Start(int index, string name, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
     {
         Assert.NotNull(name, "Name must not be null");
 
         var group = GetOrCreateGroupForCurrentThread();
-        var timer = group.GetOrCreateTimer(name, profileMemory);
+        var timer = group.GetOrCreateTimer(index, name, profileMemory);
 
         group.activeTimer = timer;
 
-        timer.StartInternal(extraValue);
+        timer.StartInternal(extraValueData);
 
         return timer;
     }
 
-    public static ProfilerTimer Start([CallerMemberName] string name = null!, bool profileMemory = true)
+    public static ProfilerTimer Start(string name, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
     {
         Assert.NotNull(name, "Name must not be null");
 
@@ -805,7 +877,7 @@ public static class Profiler
 
         group.activeTimer = timer;
 
-        timer.StartInternal();
+        timer.StartInternal(extraValueData);
 
         return timer;
     }
@@ -830,6 +902,20 @@ public static class Profiler
 
         var group = GetOrCreateGroupForCurrentThread();
         var timer = group.GetOrCreateTimer(name, profileMemory: true);
+
+        group.activeTimer = timer;
+
+        timer.StartInternal();
+
+        return timer;
+    }
+
+    public static ProfilerTimer Start([CallerMemberName] string name = null!, bool profileMemory = true)
+    {
+        Assert.NotNull(name, "Name must not be null");
+
+        var group = GetOrCreateGroupForCurrentThread();
+        var timer = group.GetOrCreateTimer(name, profileMemory);
 
         group.activeTimer = timer;
 
@@ -1105,13 +1191,17 @@ public static class Profiler
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void AddEvent(string name, long extraValue)
+    public static void AddEvent(string name, ProfilerEvent.ExtraData extraValueData)
     {
         if (!isRecordingEvents)
             return;
 
         // Allows better inlining of AddEvent
-        AddEventInternal(name).ExtraValue = extraValue;
+        ref var _event = ref AddEventInternal(name);
+
+        _event.ExtraValueType = extraValueData.Type;
+        _event.ExtraValue = extraValueData.Value;
+        _event.ExtraValueFormat = extraValueData.Format;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
