@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Havok;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Cube;
 using Sandbox.Game.World;
 using VRage.Game;
 using VRageMath;
@@ -41,6 +42,19 @@ static class ProfilerHelper
                 }
 
                 cache[grid] = _event.ExtraObject = new CubeGridInfoProxy(grid);
+            }
+            break;
+        case MyCubeBlock block:
+            {
+                _event.ExtraValueFormat = "{0}";
+
+                if (cache.TryGetValue(block, out var cachedObj))
+                {
+                    _event.ExtraObject = (CubeBlockInfoProxy)cachedObj;
+                    break;
+                }
+
+                cache[block] = _event.ExtraObject = new CubeBlockInfoProxy(block);
             }
             break;
         default:
@@ -91,9 +105,11 @@ class CubeGridInfoProxy
 {
     public long EntityId;
     public MyCubeSize GridSize;
+    public string CustomName;
     public long OwnerId;
     public string? OwnerName;
     public int BlockCount;
+    public Vector3D Position;
 
     public CubeGridInfoProxy(MyCubeGrid grid)
     {
@@ -107,20 +123,66 @@ class CubeGridInfoProxy
 
         EntityId = grid.EntityId;
         GridSize = grid.GridSizeEnum;
+        CustomName = grid.DisplayName;
         OwnerId = ownerId;
         OwnerName = ownerIdentity?.DisplayName;
         BlockCount = grid.BlocksCount;
+        Position = grid.PositionComp.GetPosition();
     }
 
     public override string ToString()
     {
-        var ownerNamePart = OwnerName != null ? $"{Environment.NewLine}   OwnerName: {OwnerName}" : null;
+        var idPart = OwnerName != null ? $", Id: " : null;
 
         return $"""
                 {GridSize} Grid
                    EntityId: {EntityId}
-                   OwnerId: {OwnerId}{ownerNamePart}
+                   CustomName: {CustomName}
+                   Owner: {OwnerName}{idPart}{OwnerId}
                    Blocks: {BlockCount}
+                   Position: {Vector3D.Round(Position)}
+                """;
+    }
+}
+
+class CubeBlockInfoProxy
+{
+    public long EntityId;
+    public MyCubeSize GridSize;
+    public string? CustomName;
+    public long OwnerId;
+    public string? OwnerName;
+    public Type BlockType;
+    public Vector3D Position;
+
+    public CubeBlockInfoProxy(MyCubeBlock block)
+    {
+        long ownerId = block.OwnerId;
+        var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
+        //var ownerFaction = MySession.Static.Factions.GetPlayerFaction(ownerId);
+
+        var grid = block.CubeGrid;
+
+        EntityId = block.EntityId;
+        GridSize = grid.GridSizeEnum;
+        CustomName = (block as MyTerminalBlock)?.CustomName.ToString();
+        OwnerId = ownerId;
+        OwnerName = ownerIdentity?.DisplayName;
+        BlockType = block.GetType();
+        Position = block.PositionComp.GetPosition();
+    }
+
+    public override string ToString()
+    {
+        var idPart = OwnerName != null ? $", Id: " : null;
+
+        return $"""
+                {GridSize} Block
+                   EntityId: {EntityId}
+                   CustomName: {CustomName}
+                   Owner: {OwnerName}{idPart}{OwnerId}
+                   Type: {BlockType.Name}
+                   Position: {Vector3D.Round(Position, 1)}
                 """;
     }
 }
