@@ -47,6 +47,10 @@
       <HintPath>$(DedicatedServer64)\VRage.Library.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="VRage.Math">
+      <HintPath>$(DedicatedServer64)\VRage.Math.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="VRage">
       <HintPath>$(DedicatedServer64)\VRage.dll</HintPath>
       <Private>false</Private>

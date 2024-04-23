@@ -8,6 +8,7 @@ using Havok;
 using Sandbox.Engine.Physics;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using VRageMath.Spatial;
 
 namespace AdvancedProfiler.Patches;
 
@@ -106,10 +107,12 @@ static class MyPhysics_Patches
         // TODO: May add too much overhead
         HkTaskProfiler.HookJobQueue(m_jobQueue);
 
+        Profiler.SetSortingGroupOrderPriority("Havok", 50);
+
         m_threadPool.RunOnEachWorker(delegate
         {
             int thisThreadIndex = m_threadPool.GetThisThreadIndex();
-            ProfilerHelper.InitThread(500 + thisThreadIndex, simulation: false);
+            Profiler.SetSortingGroupForCurrentThread("Havok", thisThreadIndex);
         });
     }
 
@@ -196,8 +199,7 @@ static class MyPhysics_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_StepSingleWorld(ref ProfilerTimer __local_timer, HkWorld world)
     {
-        // TODO: Record world info
-        __local_timer = Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(world.ActiveRigidBodies.Count, "ActiveRigidBodies:{0:n0}"));
+        __local_timer = Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(world));
         return true;
     }
 
@@ -218,11 +220,9 @@ static class MyPhysics_Patches
         var profilerStartMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)]);
         var profilerStartMethod3 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
         var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
-        var profilerEventExtraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
+        var profilerEventExtraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null);
 
         var executePendingCriticalOperationsMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.ExecutePendingCriticalOperations));
-        var activeRigidBodiesGetter = typeof(HkWorld).GetProperty(nameof(HkWorld.ActiveRigidBodies), BindingFlags.Instance | BindingFlags.Public)!.GetMethod;
-        var hashSetReaderCountGetter = typeof(VRage.Collections.HashSetReader<HkRigidBody>).GetProperty(nameof(VRage.Collections.HashSetReader<HkRigidBody>.Count), BindingFlags.Instance | BindingFlags.Public)!.GetMethod;
         var initMTStepMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.InitMtStep));
         var waitPolicySetter = typeof(HkJobQueue).GetProperty(nameof(HkJobQueue.WaitPolicy), BindingFlags.Instance | BindingFlags.Public)?.SetMethod;
         var processAllJobsMethod = typeof(HkJobQueue).GetPublicInstanceMethod(nameof(HkJobQueue.ProcessAllJobs));
@@ -250,26 +250,19 @@ static class MyPhysics_Patches
                 {
                     if (nextIns.Operand is MsilOperandInline<MethodBase> call && call.Value == executePendingCriticalOperationsMethod)
                     {
-                        var hkWorldLocal = __methodBody.LocalVariables.ElementAtOrDefault(5);
+                        var clusterLocal = __methodBody.LocalVariables.ElementAtOrDefault(4);
 
-                        if (hkWorldLocal == null || hkWorldLocal.LocalType != typeof(HkWorld))
+                        if (clusterLocal == null || clusterLocal.LocalType != typeof(MyClusterTree.MyCluster))
                         {
-                            Plugin.Log.Error($"Failed to patch {nameof(MyPhysics)}.StepWorldsParallel. Failed to find HKWorld local variable.");
+                            Plugin.Log.Error($"Failed to patch {nameof(MyPhysics)}.StepWorldsParallel. Failed to find cluster local variable.");
                         }
                         else
                         {
-                            var hashSetReaderLocal = __localCreator(typeof(VRage.Collections.HashSetReader<HkRigidBody>));
-
                             yield return new MsilInstruction(OpCodes.Ldc_I4_0); // Block 0
                             yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Init HKWorld update");
                             yield return new MsilInstruction(OpCodes.Ldc_I4_0); // profileMemory: false
-                            yield return new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(hkWorldLocal.LocalIndex));
-                            yield return new MsilInstruction(OpCodes.Call).InlineValue(activeRigidBodiesGetter);
-                            yield return hashSetReaderLocal.AsValueStore();
-                            yield return hashSetReaderLocal.AsReferenceLoad();
-                            yield return new MsilInstruction(OpCodes.Call).InlineValue(hashSetReaderCountGetter);
-                            yield return new MsilInstruction(OpCodes.Conv_I8);
-                            yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("ActiveRigidBodies: {0:n0}");
+                            yield return new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex));
+                            yield return new MsilInstruction(OpCodes.Ldnull);
                             yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor);
                             yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3);
                             yield return timerLocal2.AsValueStore();
@@ -353,7 +346,7 @@ static class MyPhysics_Patches
         yield return new MsilInstruction(OpCodes.Ret);
 
         if (patchedParts != expectedParts)
-            Plugin.Log.Error($"Failed to patch {nameof(MyPhysics)}.StepWorldsParallel. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Fatal($"Failed to patch {nameof(MyPhysics)}.StepWorldsParallel. {patchedParts} out of {expectedParts} code parts matched.");
         else
             Plugin.Log.Debug("Patch successful.");
     }

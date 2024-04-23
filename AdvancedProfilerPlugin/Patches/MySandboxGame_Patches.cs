@@ -39,6 +39,7 @@ static class MySandboxGame_Patches
     static bool Prefix_Run()
     {
         Profiler.SetSortingGroupForCurrentThread("Main");
+        Profiler.SetSortingGroupOrderPriority("Main", 100);
         return true;
     }
 

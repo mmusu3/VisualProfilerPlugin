@@ -28,7 +28,11 @@ static class Worker_WorkerLoop_Patch
 
     static bool Prefix(Thread __field_m_thread, int __field_m_workerIndex)
     {
-        ProfilerHelper.InitThread(200 + 100 * (2 - (int)__field_m_thread.Priority / 2) + __field_m_workerIndex, __field_m_thread.Priority != ThreadPriority.Highest);
+        var threadPriority = __field_m_thread.Priority;
+        var groupName = "Parallel_" + threadPriority;
+
+        Profiler.SetSortingGroupForCurrentThread(groupName, __field_m_workerIndex);
+        Profiler.SetSortingGroupOrderPriority(groupName, 20 + (int)threadPriority);
 
         return true;
     }

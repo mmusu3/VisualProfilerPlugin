@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Sandbox.Engine.Networking;
 using Torch.Managers.PatchManager;
 
@@ -19,10 +20,9 @@ static class MyNetworkWriter_SendAll_Patch
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_SendAll(ref ProfilerTimer __local_timer)
+    static bool Prefix_SendAll(ref ProfilerTimer __local_timer, ConcurrentQueue<MyNetworkWriter.MyPacketDescriptor> __field_m_packetsToSend)
     {
-        // TODO: Need to add packet count data to profiler events
-        __local_timer = Profiler.Start("MyNetworkWriter.SendAll");
+        __local_timer = Profiler.Start("MyNetworkWriter.SendAll", profileMemory: true, new(__field_m_packetsToSend.Count, "Packets to send: {0}"));
         return true;
     }
 

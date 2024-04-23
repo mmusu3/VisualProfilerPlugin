@@ -56,7 +56,7 @@ static class Game_Patches
         var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [ typeof(int), typeof(string) ]);
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
         var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
-        var endMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.EndFrameForCurrentThread));
+        var endMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(EndFrame));
 
         var rpBeforeUpdateMethod = typeof(MyRenderProxy).GetPublicStaticMethod(nameof(MyRenderProxy.BeforeUpdate));
         var afterDrawMethod = typeof(Game).GetNonPublicInstanceMethod("AfterDraw");
@@ -134,8 +134,24 @@ static class Game_Patches
         yield return new MsilInstruction(OpCodes.Ret);
 
         if (patchedParts != expectedParts)
-            Plugin.Log.Error($"Failed to patch {nameof(Game)}.UpdateInternal. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Fatal($"Failed to patch {nameof(Game)}.UpdateInternal. {patchedParts} out of {expectedParts} code parts matched.");
         else
             Plugin.Log.Debug("Patch successful.");
+    }
+
+    static readonly List<ProfilerGroup> profilerGroupsList = [];
+
+    static void EndFrame()
+    {
+        Profiler.EndFrameForCurrentThread(ProfilerHelper.ProfilerEventObjectResolver);
+        Profiler.GetProfilerGroups(profilerGroupsList);
+
+        foreach (var item in profilerGroupsList)
+        {
+            if (item.SortingGroup == "Havok")
+                item.EndFrame(ProfilerHelper.ProfilerEventObjectResolver);
+        }
+
+        profilerGroupsList.Clear();
     }
 }

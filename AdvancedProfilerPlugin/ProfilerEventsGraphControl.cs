@@ -224,7 +224,7 @@ class ProfilerEventsGraphControl : Control
             if (lineInterval < 1)
             {
                 unitScale = 1000;
-                unit = "us";
+                unit = "µs";
             }
 
             var sb = stringBuilder;
@@ -328,7 +328,7 @@ class ProfilerEventsGraphControl : Control
 
                 if (!_event.IsSinglePoint)
                 {
-                    timeString.AppendFormat("{0:n1}", _event.ElapsedTime.TotalMilliseconds * 1000).Append("us");
+                    timeString.AppendFormat("{0:n1}", _event.ElapsedTime.TotalMilliseconds * 1000).Append("µs");
 
                     float timeStringWidth = MeasureString(timeString.ToString(), fontFace, FontSize).X;
 
@@ -357,6 +357,9 @@ class ProfilerEventsGraphControl : Control
 
                     switch (_event.ExtraValueType)
                     {
+                    case ProfilerEvent.ExtraValueTypeOption.Object:
+                        extraString.AppendFormat(formatString, _event.ExtraObject);
+                        break;
                     case ProfilerEvent.ExtraValueTypeOption.Long:
                         extraString.AppendFormat(formatString, _event.ExtraValue.LongValue);
                         break;
@@ -370,10 +373,10 @@ class ProfilerEventsGraphControl : Control
                         break;
                     }
 
-                    float extraStringWidth = MeasureString(extraString.ToString(), fontFace, FontSize).X;
+                    var extraStringSize = MeasureString(extraString.ToString(), fontFace, FontSize);
 
-                    tooltipArea.Width = Math.Max(tooltipArea.Width, extraStringWidth);
-                    tooltipArea.Height += barHeight;
+                    tooltipArea.Width = Math.Max(tooltipArea.Width, extraStringSize.X);
+                    tooltipArea.Height += barHeight + extraStringSize.Y;
                 }
 
                 tooltipArea.Width += 12;
@@ -405,7 +408,7 @@ class ProfilerEventsGraphControl : Control
 
                 if (extraString.Length != 0)
                 {
-                    tooltipArea.Y += barHeight;
+                    tooltipArea.Y += barHeight * 2;
                     DrawText(drawCtx, extraString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
                     extraString.Clear();
                 }
