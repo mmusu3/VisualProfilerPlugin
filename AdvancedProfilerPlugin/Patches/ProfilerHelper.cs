@@ -54,7 +54,12 @@ static class ProfilerHelper
                     break;
                 }
 
-                cache[block] = _event.ExtraObject = new CubeBlockInfoProxy(block);
+                var grid = block.CubeGrid;
+
+                if (!cache.TryGetValue(grid, out cachedObj) || cachedObj is not CubeGridInfoProxy cachedGridProxy)
+                    cache[grid] = cachedGridProxy = new CubeGridInfoProxy(grid);
+
+                cache[block] = _event.ExtraObject = new CubeBlockInfoProxy(block, cachedGridProxy);
             }
             break;
         default:
@@ -140,7 +145,7 @@ class CubeGridInfoProxy
                    CustomName: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Blocks: {BlockCount}
-                   Position: {Vector3D.Round(Position)}
+                   Position: {Vector3D.Round(Position, 0)}
                 """;
     }
 }
@@ -148,23 +153,21 @@ class CubeGridInfoProxy
 class CubeBlockInfoProxy
 {
     public long EntityId;
-    public MyCubeSize GridSize;
+    public CubeGridInfoProxy Grid;
     public string? CustomName;
     public long OwnerId;
     public string? OwnerName;
     public Type BlockType;
     public Vector3D Position;
 
-    public CubeBlockInfoProxy(MyCubeBlock block)
+    public CubeBlockInfoProxy(MyCubeBlock block, CubeGridInfoProxy gridInfo)
     {
         long ownerId = block.OwnerId;
         var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
         //var ownerFaction = MySession.Static.Factions.GetPlayerFaction(ownerId);
 
-        var grid = block.CubeGrid;
-
         EntityId = block.EntityId;
-        GridSize = grid.GridSizeEnum;
+        Grid = gridInfo;
         CustomName = (block as MyTerminalBlock)?.CustomName.ToString();
         OwnerId = ownerId;
         OwnerName = ownerIdentity?.DisplayName;
@@ -177,12 +180,13 @@ class CubeBlockInfoProxy
         var idPart = OwnerName != null ? $", Id: " : null;
 
         return $"""
-                {GridSize} Block
+                Block
                    EntityId: {EntityId}
                    CustomName: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Type: {BlockType.Name}
                    Position: {Vector3D.Round(Position, 1)}
+                {Grid}
                 """;
     }
 }
