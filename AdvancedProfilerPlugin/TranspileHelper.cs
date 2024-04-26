@@ -19,6 +19,16 @@ static class TranspileHelper
         return instruction;
     }
 
+    public static MsilInstruction SwapLabels(this MsilInstruction instruction, MsilInstruction sourceInstruction)
+    {
+        foreach (var label in sourceInstruction.Labels)
+            instruction.Labels.Add(label);
+
+        sourceInstruction.Labels.Clear();
+
+        return instruction;
+    }
+
     public static MsilInstruction SwapLabelsAndTryCatchOperations(this MsilInstruction instruction, MsilInstruction sourceInstruction)
     {
         foreach (var label in sourceInstruction.Labels)
