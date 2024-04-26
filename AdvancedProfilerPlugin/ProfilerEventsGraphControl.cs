@@ -494,7 +494,9 @@ class ProfilerEventsGraphControl : Control
                 }
 
                 var hsv = colorHSV;
+                // TODO: Fix double size dark band
                 hsv.Z *= (float)Math.Pow(1 - 2 * Math.Abs(_event.Depth / 25f - Math.Floor(_event.Depth / 25f + 0.5f)), 2); // pow2 triangle wave, period 25
+                hsv.Z = (float)Math.Sqrt(hsv.Z);
 
                 var rgb = HSVtoRGB(hsv);
                 SolidColorBrush? barBrush = null;
@@ -559,7 +561,7 @@ class ProfilerEventsGraphControl : Control
                         new Point(area.Left + 1, area.Bottom)
                     };
 
-                    drawCtx.DrawGeometry(eventBrush, null, new PathGeometry([ new PathFigure(area.TopLeft, [ new PolyLineSegment(polyPoints, isStroked: false) ], closed: true) ]));
+                    drawCtx.DrawGeometry(eventBrush, null, new PathGeometry([new PathFigure(area.TopLeft, [new PolyLineSegment(polyPoints, isStroked: false)], closed: true)]));
                 }
                 else
                 {
@@ -612,7 +614,9 @@ class ProfilerEventsGraphControl : Control
                 var miniArea = new RectangleF(minif.StartX, y + depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
 
                 var hsv = colorHSV;
+                // TODO: Fix double size dark band
                 hsv.Z *= (float)Math.Pow(1 - 2 * Math.Abs(depth / 25f - Math.Floor(depth / 25f + 0.5f)), 2); // pow2 triangle wave, period 25
+                hsv.Z = (float)Math.Sqrt(hsv.Z);
 
                 var rgb = HSVtoRGB(hsv);
                 var barBrush = GetBrushForColor(rgb);
