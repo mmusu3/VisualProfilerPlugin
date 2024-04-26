@@ -779,19 +779,22 @@ public class ProfilerGroup
         foreach (var item in rootTimers)
             item?.EndFrame();
 
-        if (currentEventIndex == startEventIndexForFrame)
+        int startIndex = startEventIndexForFrame;
+        int endIndex = currentEventIndex;
+
+        if (endIndex == startIndex)
             return;
 
         if (eventObjectResolver != null)
         {
-            int startSegmentIndex = (startEventIndexForFrame - 1) / EventBufferSegmentSize;
-            int endSegmentIndex = (currentEventIndex - 1) / EventBufferSegmentSize + 1;
+            int startSegmentIndex = (startIndex - 1) / EventBufferSegmentSize;
+            int endSegmentIndex = (endIndex - 1) / EventBufferSegmentSize + 1;
 
             for (int i = startSegmentIndex; i < endSegmentIndex; i++)
             {
                 var segment = Events[i];
-                int startEventIndex = startEventIndexForFrame - i * EventBufferSegmentSize;
-                int endEventIndex = Math.Min(segment.Length, currentEventIndex - i * EventBufferSegmentSize);
+                int startEventIndex = Math.Max(0, startIndex - i * EventBufferSegmentSize);
+                int endEventIndex = Math.Min(segment.Length, endIndex - i * EventBufferSegmentSize);
 
                 for (int j = startEventIndex; j < endEventIndex; j++)
                 {
@@ -803,7 +806,7 @@ public class ProfilerGroup
             }
         }
 
-        startEventIndexForFrame = currentEventIndex;
+        startEventIndexForFrame = endIndex;
     }
 
     public void ClearTimers()
@@ -825,7 +828,7 @@ public class ProfilerGroup
         }
     }
 
-    public const int EventBufferSegmentSize = 1024 * 16;
+    public const int EventBufferSegmentSize = 1024 * 4;
     public List<ProfilerEvent[]> Events = [];
 
     public int CurrentEventIndex => currentEventIndex;
