@@ -216,12 +216,16 @@ static class MyPhysics_Patches
         const int expectedParts = 7;
         int patchedParts = 0;
 
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)]);
+        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
         var profilerStartMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)]);
         var profilerStartMethod3 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
         var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
-        var profilerEventExtraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null);
+        var profilerEventExtraDataCtor1 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
+        var profilerEventExtraDataCtor2 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null);
 
+        var clustersField = typeof(MyPhysics).GetField(nameof(MyPhysics.Clusters));
+        var clustersField2 = typeof(MyClusterTree).GetField("m_clusters", BindingFlags.Instance | BindingFlags.NonPublic);
+        var listCountGetter = typeof(List<MyClusterTree.MyCluster>).GetProperty(nameof(List<MyClusterTree.MyCluster>.Count), BindingFlags.Instance | BindingFlags.Public)!.GetMethod;
         var executePendingCriticalOperationsMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.ExecutePendingCriticalOperations));
         var initMTStepMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.InitMtStep));
         var waitPolicySetter = typeof(HkJobQueue).GetProperty(nameof(HkJobQueue.WaitPolicy), BindingFlags.Instance | BindingFlags.Public)?.SetMethod;
@@ -234,6 +238,13 @@ static class MyPhysics_Patches
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
         yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("StepWorldsParallel");
+        yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profileMemory: true
+        yield return new MsilInstruction(OpCodes.Ldsfld).InlineValue(clustersField);
+        yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(clustersField2);
+        yield return new MsilInstruction(OpCodes.Call).InlineValue(listCountGetter);
+        yield return new MsilInstruction(OpCodes.Conv_I8);
+        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Clusters: {0}");
+        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor1);
         yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod);
         yield return timerLocal1.AsValueStore();
 
@@ -263,7 +274,7 @@ static class MyPhysics_Patches
                             yield return new MsilInstruction(OpCodes.Ldc_I4_0); // profileMemory: false
                             yield return new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex));
                             yield return new MsilInstruction(OpCodes.Ldnull);
-                            yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor);
+                            yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor2);
                             yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3);
                             yield return timerLocal2.AsValueStore();
                             patchedParts++;
