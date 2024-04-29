@@ -8,6 +8,7 @@
     <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
     <AssemblyName>AdvancedProfiler</AssemblyName>
     <RootNamespace>AdvancedProfiler</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

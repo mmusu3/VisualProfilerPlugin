@@ -70,6 +70,10 @@ static class MySandboxGame_Patches
             Plugin.Log.Error($"Failed to patch {nameof(MySandboxGame)}.LoadData.");
     }
 
+    static string[] taskNames = null!;
+    static Delegate taskStartedFuncCpp = null!;
+    static HkTaskProfiler.TaskFinishedFunc taskFinishedFuncCpp = null!;
+
     static void InitHavokProfiling()
     {
         var taskNames = new string[HkTaskType.HK_JOB_TYPE_OTHER + 1 - HkTaskType.Schedule];
@@ -77,16 +81,22 @@ static class MySandboxGame_Patches
         for (int i = (int)HkTaskType.Schedule; i <= (int)HkTaskType.HK_JOB_TYPE_OTHER; i++)
             taskNames[i - (int)HkTaskType.Schedule] = ((MyProfiler.TaskType)i).ToString();
 
-        // TODO: Replace impl of HkTaskProfiler.TaskStarted() to avoid ConcDict lookup since char* name is always empty.
-        HkTaskProfiler.Init(OnTaskStarted, Profiler.Stop);
+        MySandboxGame_Patches.taskNames = taskNames;
 
-        void OnTaskStarted(string name, HkTaskType type)
-        {
-            int index = type - HkTaskType.Schedule;
-            var taskName = index < taskNames.Length ? taskNames[index] : "UnknownTask";
+        var cppDelegateType = typeof(HkTaskProfiler).GetNestedType("TaskStartedFuncCpp", BindingFlags.NonPublic)!;
 
-            Profiler.Start(type - HkTaskType.Schedule, taskName);
-        }
+        taskStartedFuncCpp = Delegate.CreateDelegate(cppDelegateType, typeof(MySandboxGame_Patches).GetNonPublicStaticMethod(nameof(TaskStarted)));
+        taskFinishedFuncCpp = Profiler.Stop;
+
+        typeof(HkTaskProfiler).GetNonPublicStaticMethod("HkTaskProfiler_Init").Invoke(null, [taskStartedFuncCpp, taskFinishedFuncCpp]);
+    }
+
+    static unsafe void TaskStarted(char* _, HkTaskType type)
+    {
+        int index = type - HkTaskType.Schedule;
+        var taskName = (uint)index < (uint)taskNames.Length ? taskNames[index] : "UnknownTask";
+
+        Profiler.Start(type - HkTaskType.Schedule, taskName);
     }
 
     static IEnumerable<MsilInstruction> Transpile_ProcessInvoke(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
