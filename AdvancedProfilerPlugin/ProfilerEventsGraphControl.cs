@@ -475,8 +475,11 @@ class ProfilerEventsGraphControl : Control
 
                 if (minifiedDrawStack.Length <= _event.Depth)
                 {
-                    Array.Resize(ref minifiedDrawStack, minifiedDrawStack.Length + 1);
-                    minifiedDrawStack[^1] = (-1, 0);
+                    int oldSize = minifiedDrawStack.Length;
+                    Array.Resize(ref minifiedDrawStack, _event.Depth + 1);
+
+                    for (int k = oldSize; k <= _event.Depth; k++)
+                        minifiedDrawStack[k] = (-1, 0);
                 }
 
                 float startX = (float)(ProfilerTimer.MillisecondsFromTicks(_event.StartTime - startTicks + shiftX) * zoom);
