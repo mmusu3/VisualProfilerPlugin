@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Sandbox;
 using Sandbox.Engine.Multiplayer;
 using Sandbox.Game.World;
@@ -12,10 +13,81 @@ static class MySession_Patches
 {
     public static void Patch(PatchContext ctx)
     {
-        var source = typeof(MySession).GetPublicInstanceMethod(nameof(MySession.UpdateComponents));
-        var prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_UpdateComponents));
+        var source = typeof(MySession).GetPublicInstanceMethod(nameof(MySession.GetCheckpoint));
+        var prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_GetCheckpoint));
+        var suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix_GetCheckpoint));
+
+        var pattern = ctx.GetPattern(source);
+        pattern.Prefixes.Add(prefix);
+        pattern.Suffixes.Add(suffix);
+
+        source = typeof(MySession).GetPublicInstanceMethod(nameof(MySession.GetSector));
+        prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_GetSector));
+        suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix_GetSector));
+
+        pattern = ctx.GetPattern(source);
+        pattern.Prefixes.Add(prefix);
+        pattern.Suffixes.Add(suffix);
+
+        source = typeof(MySession).GetPublicInstanceMethod(nameof(MySession.SaveDataComponents));
+        prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_SaveDataComponents));
+        suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix_SaveDataComponents));
+
+        pattern = ctx.GetPattern(source);
+        pattern.Prefixes.Add(prefix);
+        pattern.Suffixes.Add(suffix);
+
+        source = typeof(MySession).GetPublicInstanceMethod(nameof(MySession.UpdateComponents));
+        prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_UpdateComponents));
 
         ctx.GetPattern(source).Prefixes.Add(prefix);
+
+        source = typeof(MySession).GetPublicStaticMethod(nameof(MySession.SendVicinityInformation));
+        prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_SendVicinityInformation));
+        suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix_SendVicinityInformation));
+
+        pattern = ctx.GetPattern(source);
+        pattern.Prefixes.Add(prefix);
+        pattern.Suffixes.Add(suffix);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_GetCheckpoint(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MySession.GetCheckpoint");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_GetCheckpoint(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_GetSector(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MySession.GetSector");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_GetSector(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_SaveDataComponents(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MySession.SaveDataComponents");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_SaveDataComponents(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
     }
 
     //static IEnumerable<MsilInstruction> Transpile_UpdateComponents(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
@@ -134,5 +206,18 @@ static class MySession_Patches
         Profiler.Stop();
 
         return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_SendVicinityInformation(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MySession.SendVicinityInformation");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_SendVicinityInformation(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
     }
 }
