@@ -41,8 +41,6 @@ static class MyReplicationServer_Patches
         pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
-
-        // TODO: Patch OnEvent and use callSite info
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

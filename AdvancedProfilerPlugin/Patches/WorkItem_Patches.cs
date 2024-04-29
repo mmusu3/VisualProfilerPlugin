@@ -87,8 +87,6 @@ static class WorkItem_Patches
     [MethodImpl(MethodImplOptions.NoInlining)]
     static string GetTaskName(WorkItem workItem, WorkOptions options)
     {
-        // TODO: Patch PrioritizedScheduler.ScheduleOnEachWorker to append action method name to WorkOptions
-
         if (workItem.Work is AbstractWork absWork)
             options = absWork.Options = options;
 
