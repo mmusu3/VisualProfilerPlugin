@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using ParallelTasks;
 using Sandbox.Game.Entities;
 using Torch.Managers.PatchManager;
 using VRage.Collections;
@@ -23,8 +25,13 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         PatchPrefixSuffixPair(ctx, "UpdateAfterSimulation", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "UpdateAfterSimulation10", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "UpdateAfterSimulation100", _public: false, _static: false);
-        PatchPrefixSuffixPair(ctx, "PerformParallelUpdate", _public: false, _static: false);
+        //PatchPrefixSuffixPair(ctx, "PerformParallelUpdate", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater), _public: true, _static: false);
+
+        var source = typeof(MyParallelEntityUpdateOrchestrator).GetNonPublicInstanceMethod("PerformParallelUpdate");
+        var prefix = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod("Prefix_PerformParallelUpdate");
+
+        ctx.GetPattern(source).Prefixes.Add(prefix);
     }
 
     static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
@@ -209,20 +216,46 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
     #endregion
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_PerformParallelUpdate(ref ProfilerTimer __local_timer,
+    //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+    //static bool Prefix_PerformParallelUpdate(ref ProfilerTimer __local_timer,
+    //    HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelFirst, HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelLast)
+    //{
+    //    __local_timer = Profiler.Start("PerformParallelUpdate", profileMemory: true,
+    //        new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}"));
+
+    //    return true;
+    //}
+
+    //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+    //static void Suffix_PerformParallelUpdate(ref ProfilerTimer __local_timer)
+    //{
+    //    __local_timer.Stop();
+    //}
+
+    // There is some weird issue with using prefix + suffix that causes a long pause at
+    // the end of the function so this is used instead as a workaround.
+    //
+    static bool Prefix_PerformParallelUpdate(Action<IMyParallelUpdateable> updateFunction, IEnumerable<IMyParallelUpdateable> __field_m_helper,
         HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelFirst, HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelLast)
     {
-        __local_timer = Profiler.Start("PerformParallelUpdate", profileMemory: true,
-            new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}"));
+        using (Havok.HkAccessControl.PushState(Havok.HkAccessControl.AccessState.SharedRead))
 
-        return true;
-    }
+        using (Profiler.Start("PerformParallelUpdate", profileMemory: true,
+            new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}")))
+        {
+            if (MyParallelEntityUpdateOrchestrator.ForceSerialUpdate)
+            {
+                foreach (IMyParallelUpdateable item in __field_m_helper)
+                    updateFunction(item);
+            }
+            else
+            {
+                using (MyEntities.StartAsyncUpdateBlock())
+                    Parallel.ForEach(__field_m_helper, updateFunction, MyParallelEntityUpdateOrchestrator.WorkerPriority, blocking: true);
+            }
+        }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_PerformParallelUpdate(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
