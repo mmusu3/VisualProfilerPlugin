@@ -2,9 +2,12 @@
 using System.Collections.Generic;
 using Havok;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Entities.Cube;
+using Sandbox.Game.Replication;
 using Sandbox.Game.World;
 using VRage.Game;
+using VRage.Network;
 using VRageMath;
 using VRageMath.Spatial;
 
@@ -62,6 +65,109 @@ static class ProfilerHelper
                 cache[block] = _event.ExtraObject = new CubeBlockInfoProxy(block, cachedGridProxy);
             }
             break;
+        case MyExternalReplicable<MyCharacter> charRepl:
+            {
+                _event.ExtraValueFormat = "{0}";
+
+                var character = charRepl.Instance;
+
+                if (character != null)
+                {
+                    if (cache.TryGetValue(character, out var cachedObj))
+                    {
+                        _event.ExtraObject = (CharacterInfoProxy)cachedObj;
+                        break;
+                    }
+
+                    cache[character] = _event.ExtraObject = new CharacterInfoProxy(character);
+                }
+                else
+                {
+                    _event.ExtraObject = null;
+                    _event.ExtraValueFormat = "Empty character replicable{0}";
+                }
+            }
+            break;
+        case MyExternalReplicable<MyCubeGrid> gridRepl:
+            {
+                _event.ExtraValueFormat = "{0}";
+
+                var grid = gridRepl.Instance;
+
+                if (grid != null)
+                {
+                    if (cache.TryGetValue(grid, out var cachedObj))
+                    {
+                        _event.ExtraObject = (CubeGridInfoProxy)cachedObj;
+                        break;
+                    }
+
+                    cache[grid] = _event.ExtraObject = new CubeGridInfoProxy(grid);
+                }
+                else
+                {
+                    _event.ExtraObject = null;
+                    _event.ExtraValueFormat = "Empty cube grid replicable{0}";
+                }
+            }
+            break;
+        case MyExternalReplicable<MySyncedBlock> blockRepl:
+            {
+                _event.ExtraValueFormat = "{0}";
+
+                var block = blockRepl.Instance;
+
+                if (block != null)
+                {
+                    if (cache.TryGetValue(block, out var cachedObj))
+                    {
+                        _event.ExtraObject = (CubeBlockInfoProxy)cachedObj;
+                        break;
+                    }
+
+                    var grid = block.CubeGrid;
+
+                    if (!cache.TryGetValue(grid, out cachedObj) || cachedObj is not CubeGridInfoProxy cachedGridProxy)
+                        cache[grid] = cachedGridProxy = new CubeGridInfoProxy(grid);
+
+                    cache[block] = _event.ExtraObject = new CubeBlockInfoProxy(block, cachedGridProxy);
+                }
+                else
+                {
+                    _event.ExtraObject = null;
+                    _event.ExtraValueFormat = "Empty cube block replicable{0}";
+                }
+            }
+            break;
+        case MyExternalReplicable<MyVoxelBase> voxelRepl:
+            {
+                _event.ExtraValueFormat = "{0}";
+
+                var voxel = voxelRepl.Instance;
+
+                if (voxel != null)
+                {
+                    if (cache.TryGetValue(voxel, out var cachedObj))
+                    {
+                        _event.ExtraObject = (VoxelInfoProxy)cachedObj;
+                        break;
+                    }
+
+                    cache[voxel] = _event.ExtraObject = new VoxelInfoProxy(voxel);
+                }
+                else
+                {
+                    _event.ExtraObject = null;
+                    _event.ExtraObject = "Empty voxel replicable{0}";
+                }
+            }
+            break;
+        case IMyReplicable replicable:
+            {
+                _event.ExtraObject = null;
+                _event.ExtraValueFormat = replicable.GetType().Name;
+            }
+            break;
         default:
             break;
         }
@@ -98,8 +204,8 @@ class PhysicsClusterInfoProxy
 
         return $"""
                 Physics Cluster
-                   Center: {Vector3D.Round(AABB.Center)}
-                   Size: {Vector3D.Round(AABB.Size)}
+                   Center: {Vector3D.Round(AABB.Center, 0)}
+                   Size: {Vector3D.Round(AABB.Size, 0)}
                    RigidBodies: {RigidBodyCount} (Active: {ActiveRigidBodyCount})
                    Characters: {CharacterCount}
                 """;
@@ -187,6 +293,66 @@ class CubeBlockInfoProxy
                    Type: {BlockType.Name}
                    Position: {Vector3D.Round(Position, 1)}
                 {Grid}
+                """;
+    }
+}
+
+class CharacterInfoProxy
+{
+    public long EntityId;
+    public long IdentityId;
+    public ulong PlatformId;
+    public string Name;
+    public Vector3D Position;
+
+    public CharacterInfoProxy(MyCharacter character)
+    {
+        EntityId = character.EntityId;
+
+        var identity = character.GetIdentity();
+        IdentityId = identity?.IdentityId ?? 0;
+        PlatformId = character.ControlSteamId;
+        Name = identity?.DisplayName ?? "";
+        Position = character.PositionComp.GetPosition();
+    }
+
+    public override string ToString()
+    {
+        return $"""
+                Character
+                   EntityId: {EntityId}
+                   IdentityId: {IdentityId}
+                   PlatformId: {PlatformId}
+                   Name: {Name}
+                   Position: {Vector3D.Round(Position, 1)}
+                """;
+    }
+}
+
+class VoxelInfoProxy
+{
+    public long EntityId;
+    public string Name;
+    public string StorageName;
+    public BoundingBoxD AABB;
+
+    public VoxelInfoProxy(MyVoxelBase voxel)
+    {
+        EntityId = voxel.EntityId;
+        Name = voxel.Name;
+        StorageName = voxel.StorageName;
+        AABB = voxel.PositionComp.WorldAABB;
+    }
+
+    public override string ToString()
+    {
+        return $"""
+                Voxel
+                   EntityId: {EntityId}
+                   Name: {Name}
+                   StorageName: {StorageName}
+                   Center: {Vector3D.Round(AABB.Center, 0)}
+                   Size: {Vector3D.Round(AABB.Size, 0)}
                 """;
     }
 }

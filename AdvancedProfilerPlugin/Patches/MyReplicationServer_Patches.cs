@@ -18,6 +18,8 @@ static class MyReplicationServer_Patches
         PatchPrefixSuffixPair(ctx, "FilterStateSync", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "AddForClient", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "SendStreamingEntry", _public: false, _static: false);
+        // Too spammy
+        //PatchPrefixSuffixPair(ctx, "ScheduleStateGroupSync", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.ReplicableReady), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.ReplicableRequest), _public: true, _static: false);
     }
@@ -128,9 +130,9 @@ static class MyReplicationServer_Patches
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_AddForClient(ref ProfilerTimer __local_timer)
+    static bool Prefix_AddForClient(ref ProfilerTimer __local_timer, IMyReplicable replicable)
     {
-        __local_timer = Profiler.Start("MyReplicationServer.AddForClient");
+        __local_timer = Profiler.Start("MyReplicationServer.AddForClient", profileMemory: true, new(replicable));
         return true;
     }
 
@@ -149,6 +151,19 @@ static class MyReplicationServer_Patches
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Suffix_SendStreamingEntry(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_ScheduleStateGroupSync(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MyReplicationServer.ScheduleStateGroupSync");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_ScheduleStateGroupSync(ref ProfilerTimer __local_timer)
     {
         __local_timer.Stop();
     }

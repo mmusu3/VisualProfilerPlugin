@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using Torch.Managers.PatchManager;
+using VRage.Network;
 
 namespace AdvancedProfiler.Patches;
 
@@ -62,9 +63,9 @@ static class MyClient_Patches
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_Serialize(ref ProfilerTimer __local_timer)
+    static bool Prefix_Serialize(ref ProfilerTimer __local_timer, IMyStateGroup group)
     {
-        __local_timer = Profiler.Start("MyClient.Serialize");
+        __local_timer = Profiler.Start("MyClient.Serialize", profileMemory: true, new(group.Owner));
         return true;
     }
 
