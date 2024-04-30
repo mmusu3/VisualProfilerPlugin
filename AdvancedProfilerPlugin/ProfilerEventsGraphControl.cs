@@ -8,7 +8,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using RectangleF = System.Windows.Rect;
 
 namespace AdvancedProfiler;
 
@@ -41,6 +40,7 @@ class ProfilerEventsGraphControl : Control
     int minHeight;
 
     Point mousePos;
+    (int SegmentIndex, int EventIndex) hoverIndices = (-1, -1);
 
     bool wasRecording;
 
@@ -53,6 +53,11 @@ class ProfilerEventsGraphControl : Control
     List<(int Segment, int Index)> hoverEvents = [];
     (float StartX, float FillPercent)[] minifiedDrawStack = [];
 
+    VisualCollection visualChildren;
+    DrawingVisual backgroundDrawing;
+    DrawingVisual graphDrawing;
+    DrawingVisual hoverDrawing;
+
     public ProfilerEventsGraphControl()
     {
         backgroundBrush = new SolidColorBrush(new Color { R = 50, G = 50, B = 50, A = 255 });
@@ -62,6 +67,47 @@ class ProfilerEventsGraphControl : Control
         hoverInfoBackgroundBrush = new SolidColorBrush(new Color { A = 190 });
         fontFace = FontFamily.GetTypefaces().First();
         FontSize = 14;
+
+        backgroundDrawing = new DrawingVisual();
+        graphDrawing = new DrawingVisual();
+        hoverDrawing = new DrawingVisual { Transform = new TranslateTransform() };
+
+        visualChildren = new VisualCollection(this) {
+            backgroundDrawing, // Always need something to hit test against for mouse events
+            graphDrawing,
+            hoverDrawing
+        };
+    }
+
+    protected override int VisualChildrenCount => visualChildren.Count;
+    protected override Visual GetVisualChild(int index) => visualChildren[index];
+
+    protected override Size MeasureOverride(Size constraint)
+    {
+        int visualChildrenCount = VisualChildrenCount;
+
+        if (visualChildrenCount > 0)
+        {
+            var uIElement = GetVisualChild(0) as UIElement;
+
+            if (uIElement != null)
+            {
+                uIElement.Measure(constraint);
+                return uIElement.DesiredSize;
+            }
+        }
+
+        return new Size(0.0, 0.0);
+    }
+
+    protected override Size ArrangeOverride(Size arrangeBounds)
+    {
+        int visualChildrenCount = VisualChildrenCount;
+
+        if (visualChildrenCount > 0)
+            (GetVisualChild(0) as UIElement)?.Arrange(new Rect(arrangeBounds));
+
+        return arrangeBounds;
     }
 
     protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
@@ -78,10 +124,102 @@ class ProfilerEventsGraphControl : Control
 
         base.OnMouseMove(args);
 
-        if (!Profiler.IsRecordingEvents)
+        if (Profiler.IsRecordingEvents)
+            return;
+
+        var threadProfilers = Profiler.GetProfilerGroups();
+        Array.Sort(threadProfilers, ThreadGroupComparer);
+
+        ProfilerGroup? hoverGroup = null;
+        float hoverY = 0;
+        float y = headerHeight;
+        bool reDraw = false;
+
+        for (int i = 0; i < threadProfilers.Length; i++)
         {
-            // TODO: Cache hover info
-            InvalidateVisual();
+            int maxDepth = 0;
+
+            GetHoveredEvents(threadProfilers[i], startTime, y, ref maxDepth);
+
+            if (hoverEvents.Count > 0)
+            {
+                var (segmentIndex, eventIndex) = hoverEvents[0];
+
+                if (segmentIndex != hoverIndices.SegmentIndex || eventIndex != hoverIndices.EventIndex)
+                    reDraw = true;
+
+                hoverGroup = threadProfilers[i];
+                hoverIndices = (segmentIndex, eventIndex);
+                hoverY = y;
+                break;
+            }
+
+            y += barHeight * maxDepth + threadGroupPadding;
+        }
+
+        if (hoverGroup != null)
+        {
+            if (reDraw)
+            {
+                var ctx = hoverDrawing.RenderOpen();
+                DrawHoverInfo(ctx, hoverGroup, x: 0, y: 0);
+                ctx.Close();
+            }
+            else
+            {
+                hoverEvents.Clear();
+            }
+
+            double startX = mousePos.X + 16; // 16 is Mouse cursor offset fudge
+
+            var tt = (TranslateTransform)hoverDrawing.Transform;
+            tt.X = startX;
+            tt.Y = hoverY;
+        }
+        else
+        {
+            hoverIndices = (-1, -1);
+
+            // Clear
+            var ctx = hoverDrawing.RenderOpen();
+            ctx.Close();
+        }
+    }
+
+    void GetHoveredEvents(ProfilerGroup group, long startTicks, float startY, ref int maxDepth)
+    {
+        if (group.CurrentEventIndex == 0)
+            return;
+
+        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize + 1;
+
+        for (int i = 0; i < endSegmentIndex; i++)
+        {
+            var segment = group.Events[i];
+            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize);
+
+            for (int j = 0; j < endEventIndex; j++)
+            {
+                ref var _event = ref segment[j];
+
+                if (_event.Depth + 1 > maxDepth)
+                    maxDepth = _event.Depth + 1;
+
+                float startX = (float)(ProfilerTimer.MillisecondsFromTicks(_event.StartTime - startTicks + shiftX) * zoom);
+                float width = _event.IsSinglePoint ? 4 : (float)(_event.ElapsedTime.TotalMilliseconds * zoom);
+
+                if (startX + width < 0 || startX > ActualWidth)
+                    continue;
+
+                float barY = startY + _event.Depth * barHeight;
+                double floorX = Math.Floor(startX);
+
+                if (mousePos.X > floorX && mousePos.X < floorX + Math.Max(minBarWidth, width)
+                    && mousePos.Y > barY && mousePos.Y < barY + barHeight)
+                {
+                    hoverEvents.Add((i, j));
+                }
+            }
         }
     }
 
@@ -173,6 +311,33 @@ class ProfilerEventsGraphControl : Control
         }
     }
 
+    static int ThreadGroupComparer(ProfilerGroup a, ProfilerGroup b)
+    {
+        int order = 0;
+
+        if (a.SortingGroup != null)
+        {
+            if (b.SortingGroup != null)
+                order = Profiler.CompareSortingGroups(a.SortingGroup, b.SortingGroup);
+            else
+                order = -1;
+        }
+        else if (b.SortingGroup != null)
+        {
+            order = 1;
+        }
+
+        if (order == 0)
+        {
+            order = a.OrderInSortingGroup.CompareTo(b.OrderInSortingGroup);
+
+            if (order == 0)
+                order = string.Compare(a.Name, b.Name);
+        }
+
+        return order;
+    }
+
     void UpdateValues()
     {
         Profiler.Start();
@@ -190,6 +355,12 @@ class ProfilerEventsGraphControl : Control
         }
 
         minHeight = (int)y;
+        hoverIndices = (-1, -1);
+
+        // Clear
+        var ctx = hoverDrawing.RenderOpen();
+        ctx.Close();
+
         InvalidateVisual();
 
         Profiler.Stop();
@@ -206,8 +377,14 @@ class ProfilerEventsGraphControl : Control
 
         wasRecording = Profiler.IsRecordingEvents;
 
-        drawCtx.DrawRectangle(headerBrush, null, new RectangleF(0, 0, ActualWidth, headerHeight));
-        drawCtx.DrawRectangle(backgroundBrush, null, new RectangleF(0, headerHeight, ActualWidth, ActualHeight - headerHeight));
+        var bgdCtx = backgroundDrawing.RenderOpen();
+
+        bgdCtx.DrawRectangle(headerBrush, null, new Rect(0, 0, ActualWidth, headerHeight));
+        bgdCtx.DrawRectangle(backgroundBrush, null, new Rect(0, headerHeight, ActualWidth, ActualHeight - headerHeight));
+
+        bgdCtx.Close();
+
+        var graphCtx = graphDrawing.RenderOpen();
 
         // Draw time intervals
         {
@@ -232,7 +409,7 @@ class ProfilerEventsGraphControl : Control
             for (int i = 0; i < lineCount; i++)
             {
                 int x2 = (int)(x + i * lineInterval * zoom);
-                drawCtx.DrawLine(intervalLinePen, new Point(x2, 16), new Point(x2, ActualHeight));
+                graphCtx.DrawLine(intervalLinePen, new Point(x2, 16), new Point(x2, ActualHeight));
 
                 double time = (left - offset + (1 + i) * lineInterval) * unitScale;
                 sb.AppendFormat("{0:N0}", time).Append(unit);
@@ -240,7 +417,7 @@ class ProfilerEventsGraphControl : Control
                 var ft = new FormattedText(sb.ToString(), CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
                     fontFace, FontSize, Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip) { TextAlignment = TextAlignment.Center };
 
-                drawCtx.DrawText(ft, new Point(x2, 0));
+                graphCtx.DrawText(ft, new Point(x2, 0));
 
                 sb.Clear();
             }
@@ -255,38 +432,10 @@ class ProfilerEventsGraphControl : Control
         var threadProfilers = Profiler.GetProfilerGroups();
         Array.Sort(threadProfilers, ThreadGroupComparer);
 
-        static int ThreadGroupComparer(ProfilerGroup a, ProfilerGroup b)
-        {
-            int order = 0;
-
-            if (a.SortingGroup != null)
-            {
-                if (b.SortingGroup != null)
-                    order = Profiler.CompareSortingGroups(a.SortingGroup, b.SortingGroup);
-                else
-                    order = -1;
-            }
-            else if (b.SortingGroup != null)
-            {
-                order = 1;
-            }
-
-            if (order == 0)
-            {
-                order = a.OrderInSortingGroup.CompareTo(b.OrderInSortingGroup);
-
-                if (order == 0)
-                    order = string.Compare(a.Name, b.Name);
-            }
-
-            return order;
-        }
-
-        ProfilerGroup? hoverGroup = null;
-        double hoverY = 0;
-
         Profiler.Start("Draw group events");
 
+        ProfilerGroup? hoverGroup = null;
+        float hoverY = 0;
         float y = headerHeight;
 
         for (int i = 0; i < threadProfilers.Length; i++)
@@ -294,9 +443,9 @@ class ProfilerEventsGraphControl : Control
             var colorHSV = GetColorHSV(i, threadProfilers.Length);
             int maxDepth = 0;
 
-            DrawGroupEvents(drawCtx, threadProfilers[i], colorHSV, startTime, y, ref maxDepth);
+            DrawGroupEvents(graphCtx, threadProfilers[i], colorHSV, startTime, y, ref maxDepth);
 
-            if (hoverEvents.Count > 0 && hoverGroup == null)
+            if (hoverGroup == null && hoverEvents.Count > 0)
             {
                 hoverGroup = threadProfilers[i];
                 hoverY = y;
@@ -307,122 +456,134 @@ class ProfilerEventsGraphControl : Control
 
         Profiler.Stop();
 
-        // Draw hover info
+        graphCtx.Close();
+
         if (hoverGroup != null)
         {
-            Profiler.Start("Draw hover info");
+            double startX = mousePos.X + 16; // 16 is Mouse cursor offset fudge
 
-            float startX = (float)mousePos.X + 16; // 16 is Mouse cursor offset fudge
+            var ctx = hoverDrawing.RenderOpen();
+            DrawHoverInfo(ctx, hoverGroup, x: 0, y: 0);
+            ctx.Close();
 
-            for (int i = 0; i < hoverEvents.Count; i++)
+            var tt = (TranslateTransform)hoverDrawing.Transform;
+            tt.X = startX;
+            tt.Y = hoverY;
+        }
+
+        Profiler.Stop();
+    }
+
+    void DrawHoverInfo(DrawingContext drawCtx, ProfilerGroup hoverGroup, double x, double y)
+    {
+        Profiler.Start("Draw hover info");
+
+        for (int i = 0; i < hoverEvents.Count; i++)
+        {
+            var (hoverSegment, hoverIndex) = hoverEvents[i];
+            var segment = hoverGroup.Events[hoverSegment];
+            ref var _event = ref segment[hoverIndex];
+
+            float nameWidth = MeasureString(_event.Name, fontFace, FontSize).X;
+            double barY = y + _event.Depth * barHeight;
+            var tooltipArea = new Rect(x, barY, nameWidth, barHeight);
+
+            var timeString = stringBuilder;
+
+            if (!_event.IsSinglePoint)
             {
-                var (hoverSegment, hoverIndex) = hoverEvents[i];
-                var segment = hoverGroup.Events[hoverSegment];
-                ref var _event = ref segment[hoverIndex];
+                timeString.AppendFormat("{0:n1}", _event.ElapsedTime.TotalMilliseconds * 1000).Append("µs");
 
-                float nameWidth = MeasureString(_event.Name, fontFace, FontSize).X;
-                double barY = hoverY + _event.Depth * barHeight;
-                var tooltipArea = new RectangleF(startX, barY, nameWidth, barHeight);
+                float timeStringWidth = MeasureString(timeString.ToString(), fontFace, FontSize).X;
 
-                var timeString = stringBuilder;
-
-                if (!_event.IsSinglePoint)
-                {
-                    timeString.AppendFormat("{0:n1}", _event.ElapsedTime.TotalMilliseconds * 1000).Append("µs");
-
-                    float timeStringWidth = MeasureString(timeString.ToString(), fontFace, FontSize).X;
-
-                    tooltipArea.Width = Math.Max(tooltipArea.Width, timeStringWidth);
-                    tooltipArea.Height += barHeight;
-                }
-
-                long memDelta = _event.MemoryAfter - _event.MemoryBefore;
-                var memString = stringBuilder2;
-
-                if (_event.MemoryTracked && memDelta > 0)
-                {
-                    memString.AppendFormat("{0:n0}", memDelta).Append(" B allocated");
-
-                    float memStringWidth = MeasureString(memString.ToString(), fontFace, FontSize).X;
-
-                    tooltipArea.Width = Math.Max(tooltipArea.Width, memStringWidth);
-                    tooltipArea.Height += barHeight;
-                }
-
-                var extraString = stringBuilder3;
-
-                if (_event.ExtraValueType != ProfilerEvent.ExtraValueTypeOption.None)
-                {
-                    var formatString = _event.ExtraValueFormat ?? "Extra Value: {0:n0}";
-
-                    switch (_event.ExtraValueType)
-                    {
-                    case ProfilerEvent.ExtraValueTypeOption.Object:
-                        extraString.AppendFormat(formatString, _event.ExtraObject);
-                        break;
-                    case ProfilerEvent.ExtraValueTypeOption.Long:
-                        extraString.AppendFormat(formatString, _event.ExtraValue.LongValue);
-                        break;
-                    case ProfilerEvent.ExtraValueTypeOption.Double:
-                        extraString.AppendFormat(formatString, _event.ExtraValue.DoubleValue);
-                        break;
-                    case ProfilerEvent.ExtraValueTypeOption.Float:
-                        extraString.AppendFormat(formatString, _event.ExtraValue.FloatValue);
-                        break;
-                    default:
-                        break;
-                    }
-
-                    var extraStringSize = MeasureString(extraString.ToString(), fontFace, FontSize);
-
-                    tooltipArea.Width = Math.Max(tooltipArea.Width, extraStringSize.X);
-                    tooltipArea.Height += barHeight + extraStringSize.Y;
-                }
-
-                tooltipArea.Width += 12;
-                tooltipArea.Height += 8;
-
-                if (i == 0 && tooltipArea.Bottom > ActualHeight)
-                    tooltipArea.Y -= tooltipArea.Bottom - ActualHeight;
-
-                drawCtx.DrawRectangle(hoverInfoBackgroundBrush, null, tooltipArea);
-
-                tooltipArea.X += 6;
-                tooltipArea.Y += 4;
-
-                DrawText(drawCtx, _event.Name, fontFace, FontSize, Colors.White, tooltipArea.Location);
-
-                if (!_event.IsSinglePoint)
-                {
-                    tooltipArea.Y += barHeight;
-                    DrawText(drawCtx, timeString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
-                    timeString.Clear();
-                }
-
-                if (memString.Length != 0)
-                {
-                    tooltipArea.Y += barHeight;
-                    DrawText(drawCtx, memString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
-                    memString.Clear();
-                }
-
-                if (extraString.Length != 0)
-                {
-                    tooltipArea.Y += barHeight * 2;
-                    DrawText(drawCtx, extraString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
-                    extraString.Clear();
-                }
-
-                hoverY += tooltipArea.Height + 4;
-
-                if (hoverY > ActualHeight)
-                    break;
+                tooltipArea.Width = Math.Max(tooltipArea.Width, timeStringWidth);
+                tooltipArea.Height += barHeight;
             }
 
-            hoverEvents.Clear();
+            long memDelta = _event.MemoryAfter - _event.MemoryBefore;
+            var memString = stringBuilder2;
 
-            Profiler.Stop();
+            if (_event.MemoryTracked && memDelta > 0)
+            {
+                memString.AppendFormat("{0:n0}", memDelta).Append(" B allocated");
+
+                float memStringWidth = MeasureString(memString.ToString(), fontFace, FontSize).X;
+
+                tooltipArea.Width = Math.Max(tooltipArea.Width, memStringWidth);
+                tooltipArea.Height += barHeight;
+            }
+
+            var extraString = stringBuilder3;
+
+            if (_event.ExtraValueType != ProfilerEvent.ExtraValueTypeOption.None)
+            {
+                var formatString = _event.ExtraValueFormat ?? "Extra Value: {0:n0}";
+
+                switch (_event.ExtraValueType)
+                {
+                case ProfilerEvent.ExtraValueTypeOption.Object:
+                    extraString.AppendFormat(formatString, _event.ExtraObject);
+                    break;
+                case ProfilerEvent.ExtraValueTypeOption.Long:
+                    extraString.AppendFormat(formatString, _event.ExtraValue.LongValue);
+                    break;
+                case ProfilerEvent.ExtraValueTypeOption.Double:
+                    extraString.AppendFormat(formatString, _event.ExtraValue.DoubleValue);
+                    break;
+                case ProfilerEvent.ExtraValueTypeOption.Float:
+                    extraString.AppendFormat(formatString, _event.ExtraValue.FloatValue);
+                    break;
+                default:
+                    break;
+                }
+
+                var extraStringSize = MeasureString(extraString.ToString(), fontFace, FontSize);
+
+                tooltipArea.Width = Math.Max(tooltipArea.Width, extraStringSize.X);
+                tooltipArea.Height += barHeight + extraStringSize.Y;
+            }
+
+            tooltipArea.Width += 12;
+            tooltipArea.Height += 8;
+
+            if (i == 0 && tooltipArea.Bottom > ActualHeight)
+                tooltipArea.Y -= tooltipArea.Bottom - ActualHeight;
+
+            drawCtx.DrawRectangle(hoverInfoBackgroundBrush, null, tooltipArea);
+
+            tooltipArea.X += 6;
+            tooltipArea.Y += 4;
+
+            DrawText(drawCtx, _event.Name, fontFace, FontSize, Colors.White, tooltipArea.Location);
+
+            if (!_event.IsSinglePoint)
+            {
+                tooltipArea.Y += barHeight;
+                DrawText(drawCtx, timeString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
+                timeString.Clear();
+            }
+
+            if (memString.Length != 0)
+            {
+                tooltipArea.Y += barHeight;
+                DrawText(drawCtx, memString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
+                memString.Clear();
+            }
+
+            if (extraString.Length != 0)
+            {
+                tooltipArea.Y += barHeight * 2;
+                DrawText(drawCtx, extraString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
+                extraString.Clear();
+            }
+
+            y += tooltipArea.Height + 4;
+
+            if (y > ActualHeight)
+                break;
         }
+
+        hoverEvents.Clear();
 
         Profiler.Stop();
     }
@@ -525,7 +686,7 @@ class ProfilerEventsGraphControl : Control
 
                         if (tooFar || tooFull)
                         {
-                            var miniArea = new RectangleF(minif.StartX, y + _event.Depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
+                            var miniArea = new Rect(minif.StartX, y + _event.Depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
 
                             if (tooFull && !tooFar)
                                 miniArea.Height = barHeight;
@@ -543,7 +704,7 @@ class ProfilerEventsGraphControl : Control
 
                 if (minif.FillPercent > 0)
                 {
-                    var miniArea = new RectangleF(minif.StartX, y + _event.Depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
+                    var miniArea = new Rect(minif.StartX, y + _event.Depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
 
                     drawCtx.DrawRectangle(barBrush, null, miniArea);
 
@@ -553,7 +714,7 @@ class ProfilerEventsGraphControl : Control
 
                 drawnCount++;
 
-                var area = new RectangleF(startX, y + _event.Depth * barHeight, width, barHeight);
+                var area = new Rect(startX, y + _event.Depth * barHeight, width, barHeight);
 
                 if (_event.IsSinglePoint)
                 {
@@ -614,7 +775,7 @@ class ProfilerEventsGraphControl : Control
 
             if (minif.FillPercent > 0)
             {
-                var miniArea = new RectangleF(minif.StartX, y + depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
+                var miniArea = new Rect(minif.StartX, y + depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
 
                 var hsv = colorHSV;
                 // TODO: Fix double size dark band
