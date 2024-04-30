@@ -171,6 +171,10 @@ class ProfilerEventsGraphControl : Control
             }
 
             double startX = mousePos.X + 16; // 16 is Mouse cursor offset fudge
+            double width = hoverDrawing.Drawing.Bounds.Width;
+
+            if (startX + width > ActualWidth)
+                startX = ActualWidth - width;
 
             var tt = (TranslateTransform)hoverDrawing.Transform;
             tt.X = startX;
@@ -214,8 +218,8 @@ class ProfilerEventsGraphControl : Control
                 float barY = startY + _event.Depth * barHeight;
                 double floorX = Math.Floor(startX);
 
-                if (mousePos.X > floorX && mousePos.X < floorX + Math.Max(minBarWidth, width)
-                    && mousePos.Y > barY && mousePos.Y < barY + barHeight)
+                if (mousePos.X >= floorX && mousePos.X < floorX + Math.Max(minBarWidth, width)
+                    && mousePos.Y >= barY && mousePos.Y < barY + barHeight)
                 {
                     hoverEvents.Add((i, j));
                 }
@@ -434,8 +438,6 @@ class ProfilerEventsGraphControl : Control
 
         Profiler.Start("Draw group events");
 
-        ProfilerGroup? hoverGroup = null;
-        float hoverY = 0;
         float y = headerHeight;
 
         for (int i = 0; i < threadProfilers.Length; i++)
@@ -445,31 +447,12 @@ class ProfilerEventsGraphControl : Control
 
             DrawGroupEvents(graphCtx, threadProfilers[i], colorHSV, startTime, y, ref maxDepth);
 
-            if (hoverGroup == null && hoverEvents.Count > 0)
-            {
-                hoverGroup = threadProfilers[i];
-                hoverY = y;
-            }
-
             y += barHeight * maxDepth + threadGroupPadding;
         }
 
         Profiler.Stop();
 
         graphCtx.Close();
-
-        if (hoverGroup != null)
-        {
-            double startX = mousePos.X + 16; // 16 is Mouse cursor offset fudge
-
-            var ctx = hoverDrawing.RenderOpen();
-            DrawHoverInfo(ctx, hoverGroup, x: 0, y: 0);
-            ctx.Close();
-
-            var tt = (TranslateTransform)hoverDrawing.Transform;
-            tt.X = startX;
-            tt.Y = hoverY;
-        }
 
         Profiler.Stop();
     }
@@ -625,9 +608,8 @@ class ProfilerEventsGraphControl : Control
         {
             var segment = group.Events[i];
             int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize);
-            int drawnCount = 0;
 
-            for (int j = 0; j < endEventIndex /*&& drawnCount < 1024*/; j++)
+            for (int j = 0; j < endEventIndex; j++)
             {
                 ref var _event = ref segment[j];
 
@@ -648,14 +630,6 @@ class ProfilerEventsGraphControl : Control
 
                 if (startX + width < 0 || startX > ActualWidth)
                     continue;
-
-                float barY = y + _event.Depth * barHeight;
-
-                if (mousePos.X > Math.Floor(startX) && mousePos.X < Math.Floor(startX) + Math.Max(minBarWidth, width)
-                    && mousePos.Y > barY && mousePos.Y < barY + barHeight)
-                {
-                    hoverEvents.Add((i, j));
-                }
 
                 var hsv = colorHSV;
                 // TODO: Fix double size dark band
@@ -711,8 +685,6 @@ class ProfilerEventsGraphControl : Control
                     minif.StartX = -1;
                     minif.FillPercent = 0;
                 }
-
-                drawnCount++;
 
                 var area = new Rect(startX, y + _event.Depth * barHeight, width, barHeight);
 
