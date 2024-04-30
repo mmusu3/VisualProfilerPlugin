@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 using Torch.Managers.PatchManager;
 using VRage.Network;
 
@@ -9,38 +10,56 @@ static class MyReplicationServer_Patches
 {
     public static void Patch(PatchContext ctx)
     {
-        var source = typeof(MyReplicationServer).GetPublicInstanceMethod(nameof(MyReplicationServer.UpdateBefore));
-        var prefix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod(nameof(Prefix_UpdateBefore));
-        var suffix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod(nameof(Suffix_UpdateBefore));
+        PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.Destroy), _public: true, _static: false);
+        PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.UpdateBefore), _public: true, _static: false);
+        PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.SendUpdate), _public: true, _static: false);
+        PatchPrefixSuffixPair(ctx, "RefreshReplicable", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, "ApplyDirtyGroups", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, "FilterStateSync", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, "AddForClient", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, "SendStreamingEntry", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.ReplicableReady), _public: true, _static: false);
+        PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.ReplicableRequest), _public: true, _static: false);
+    }
 
-        var pattern = ctx.GetPattern(source);
+    static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
+    {
+        MethodInfo source;
+
+        if (_public)
+        {
+            if (_static)
+                source = typeof(MyReplicationServer).GetPublicStaticMethod(methodName);
+            else
+                source = typeof(MyReplicationServer).GetPublicInstanceMethod(methodName);
+        }
+        else
+        {
+            if (_static)
+                source = typeof(MyReplicationServer).GetNonPublicStaticMethod(methodName);
+            else
+                source = typeof(MyReplicationServer).GetNonPublicInstanceMethod(methodName);
+        }
+
+        var prefix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
+        var suffix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod("Suffix_" + methodName);
+
+        var pattern = patchContext.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
+    }
 
-        // TODO: Add more blocks under SendUpdate
-        source = typeof(MyReplicationServer).GetPublicInstanceMethod(nameof(MyReplicationServer.SendUpdate));
-        prefix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod(nameof(Prefix_SendUpdate));
-        suffix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod(nameof(Suffix_SendUpdate));
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_Destroy(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MyReplicationServer.Destroy");
+        return true;
+    }
 
-        pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
-
-        source = typeof(MyReplicationServer).GetPublicInstanceMethod(nameof(MyReplicationServer.ReplicableReady));
-        prefix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod(nameof(Prefix_ReplicableReady));
-        suffix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod(nameof(Suffix_ReplicableReady));
-
-        pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
-
-        source = typeof(MyReplicationServer).GetPublicInstanceMethod(nameof(MyReplicationServer.ReplicableRequest));
-        prefix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod(nameof(Prefix_ReplicableRequest));
-        suffix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod(nameof(Suffix_ReplicableRequest));
-
-        pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_Destroy(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -65,6 +84,71 @@ static class MyReplicationServer_Patches
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Suffix_SendUpdate(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_RefreshReplicable(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MyReplicationServer.RefreshReplicable");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_RefreshReplicable(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_ApplyDirtyGroups(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MyReplicationServer.ApplyDirtyGroups");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_ApplyDirtyGroups(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_FilterStateSync(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MyReplicationServer.FilterStateSync");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_FilterStateSync(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_AddForClient(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MyReplicationServer.AddForClient");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_AddForClient(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_SendStreamingEntry(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MyReplicationServer.SendStreamingEntry");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_SendStreamingEntry(ref ProfilerTimer __local_timer)
     {
         __local_timer.Stop();
     }
