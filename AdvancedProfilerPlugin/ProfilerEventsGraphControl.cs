@@ -22,6 +22,8 @@ class ProfilerEventsGraphControl : Control
     SolidColorBrush backgroundBrush;
     Pen intervalLinePen;
     SolidColorBrush eventBrush;
+    SolidColorBrush selectionBrush;
+    Pen selectionPen;
     SolidColorBrush hoverInfoBackgroundBrush;
     Typeface fontFace;
 
@@ -30,6 +32,8 @@ class ProfilerEventsGraphControl : Control
     const float barHeight = 18;
     const float minBarHeight = 3;
     const float threadGroupPadding = 6;
+
+    const double maxZoom = 1000 * 50; // 50px per us
 
     long startTime;
     long endTime;
@@ -41,6 +45,8 @@ class ProfilerEventsGraphControl : Control
 
     Point mousePos;
     (int SegmentIndex, int EventIndex) hoverIndices = (-1, -1);
+    Point mouseDownPos;
+    bool zoomSelectionStarted;
 
     bool wasRecording;
 
@@ -56,6 +62,7 @@ class ProfilerEventsGraphControl : Control
     VisualCollection visualChildren;
     DrawingVisual backgroundDrawing;
     DrawingVisual graphDrawing;
+    DrawingVisual selectionDrawing;
     DrawingVisual hoverDrawing;
 
     public ProfilerEventsGraphControl()
@@ -64,17 +71,21 @@ class ProfilerEventsGraphControl : Control
         headerBrush = new SolidColorBrush(new Color { R = 20, G = 20, B = 20, A = 255 });
         intervalLinePen = new Pen(new SolidColorBrush(new Color { R = 80, G = 80, B = 80, A = 255 }), 1);
         eventBrush = new SolidColorBrush(Colors.Red);
+        selectionBrush = new SolidColorBrush(NewColor(0, 0, 0, 100));
+        selectionPen = new Pen(new SolidColorBrush(NewColor(150, 150, 150)), 2);
         hoverInfoBackgroundBrush = new SolidColorBrush(new Color { A = 190 });
         fontFace = FontFamily.GetTypefaces().First();
         FontSize = 14;
 
         backgroundDrawing = new DrawingVisual();
         graphDrawing = new DrawingVisual();
+        selectionDrawing = new DrawingVisual();
         hoverDrawing = new DrawingVisual { Transform = new TranslateTransform() };
 
         visualChildren = new VisualCollection(this) {
             backgroundDrawing, // Always need something to hit test against for mouse events
             graphDrawing,
+            selectionDrawing,
             hoverDrawing
         };
     }
@@ -123,6 +134,9 @@ class ProfilerEventsGraphControl : Control
         mousePos = args.GetPosition(this);
 
         base.OnMouseMove(args);
+
+        if (zoomSelectionStarted)
+            RedrawSelection(mousePos);
 
         if (Profiler.IsRecordingEvents)
             return;
@@ -185,8 +199,7 @@ class ProfilerEventsGraphControl : Control
             hoverIndices = (-1, -1);
 
             // Clear
-            var ctx = hoverDrawing.RenderOpen();
-            ctx.Close();
+            hoverDrawing.RenderOpen().Close();
         }
     }
 
@@ -227,6 +240,56 @@ class ProfilerEventsGraphControl : Control
         }
     }
 
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs args)
+    {
+        base.OnMouseLeftButtonDown(args);
+
+        if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
+        {
+            // Start selection
+            mouseDownPos = args.GetPosition(this);
+            zoomSelectionStarted = true;
+            RedrawSelection(mouseDownPos);
+        }
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs args)
+    {
+        base.OnMouseLeftButtonUp(args);
+
+        if (zoomSelectionStarted)
+        {
+            // End selection
+            var pos = args.GetPosition(this);
+            var startX = Math.Min(mouseDownPos.X, pos.X);
+            var endX = Math.Max(mouseDownPos.X, pos.X);
+
+            long start = (long)(startX / (zoom / TimeSpan.TicksPerMillisecond));
+            long end = (long)(endX / (zoom / TimeSpan.TicksPerMillisecond));
+
+            shiftX -= start;
+            zoom = ActualWidth / ((end - start) / (double)TimeSpan.TicksPerMillisecond);
+            zoom = Math.Min(zoom, maxZoom);
+            zoomSelectionStarted = false;
+
+            // Clear
+            selectionDrawing.RenderOpen().Close();
+            InvalidateVisual();
+        }
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs args)
+    {
+        base.OnMouseLeave(args);
+
+        if (zoomSelectionStarted)
+        {
+            zoomSelectionStarted = false;
+            // Clear
+            selectionDrawing.RenderOpen().Close();
+        }
+    }
+
     protected override void OnMouseWheel(MouseWheelEventArgs args)
     {
         base.OnMouseWheel(args);
@@ -234,16 +297,16 @@ class ProfilerEventsGraphControl : Control
         if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
         {
             double oldZoom = zoom;
-            double delta = args.Delta * (1.0 / 120) * 0.05 * zoom;
+            double delta = args.Delta * (1.0 / 100) * 0.05 * zoom;
 
             zoom += delta;
-
-            const double maxZoom = 1000 * 50; // 50px per us
             zoom = Math.Min(Math.Max(zoom, minZoom), maxZoom);
 
             var pos = args.GetPosition(this);
-            double oldOffset = -shiftX + pos.X / (oldZoom / TimeSpan.TicksPerMillisecond);
-            double newOffset = -shiftX + pos.X / (zoom / TimeSpan.TicksPerMillisecond);
+
+            double oldOffset = pos.X / (oldZoom / TimeSpan.TicksPerMillisecond);
+            double newOffset = pos.X / (zoom / TimeSpan.TicksPerMillisecond);
+
             shiftX += (long)(newOffset - oldOffset);
 
             if (shiftX > 0)
@@ -261,6 +324,19 @@ class ProfilerEventsGraphControl : Control
 
             InvalidateVisual();
         }
+    }
+
+    void RedrawSelection(Point mousePos)
+    {
+        var ctx = selectionDrawing.RenderOpen();
+
+        var startX = Math.Min(mouseDownPos.X, mousePos.X);
+        var endX = Math.Max(mouseDownPos.X, mousePos.X);
+
+        var rect = new Rect(startX, 0, endX - startX, ActualHeight);
+        ctx.DrawRectangle(selectionBrush, selectionPen, rect);
+
+        ctx.Close();
     }
 
     public void ResetZoom()
@@ -362,8 +438,7 @@ class ProfilerEventsGraphControl : Control
         hoverIndices = (-1, -1);
 
         // Clear
-        var ctx = hoverDrawing.RenderOpen();
-        ctx.Close();
+        hoverDrawing.RenderOpen().Close();
 
         InvalidateVisual();
 
@@ -394,10 +469,10 @@ class ProfilerEventsGraphControl : Control
         {
             double lineInterval = 128.0 / Math.Pow(2, Math.Floor(Math.Log(zoom, 2)));
             lineInterval = Math.Max(lineInterval, 0.001);
-            int lineCount = (int)(ActualWidth / (lineInterval * zoom))/* + 1*/;
             double left = -shiftX / (double)TimeSpan.TicksPerMillisecond;
             double offset = left % lineInterval;
             double x = (lineInterval - offset) * zoom;
+            int lineCount = (int)(ActualWidth / (lineInterval * zoom) + x);
 
             double unitScale = 1;
             string unit = "ms";
@@ -815,6 +890,16 @@ class ProfilerEventsGraphControl : Control
         rgb.Z = 2 - rgb.Z;
 
         return Vector3.Clamp(rgb, Vector3.Zero, Vector3.One);
+    }
+
+    static Color NewColor(byte r, byte g, byte b, byte a)
+    {
+        return new Color { R = r, G = g, B = b, A = a };
+    }
+
+    static Color NewColor(byte r, byte g, byte b)
+    {
+        return new Color { R = r, G = g, B = b, A = 255 };
     }
 
     static Color ToColor(Vector3 vector)
