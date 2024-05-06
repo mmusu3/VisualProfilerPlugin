@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 
@@ -33,15 +34,50 @@ class ProfilerEventsGraphControl : Control
     const float minBarHeight = 3;
     const float threadGroupPadding = 6;
 
-    const double maxZoom = 1000 * 50; // 50px per us
+    const double maxZoom = 1000 * 50; // 50px per µs
 
     long startTime;
     long endTime;
+
     double minZoom;
+
+    public double Zoom
+    {
+        get => zoom;
+        set
+        {
+            zoom = value;
+            ContentWidth = (int)TicksToPixels(endTime - startTime);
+        }
+    }
     double zoom = 1;
+
     long shiftX;
 
-    int minHeight;
+    public int ContentWidth
+    {
+        get => contentWidth;
+        private set
+        {
+            contentWidth = value;
+            UpdateHScroll();
+        }
+    }
+    int contentWidth;
+
+    public int ContentHeight
+    {
+        get => contentHeight;
+        private set
+        {
+            contentHeight = value;
+            UpdateVScroll();
+        }
+    }
+    int contentHeight;
+
+    double ViewportWidth => ActualWidth - vScroll.Width;
+    double ViewportHeight => ActualHeight - hScroll.Height;
 
     Point mousePos;
     (int SegmentIndex, int EventIndex) hoverIndices = (-1, -1);
@@ -58,6 +94,9 @@ class ProfilerEventsGraphControl : Control
 
     List<(int Segment, int Index)> hoverEvents = [];
     (float StartX, float FillPercent)[] minifiedDrawStack = [];
+
+    ScrollBar hScroll;
+    ScrollBar vScroll;
 
     VisualCollection visualChildren;
     DrawingVisual backgroundDrawing;
@@ -77,6 +116,12 @@ class ProfilerEventsGraphControl : Control
         fontFace = FontFamily.GetTypefaces().First();
         FontSize = 14;
 
+        hScroll = new ScrollBar { Orientation = Orientation.Horizontal };
+        vScroll = new ScrollBar { Orientation = Orientation.Vertical };
+
+        hScroll.Scroll += HScroll_Scroll;
+        vScroll.Scroll += VScroll_Scroll;
+
         backgroundDrawing = new DrawingVisual();
         graphDrawing = new DrawingVisual();
         selectionDrawing = new DrawingVisual();
@@ -86,8 +131,36 @@ class ProfilerEventsGraphControl : Control
             backgroundDrawing, // Always need something to hit test against for mouse events
             graphDrawing,
             selectionDrawing,
-            hoverDrawing
+            hoverDrawing,
+            hScroll,
+            vScroll
         };
+    }
+
+    void UpdateHScroll()
+    {
+        hScroll.Maximum = contentWidth - ViewportWidth;
+        hScroll.IsEnabled = contentWidth > ViewportWidth;
+    }
+
+    void UpdateVScroll()
+    {
+        double vh = ViewportHeight - headerHeight;
+
+        vScroll.Maximum = contentHeight - vh;
+        vScroll.IsEnabled = contentHeight > vh;
+    }
+
+    void HScroll_Scroll(object sender, ScrollEventArgs args)
+    {
+        shiftX = -(long)PixelsToTicks(args.NewValue);
+
+        InvalidateVisual();
+    }
+
+    void VScroll_Scroll(object sender, ScrollEventArgs args)
+    {
+        InvalidateVisual();
     }
 
     protected override int VisualChildrenCount => visualChildren.Count;
@@ -113,10 +186,8 @@ class ProfilerEventsGraphControl : Control
 
     protected override Size ArrangeOverride(Size arrangeBounds)
     {
-        int visualChildrenCount = VisualChildrenCount;
-
-        if (visualChildrenCount > 0)
-            (GetVisualChild(0) as UIElement)?.Arrange(new Rect(arrangeBounds));
+        hScroll.Arrange(new Rect(0, arrangeBounds.Height - hScroll.Height, arrangeBounds.Width - vScroll.Width, hScroll.Height));
+        vScroll.Arrange(new Rect(arrangeBounds.Width - vScroll.Width, 0, vScroll.Width, arrangeBounds.Height - hScroll.Height));
 
         return arrangeBounds;
     }
@@ -127,6 +198,23 @@ class ProfilerEventsGraphControl : Control
             fontFace = FontFamily.GetTypefaces().First();
 
         base.OnPropertyChanged(e);
+    }
+
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        base.OnRenderSizeChanged(sizeInfo);
+
+        if (sizeInfo.WidthChanged)
+        {
+            hScroll.ViewportSize = ViewportWidth;
+            UpdateHScroll();
+        }
+
+        if (sizeInfo.HeightChanged)
+        {
+            vScroll.ViewportSize = ViewportHeight - headerHeight;
+            UpdateVScroll();
+        }
     }
 
     protected override void OnMouseMove(MouseEventArgs args)
@@ -146,7 +234,7 @@ class ProfilerEventsGraphControl : Control
 
         ProfilerGroup? hoverGroup = null;
         float hoverY = 0;
-        float y = headerHeight;
+        float y = headerHeight - (float)vScroll.Value;
         bool reDraw = false;
 
         for (int i = 0; i < threadProfilers.Length; i++)
@@ -187,8 +275,8 @@ class ProfilerEventsGraphControl : Control
             double startX = mousePos.X + 16; // 16 is Mouse cursor offset fudge
             double width = hoverDrawing.Drawing.Bounds.Width;
 
-            if (startX + width > ActualWidth)
-                startX = ActualWidth - width;
+            if (startX + width > ViewportWidth)
+                startX = ViewportWidth - width;
 
             var tt = (TranslateTransform)hoverDrawing.Transform;
             tt.X = startX;
@@ -197,9 +285,7 @@ class ProfilerEventsGraphControl : Control
         else
         {
             hoverIndices = (-1, -1);
-
-            // Clear
-            hoverDrawing.RenderOpen().Close();
+            hoverDrawing.RenderOpen().Close(); // Clear
         }
     }
 
@@ -208,24 +294,31 @@ class ProfilerEventsGraphControl : Control
         if (group.CurrentEventIndex == 0)
             return;
 
-        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize + 1;
+        double graphWidth = ViewportWidth;
+        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
 
-        for (int i = 0; i < endSegmentIndex; i++)
+        for (int i = 0; i <= endSegmentIndex; i++)
         {
             var segment = group.Events[i];
-            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize);
+            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize) - 1;
 
-            for (int j = 0; j < endEventIndex; j++)
+            if (segment[endEventIndex].EndTime - startTicks < -shiftX)
+                continue;
+
+            if (segment[0].StartTime - startTicks > -shiftX + (long)PixelsToTicks(graphWidth))
+                break;
+
+            for (int j = 0; j <= endEventIndex; j++)
             {
                 ref var _event = ref segment[j];
 
                 if (_event.Depth + 1 > maxDepth)
                     maxDepth = _event.Depth + 1;
 
-                float startX = (float)(ProfilerTimer.MillisecondsFromTicks(_event.StartTime - startTicks + shiftX) * zoom);
-                float width = _event.IsSinglePoint ? 4 : (float)(_event.ElapsedTime.TotalMilliseconds * zoom);
+                float startX = (float)TicksToPixels(_event.StartTime - startTicks + shiftX);
+                float width = _event.IsSinglePoint ? 4 : (float)TicksToPixels(_event.EndTime - _event.StartTime);
 
-                if (startX + width < 0 || startX > ActualWidth)
+                if (startX + width < 0 || startX > graphWidth)
                     continue;
 
                 float barY = startY + _event.Depth * barHeight;
@@ -249,6 +342,7 @@ class ProfilerEventsGraphControl : Control
             // Start selection
             mouseDownPos = args.GetPosition(this);
             zoomSelectionStarted = true;
+
             RedrawSelection(mouseDownPos);
         }
     }
@@ -261,20 +355,34 @@ class ProfilerEventsGraphControl : Control
         {
             // End selection
             var pos = args.GetPosition(this);
-            var startX = Math.Min(mouseDownPos.X, pos.X);
-            var endX = Math.Max(mouseDownPos.X, pos.X);
+            double startX = Math.Min(mouseDownPos.X, pos.X);
+            double endX = Math.Max(mouseDownPos.X, pos.X);
 
-            long start = (long)(startX / (zoom / TimeSpan.TicksPerMillisecond));
-            long end = (long)(endX / (zoom / TimeSpan.TicksPerMillisecond));
+            long start = (long)PixelsToTicks(startX);
+            long end = (long)PixelsToTicks(endX);
 
             shiftX -= start;
-            zoom = ActualWidth / ((end - start) / (double)TimeSpan.TicksPerMillisecond);
-            zoom = Math.Min(zoom, maxZoom);
-            zoomSelectionStarted = false;
 
-            // Clear
-            selectionDrawing.RenderOpen().Close();
-            InvalidateVisual();
+            double zoom = ViewportWidth / ((end - start) / (double)TimeSpan.TicksPerMillisecond);
+            Zoom = Math.Min(zoom, maxZoom);
+
+            hScroll.Value = TicksToPixels(-shiftX);
+
+            zoomSelectionStarted = false;
+            selectionDrawing.RenderOpen().Close(); // Clear
+
+            InvalidateVisual(); // Redraw graph
+        }
+    }
+
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseRightButtonDown(e);
+
+        if (zoomSelectionStarted)
+        {
+            zoomSelectionStarted = false;
+            selectionDrawing.RenderOpen().Close(); // Clear
         }
     }
 
@@ -285,8 +393,7 @@ class ProfilerEventsGraphControl : Control
         if (zoomSelectionStarted)
         {
             zoomSelectionStarted = false;
-            // Clear
-            selectionDrawing.RenderOpen().Close();
+            selectionDrawing.RenderOpen().Close(); // Clear
         }
     }
 
@@ -297,10 +404,9 @@ class ProfilerEventsGraphControl : Control
         if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
         {
             double oldZoom = zoom;
-            double delta = args.Delta * (1.0 / 100) * 0.05 * zoom;
+            double delta = args.Delta * ((1.0 / 100) * 0.05) * zoom;
 
-            zoom += delta;
-            zoom = Math.Min(Math.Max(zoom, minZoom), maxZoom);
+            Zoom = Math.Min(Math.Max(zoom + delta, minZoom), maxZoom);
 
             var pos = args.GetPosition(this);
 
@@ -312,28 +418,41 @@ class ProfilerEventsGraphControl : Control
             if (shiftX > 0)
                 shiftX = 0;
 
-            InvalidateVisual();
+            hScroll.Value = TicksToPixels(-shiftX);
         }
         else if (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift))
         {
             double scale = zoom / TimeSpan.TicksPerMillisecond;
-            shiftX += (long)((args.Delta * (1.0 / 120) * 55) / scale);
+            shiftX += (long)((args.Delta * ((1.0 / 120) * 55)) / scale);
 
             if (shiftX > 0)
                 shiftX = 0;
 
-            InvalidateVisual();
+            hScroll.Value = TicksToPixels(-shiftX);
         }
+        else if (args.GetPosition(this).X < ViewportWidth)
+        {
+            vScroll.Value -= args.Delta;
+
+            // TODO: Don't redraw, translate visual instead
+        }
+
+        InvalidateVisual(); // Redraw graph
     }
 
     void RedrawSelection(Point mousePos)
     {
         var ctx = selectionDrawing.RenderOpen();
 
-        var startX = Math.Min(mouseDownPos.X, mousePos.X);
-        var endX = Math.Max(mouseDownPos.X, mousePos.X);
+        double graphWidth = ViewportWidth;
+        double graphHeight = ViewportHeight;
 
-        var rect = new Rect(startX, 0, endX - startX, ActualHeight);
+        ctx.PushClip(new RectangleGeometry(new Rect(0, 0, graphWidth, graphHeight)));
+
+        double startX = Math.Min(mouseDownPos.X, mousePos.X);
+        double endX = Math.Max(mouseDownPos.X, mousePos.X);
+
+        var rect = new Rect(startX, 0, endX - startX, graphHeight);
         ctx.DrawRectangle(selectionBrush, selectionPen, rect);
 
         ctx.Close();
@@ -341,26 +460,53 @@ class ProfilerEventsGraphControl : Control
 
     public void ResetZoom()
     {
-        var threadProfilers = Profiler.GetProfilerGroups();
-
-        ResetZoom(threadProfilers);
+        ResetZoomInternal();
         InvalidateVisual();
     }
 
-    void ResetZoom(ProfilerGroup[] threadProfilers)
+    double PixelsToTicks(double pixels) => pixels / zoom * TimeSpan.TicksPerMillisecond;
+    double TicksToPixels(long ticks) => ticks / (double)TimeSpan.TicksPerMillisecond * zoom;
+
+    void ResetZoomInternal()
     {
+        if (startTime == long.MaxValue)
+            Zoom = minZoom = 1;
+        else
+            Zoom = minZoom = ViewportWidth / ((endTime - startTime) / (double)TimeSpan.TicksPerMillisecond);
+
+        shiftX = 0;
+        hScroll.Value = 0;
+    }
+
+    void UpdateValues()
+    {
+        Profiler.Start();
+
+        var threadProfilers = Profiler.GetProfilerGroups();
+
         startTime = long.MaxValue;
         endTime = 0;
 
         for (int i = 0; i < threadProfilers.Length; i++)
             GetEventTimeBounds(threadProfilers[i], ref startTime, ref endTime);
 
-        if (startTime == long.MaxValue)
-            zoom = minZoom = 1;
-        else
-            zoom = minZoom = ActualWidth / ((endTime - startTime) / (double)TimeSpan.TicksPerMillisecond);
+        float y = 0;
 
-        shiftX = 0;
+        for (int i = 0; i < threadProfilers.Length; i++)
+        {
+            int maxDepth = GetMaxDepthForGroup(threadProfilers[i]);
+            y += barHeight * maxDepth + threadGroupPadding;
+        }
+
+        ContentHeight = (int)y;
+        ResetZoomInternal();
+
+        hoverIndices = (-1, -1);
+        hoverDrawing.RenderOpen().Close(); // Clear
+
+        InvalidateVisual();
+
+        Profiler.Stop();
     }
 
     static void GetEventTimeBounds(ProfilerGroup group, ref long startTime, ref long endTime)
@@ -368,9 +514,30 @@ class ProfilerEventsGraphControl : Control
         if (group.CurrentEventIndex == 0)
             return;
 
-        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize + 1;
+        long start = group.Events[0][0].StartTime;
 
-        for (int i = 0; i < endSegmentIndex; i++)
+        if (start < startTime)
+            startTime = start;
+
+        const int ss = ProfilerGroup.EventBufferSegmentSize;
+
+        int lastIndex = group.CurrentEventIndex - 1;
+        var endSegment = group.Events[lastIndex / ss];
+        long end = endSegment[lastIndex % ss].EndTime;
+
+        if (end > endTime)
+            endTime = end;
+    }
+
+    static int GetMaxDepthForGroup(ProfilerGroup group)
+    {
+        if (group.CurrentEventIndex == 0)
+            return 0;
+
+        int maxDepth = 0;
+        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
+
+        for (int i = 0; i <= endSegmentIndex; i++)
         {
             var segment = group.Events[i];
             int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize);
@@ -379,16 +546,12 @@ class ProfilerEventsGraphControl : Control
             {
                 ref var _event = ref segment[j];
 
-                if (_event.Name is null) // NOTE: This might occur if the name is read as the event is still being written to
-                    continue;
-
-                if (_event.StartTime < startTime)
-                    startTime = _event.StartTime;
-
-                if (_event.EndTime > endTime)
-                    endTime = _event.EndTime;
+                if (_event.Depth + 1 > maxDepth)
+                    maxDepth = _event.Depth + 1;
             }
         }
+
+        return maxDepth;
     }
 
     static int ThreadGroupComparer(ProfilerGroup a, ProfilerGroup b)
@@ -418,52 +581,30 @@ class ProfilerEventsGraphControl : Control
         return order;
     }
 
-    void UpdateValues()
-    {
-        Profiler.Start();
-
-        var threadProfilers = Profiler.GetProfilerGroups();
-
-        ResetZoom(threadProfilers);
-
-        float y = headerHeight;
-
-        for (int i = 0; i < threadProfilers.Length; i++)
-        {
-            int maxDepth = GetMaxDepthForGroup(threadProfilers[i]);
-            y += barHeight * maxDepth + threadGroupPadding;
-        }
-
-        minHeight = (int)y;
-        hoverIndices = (-1, -1);
-
-        // Clear
-        hoverDrawing.RenderOpen().Close();
-
-        InvalidateVisual();
-
-        Profiler.Stop();
-    }
-
     protected override void OnRender(DrawingContext drawCtx)
     {
         Profiler.Start("Draw ProfilerEventsGraph");
 
         base.OnRender(drawCtx);
 
-        if ((wasRecording || minHeight == 0) && !Profiler.IsRecordingEvents)
+        if ((wasRecording || contentHeight == 0) && !Profiler.IsRecordingEvents)
             UpdateValues();
 
         wasRecording = Profiler.IsRecordingEvents;
 
         var bgdCtx = backgroundDrawing.RenderOpen();
 
-        bgdCtx.DrawRectangle(headerBrush, null, new Rect(0, 0, ActualWidth, headerHeight));
-        bgdCtx.DrawRectangle(backgroundBrush, null, new Rect(0, headerHeight, ActualWidth, ActualHeight - headerHeight));
+        double graphWidth = ViewportWidth;
+        double graphHeight = ViewportHeight;
+
+        bgdCtx.DrawRectangle(headerBrush, null, new Rect(0, 0, graphWidth, headerHeight));
+        bgdCtx.DrawRectangle(backgroundBrush, null, new Rect(0, headerHeight, graphWidth, graphHeight - headerHeight));
 
         bgdCtx.Close();
 
         var graphCtx = graphDrawing.RenderOpen();
+
+        graphCtx.PushClip(new RectangleGeometry(new Rect(0, 0, graphWidth, graphHeight)));
 
         // Draw time intervals
         {
@@ -472,7 +613,7 @@ class ProfilerEventsGraphControl : Control
             double left = -shiftX / (double)TimeSpan.TicksPerMillisecond;
             double offset = left % lineInterval;
             double x = (lineInterval - offset) * zoom;
-            int lineCount = (int)(ActualWidth / (lineInterval * zoom) + x);
+            int lineCount = (int)(graphWidth / (lineInterval * zoom) + x);
 
             double unitScale = 1;
             string unit = "ms";
@@ -488,7 +629,7 @@ class ProfilerEventsGraphControl : Control
             for (int i = 0; i < lineCount; i++)
             {
                 int x2 = (int)(x + i * lineInterval * zoom);
-                graphCtx.DrawLine(intervalLinePen, new Point(x2, 16), new Point(x2, ActualHeight));
+                graphCtx.DrawLine(intervalLinePen, new Point(x2, 16), new Point(x2, graphHeight));
 
                 double time = (left - offset + (1 + i) * lineInterval) * unitScale;
                 sb.AppendFormat("{0:N0}", time).Append(unit);
@@ -504,16 +645,19 @@ class ProfilerEventsGraphControl : Control
 
         if (wasRecording)
         {
+            graphCtx.Close();
             Profiler.Stop();
             return;
         }
+
+        graphCtx.PushClip(new RectangleGeometry(new Rect(0, headerHeight, graphWidth, graphHeight - headerHeight)));
 
         var threadProfilers = Profiler.GetProfilerGroups();
         Array.Sort(threadProfilers, ThreadGroupComparer);
 
         Profiler.Start("Draw group events");
 
-        float y = headerHeight;
+        float y = headerHeight - (float)vScroll.Value;
 
         for (int i = 0; i < threadProfilers.Length; i++)
         {
@@ -534,6 +678,8 @@ class ProfilerEventsGraphControl : Control
 
     void DrawHoverInfo(DrawingContext drawCtx, ProfilerGroup hoverGroup, double x, double y)
     {
+        double graphHeight = ViewportHeight;
+
         Profiler.Start("Draw hover info");
 
         for (int i = 0; i < hoverEvents.Count; i++)
@@ -604,8 +750,8 @@ class ProfilerEventsGraphControl : Control
             tooltipArea.Width += 12;
             tooltipArea.Height += 8;
 
-            if (i == 0 && tooltipArea.Bottom > ActualHeight)
-                tooltipArea.Y -= tooltipArea.Bottom - ActualHeight;
+            if (i == 0 && tooltipArea.Bottom > graphHeight)
+                tooltipArea.Y -= tooltipArea.Bottom - graphHeight;
 
             drawCtx.DrawRectangle(hoverInfoBackgroundBrush, null, tooltipArea);
 
@@ -637,7 +783,7 @@ class ProfilerEventsGraphControl : Control
 
             y += tooltipArea.Height + 4;
 
-            if (y > ActualHeight)
+            if (y > graphHeight)
                 break;
         }
 
@@ -646,45 +792,27 @@ class ProfilerEventsGraphControl : Control
         Profiler.Stop();
     }
 
-    static int GetMaxDepthForGroup(ProfilerGroup group)
-    {
-        if (group.CurrentEventIndex == 0)
-            return 0;
-
-        int maxDepth = 0;
-
-        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize + 1;
-
-        for (int i = 0; i < endSegmentIndex; i++)
-        {
-            var segment = group.Events[i];
-            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize);
-
-            for (int j = 0; j < endEventIndex; j++)
-            {
-                ref var _event = ref segment[j];
-
-                if (_event.Depth + 1 > maxDepth)
-                    maxDepth = _event.Depth + 1;
-            }
-        }
-
-        return maxDepth;
-    }
-
     void DrawGroupEvents(DrawingContext drawCtx, ProfilerGroup group, Vector3 colorHSV, long startTicks, float y, ref int maxDepth)
     {
         if (group.CurrentEventIndex == 0)
             return;
 
-        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize + 1;
+        double graphWidth = ViewportWidth;
 
-        for (int i = 0; i < endSegmentIndex; i++)
+        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
+
+        for (int i = 0; i <= endSegmentIndex; i++)
         {
             var segment = group.Events[i];
-            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize);
+            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize) - 1;
 
-            for (int j = 0; j < endEventIndex; j++)
+            if (segment[endEventIndex].EndTime - startTicks < -shiftX)
+                continue;
+
+            if (segment[0].StartTime - startTicks > -shiftX + (long)PixelsToTicks(graphWidth))
+                break;
+
+            for (int j = 0; j <= endEventIndex; j++)
             {
                 ref var _event = ref segment[j];
 
@@ -700,10 +828,10 @@ class ProfilerEventsGraphControl : Control
                         minifiedDrawStack[k] = (-1, 0);
                 }
 
-                float startX = (float)(ProfilerTimer.MillisecondsFromTicks(_event.StartTime - startTicks + shiftX) * zoom);
-                float width = _event.IsSinglePoint ? 4 : (float)(_event.ElapsedTime.TotalMilliseconds * zoom);
+                float startX = (float)TicksToPixels(_event.StartTime - startTicks + shiftX);
+                float width = _event.IsSinglePoint ? 4 : (float)TicksToPixels(_event.EndTime - _event.StartTime);
 
-                if (startX + width < 0 || startX > ActualWidth)
+                if (startX + width < 0 || startX > graphWidth)
                     continue;
 
                 var hsv = colorHSV;
