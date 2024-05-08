@@ -11,7 +11,7 @@ using VRage.Network;
 using VRageMath;
 using VRageMath.Spatial;
 
-namespace AdvancedProfiler.Patches;
+namespace AdvancedProfiler;
 
 static class ProfilerHelper
 {
@@ -333,14 +333,12 @@ class VoxelInfoProxy
 {
     public long EntityId;
     public string Name;
-    public string StorageName;
     public BoundingBoxD AABB;
 
     public VoxelInfoProxy(MyVoxelBase voxel)
     {
         EntityId = voxel.EntityId;
         Name = voxel.Name;
-        StorageName = voxel.StorageName;
         AABB = voxel.PositionComp.WorldAABB;
     }
 
@@ -350,7 +348,6 @@ class VoxelInfoProxy
                 Voxel
                    EntityId: {EntityId}
                    Name: {Name}
-                   StorageName: {StorageName}
                    Center: {Vector3D.Round(AABB.Center, 0)}
                    Size: {Vector3D.Round(AABB.Size, 0)}
                 """;
