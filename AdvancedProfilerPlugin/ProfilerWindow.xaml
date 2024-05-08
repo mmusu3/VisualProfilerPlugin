@@ -5,16 +5,39 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:AdvancedProfiler"
         mc:Ignorable="d"
-        Title="ProfilerWindow" Width="1000" Height="600">
+        Title="ProfilerWindow" Width="1000" Height="600"
+        DataContext="{Binding RelativeSource={RelativeSource Self}}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="auto"/>
             <RowDefinition/>
         </Grid.RowDefinitions>
-        <StackPanel Orientation="Horizontal">
-            <Button Name="startStopButton" Content="Start Profiling" Width="100" Height="25" Click="StartStopButton_Click"/>
-            <Button Content="Reset View" Width="100" Height="25" Click="ResetViewButton_Click"/>
+
+        <StackPanel Orientation="Horizontal" Height="26">
+            <Label Content="Record for:"/>
+
+            <TextBox Name="recordTimeBox" Width="50" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                     ToolTip="Maximum is 60 seconds or 3600 frames"
+                     PreviewTextInput="RecordTimeBox_PreviewTextInput"
+                     DataObject.Pasting="RecordTimeBox_Pasting"
+                     TextChanged="RecordTimeBox_TextChanged">
+            </TextBox>
+
+            <ComboBox Name="recordTimeTypeBox" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                      SelectedIndex="0" SelectionChanged="RecordTimeTypeBox_SelectionChanged">
+                <ComboBoxItem Content="Seconds"/>
+                <ComboBoxItem Content="Frames"/>
+            </ComboBox>
+
+            <Button Name="startStopButton" Width="100" VerticalAlignment="Stretch"
+                    Content="Start Recording"
+                    IsEnabled="{Binding CanStartStopRecording}"
+                    Click="StartStopButton_Click"/>
+
+            <Button Content="Reset Zoom" Width="100" VerticalAlignment="Stretch" Click="ResetViewButton_Click"/>
+            <Label Name="frameCountLabel" Content=""/>
         </StackPanel>
+
         <local:ProfilerEventsGraphControl x:Name="eventsGraph" Grid.Row="1"/>
     </Grid>
 </Window>

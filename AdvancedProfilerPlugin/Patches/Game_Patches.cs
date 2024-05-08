@@ -52,6 +52,7 @@ static class Game_Patches
         const int expectedParts = 4;
         int patchedParts = 0;
 
+        var beginFrameMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.BeginFrameForCurrentThread));
         var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [ typeof(string) ]);
         var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [ typeof(int), typeof(string) ]);
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
@@ -64,6 +65,8 @@ static class Game_Patches
 
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
+
+        yield return new MsilInstruction(OpCodes.Call).InlineValue(beginFrameMethod);
 
         yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("UpdateFrame");
         yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod1);
@@ -153,5 +156,7 @@ static class Game_Patches
         }
 
         profilerGroupsList.Clear();
+
+        Profiler.EndOfFrame();
     }
 }

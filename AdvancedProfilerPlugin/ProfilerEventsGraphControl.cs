@@ -76,8 +76,8 @@ class ProfilerEventsGraphControl : Control
     }
     int contentHeight;
 
-    double ViewportWidth => ActualWidth - vScroll.Width;
-    double ViewportHeight => ActualHeight - hScroll.Height;
+    double ViewportWidth => Math.Max(0, ActualWidth - vScroll.Width);
+    double ViewportHeight => Math.Max(0, ActualHeight - hScroll.Height);
 
     Point mousePos;
     (int SegmentIndex, int EventIndex) hoverIndices = (-1, -1);
@@ -212,7 +212,7 @@ class ProfilerEventsGraphControl : Control
 
         if (sizeInfo.HeightChanged)
         {
-            vScroll.ViewportSize = ViewportHeight - headerHeight;
+            vScroll.ViewportSize = Math.Max(0, ViewportHeight - headerHeight);
             UpdateVScroll();
         }
     }
@@ -291,16 +291,16 @@ class ProfilerEventsGraphControl : Control
 
     void GetHoveredEvents(ProfilerGroup group, long startTicks, float startY, ref int maxDepth)
     {
-        if (group.CurrentEventIndex == 0)
+        if (group.NextEventIndex == 0)
             return;
 
         double graphWidth = ViewportWidth;
-        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
+        int endSegmentIndex = (group.NextEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
 
         for (int i = 0; i <= endSegmentIndex; i++)
         {
             var segment = group.Events[i];
-            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize) - 1;
+            int endEventIndex = Math.Min(segment.Length, group.NextEventIndex - i * ProfilerGroup.EventBufferSegmentSize) - 1;
 
             if (segment[endEventIndex].EndTime - startTicks < -shiftX)
                 continue;
@@ -511,7 +511,7 @@ class ProfilerEventsGraphControl : Control
 
     static void GetEventTimeBounds(ProfilerGroup group, ref long startTime, ref long endTime)
     {
-        if (group.CurrentEventIndex == 0)
+        if (group.NextEventIndex == 0)
             return;
 
         long start = group.Events[0][0].StartTime;
@@ -521,7 +521,7 @@ class ProfilerEventsGraphControl : Control
 
         const int ss = ProfilerGroup.EventBufferSegmentSize;
 
-        int lastIndex = group.CurrentEventIndex - 1;
+        int lastIndex = group.NextEventIndex - 1;
         var endSegment = group.Events[lastIndex / ss];
         long end = endSegment[lastIndex % ss].EndTime;
 
@@ -531,16 +531,16 @@ class ProfilerEventsGraphControl : Control
 
     static int GetMaxDepthForGroup(ProfilerGroup group)
     {
-        if (group.CurrentEventIndex == 0)
+        if (group.NextEventIndex == 0)
             return 0;
 
         int maxDepth = 0;
-        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
+        int endSegmentIndex = (group.NextEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
 
         for (int i = 0; i <= endSegmentIndex; i++)
         {
             var segment = group.Events[i];
-            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize);
+            int endEventIndex = Math.Min(segment.Length, group.NextEventIndex - i * ProfilerGroup.EventBufferSegmentSize);
 
             for (int j = 0; j < endEventIndex; j++)
             {
@@ -592,10 +592,16 @@ class ProfilerEventsGraphControl : Control
 
         wasRecording = Profiler.IsRecordingEvents;
 
-        var bgdCtx = backgroundDrawing.RenderOpen();
-
         double graphWidth = ViewportWidth;
         double graphHeight = ViewportHeight;
+
+        if (graphWidth == 0 || graphHeight < headerHeight)
+        {
+            Profiler.Stop();
+            return;
+        }
+
+        var bgdCtx = backgroundDrawing.RenderOpen();
 
         bgdCtx.DrawRectangle(headerBrush, null, new Rect(0, 0, graphWidth, headerHeight));
         bgdCtx.DrawRectangle(backgroundBrush, null, new Rect(0, headerHeight, graphWidth, graphHeight - headerHeight));
@@ -794,17 +800,17 @@ class ProfilerEventsGraphControl : Control
 
     void DrawGroupEvents(DrawingContext drawCtx, ProfilerGroup group, Vector3 colorHSV, long startTicks, float y, ref int maxDepth)
     {
-        if (group.CurrentEventIndex == 0)
+        if (group.NextEventIndex == 0)
             return;
 
         double graphWidth = ViewportWidth;
 
-        int endSegmentIndex = (group.CurrentEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
+        int endSegmentIndex = (group.NextEventIndex - 1) / ProfilerGroup.EventBufferSegmentSize;
 
         for (int i = 0; i <= endSegmentIndex; i++)
         {
             var segment = group.Events[i];
-            int endEventIndex = Math.Min(segment.Length, group.CurrentEventIndex - i * ProfilerGroup.EventBufferSegmentSize) - 1;
+            int endEventIndex = Math.Min(segment.Length, group.NextEventIndex - i * ProfilerGroup.EventBufferSegmentSize) - 1;
 
             if (segment[endEventIndex].EndTime - startTicks < -shiftX)
                 continue;

@@ -772,6 +772,12 @@ public class ProfilerGroup
         activeTimer = timer.Parent;
     }
 
+    public void BeginFrame()
+    {
+        if (Profiler.IsRecordingEvents)
+            frameStartEventIndices.Add(nextEventIndex - 1);
+    }
+
     public void EndFrame(ResolveProfilerEventObjectDelegate? eventObjectResolver = null)
     {
         if (activeTimer != null) throw new InvalidOperationException($"Profiler group '{Name}' still has an active timer '{activeTimer.Name}'");
@@ -780,7 +786,10 @@ public class ProfilerGroup
             item?.EndFrame();
 
         int startIndex = startEventIndexForFrame;
-        int endIndex = currentEventIndex;
+        int endIndex = nextEventIndex - 1;
+
+        if (Profiler.IsRecordingEvents)
+            frameEndEventIndices.Add(endIndex);
 
         if (endIndex == startIndex)
             return;
@@ -788,15 +797,15 @@ public class ProfilerGroup
         if (eventObjectResolver != null)
         {
             int startSegmentIndex = (startIndex - 1) / EventBufferSegmentSize;
-            int endSegmentIndex = (endIndex - 1) / EventBufferSegmentSize + 1;
+            int endSegmentIndex = (endIndex - 1) / EventBufferSegmentSize;
 
-            for (int i = startSegmentIndex; i < endSegmentIndex; i++)
+            for (int i = startSegmentIndex; i <= endSegmentIndex; i++)
             {
                 var segment = Events[i];
                 int startEventIndex = Math.Max(0, startIndex - i * EventBufferSegmentSize);
-                int endEventIndex = Math.Min(segment.Length, endIndex - i * EventBufferSegmentSize);
+                int endEventIndex = Math.Min(segment.Length - 1, endIndex - i * EventBufferSegmentSize);
 
-                for (int j = startEventIndex; j < endEventIndex; j++)
+                for (int j = startEventIndex; j <= endEventIndex; j++)
                 {
                     ref var _event = ref segment[j];
 
@@ -831,18 +840,49 @@ public class ProfilerGroup
     public const int EventBufferSegmentSize = 1024 * 4;
     public List<ProfilerEvent[]> Events = [];
 
-    public int CurrentEventIndex => currentEventIndex;
-    int currentEventIndex;
+    public int NextEventIndex => nextEventIndex;
+    int nextEventIndex;
 
     int startEventIndexForFrame;
 
     Dictionary<object, object> eventObjectsCache = [];
 
+    List<int> frameStartEventIndices = [];
+    List<int> frameEndEventIndices = [];
+
+    public int NumRecordedFrames
+    {
+        get
+        {
+            int numStart = frameStartEventIndices.Count;
+            int numEnd = frameEndEventIndices.Count;
+
+            if (numStart == 0 || numEnd == 0)
+                return 0;
+
+            int firstStart = frameStartEventIndices[0];
+            int firstEnd = frameEndEventIndices[0];
+
+            if (GetEvent(firstEnd).EndTime < GetEvent(firstStart).StartTime)
+                numEnd--; // Start of first frame is cut off
+
+            int lastStart = frameStartEventIndices[^1];
+            int lastEnd = frameEndEventIndices[^1];
+
+            if (GetEvent(lastStart).StartTime > GetEvent(lastEnd).EndTime)
+                numStart--; // End of last frame is cut off
+
+            return Math.Min(numStart, numEnd);
+        }
+    }
+
     internal void StartEventRecording(long startTime, long gcMemory)
     {
-        currentEventIndex = 0;
-        startEventIndexForFrame = 0;
+        nextEventIndex = 0;
+        startEventIndexForFrame = -1;
         eventObjectsCache.Clear();
+        frameStartEventIndices.Clear();
+        frameEndEventIndices.Clear();
 
         foreach (var item in timers)
         {
@@ -860,12 +900,19 @@ public class ProfilerGroup
         }
     }
 
+    ref ProfilerEvent GetEvent(int index)
+    {
+        int segmentIndex = index / EventBufferSegmentSize;
+
+        return ref Events[segmentIndex][index - segmentIndex * EventBufferSegmentSize];
+    }
+
     internal ref ProfilerEvent StartEvent(out int index)
     {
-        if (currentEventIndex == Events.Count * EventBufferSegmentSize)
+        if (nextEventIndex == Events.Count * EventBufferSegmentSize)
             Events.Add(new ProfilerEvent[EventBufferSegmentSize]); // TODO: Add event for allocating new buffer
 
-        index = currentEventIndex++;
+        index = nextEventIndex++;
 
         int segmentIndex = index / EventBufferSegmentSize;
 
@@ -881,10 +928,10 @@ public class ProfilerGroup
 
     internal ref ProfilerEvent AddEvent()
     {
-        if (currentEventIndex == Events.Count * EventBufferSegmentSize)
+        if (nextEventIndex == Events.Count * EventBufferSegmentSize)
             Events.Add(new ProfilerEvent[EventBufferSegmentSize]);
 
-        int index = currentEventIndex++;
+        int index = nextEventIndex++;
         int segmentIndex = index / EventBufferSegmentSize;
 
         return ref Events[segmentIndex][index - segmentIndex * EventBufferSegmentSize];
@@ -929,6 +976,8 @@ public static class Profiler
 
     public static bool IsRecordingEvents => isRecordingEvents;
     static bool isRecordingEvents;
+    static int? numFramesToRecord;
+    static Action? recordingCompletedCallback;
 
     public static bool IsTimerActive()
     {
@@ -1126,6 +1175,20 @@ public static class Profiler
         }
     }
 
+    public static void BeginFrameForCurrentThread()
+    {
+        ThreadGroup?.BeginFrame();
+    }
+
+    public static void BeginFrameForThreadID(int threadId)
+    {
+        lock (profilerGroupsById)
+        {
+            if (profilerGroupsById.TryGetValue(threadId, out var group))
+                group.BeginFrame();
+        }
+    }
+
     public static void EndFrameForCurrentThread(ResolveProfilerEventObjectDelegate? eventObjectResolver = null)
     {
         ThreadGroup?.EndFrame(eventObjectResolver);
@@ -1251,9 +1314,14 @@ public static class Profiler
             profilerGroupsById.Remove(threadId);
     }
 
-    public static void StartEventRecording()
+    public static void StartEventRecording(int? numFrames = null, Action? completedCallback = null)
     {
         if (isRecordingEvents) throw new InvalidOperationException("Event recording has already started.");
+
+        numFramesToRecord = numFrames;
+
+        if (numFrames.HasValue)
+            recordingCompletedCallback = completedCallback;
 
         isRecordingEvents = true;
 
@@ -1265,6 +1333,21 @@ public static class Profiler
             foreach (var item in profilerGroupsById.Values)
                 item.StartEventRecording(startTime, memory);
         }
+    }
+
+    public static void EndOfFrame()
+    {
+        if (!isRecordingEvents || !numFramesToRecord.HasValue || ThreadGroup == null)
+            return;
+
+        if (ThreadGroup.NumRecordedFrames < numFramesToRecord.Value)
+            return;
+
+        StopEventRecording();
+
+        numFramesToRecord = null;
+        recordingCompletedCallback?.Invoke();
+        recordingCompletedCallback = null;
     }
 
     public static void StopEventRecording()
