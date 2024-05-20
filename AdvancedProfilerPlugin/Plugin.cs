@@ -26,6 +26,9 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         var configPath = Path.Combine(StoragePath, "AdvancedProfiler.cfg");
         configVM = Persistent<ConfigViewModel>.Load(configPath);
 
+#if NETFRAMEWORK
+        Patches.Torch_MethodContext_Patches.Patch();
+#endif
         Patches.Worker_WorkerLoop_Patch.Patch();
     }
 

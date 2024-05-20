@@ -1,8 +1,6 @@
-﻿using System;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Threading;
 using ParallelTasks;
-using Torch.Managers.PatchManager;
 
 namespace AdvancedProfiler.Patches;
 
@@ -10,18 +8,15 @@ static class Worker_WorkerLoop_Patch
 {
     public static void Patch()
     {
-        Plugin.Log.Info("Initiating early patch of PrioritizedScheduler.Worker.WorkerLoop");
+        Plugin.Log.Info("Begining early patch of PrioritizedScheduler.Worker.WorkerLoop");
 
         var source = typeof(PrioritizedScheduler).GetNestedType("Worker", BindingFlags.NonPublic)!.GetNonPublicInstanceMethod("WorkerLoop");
         var target = typeof(Worker_WorkerLoop_Patch).GetNonPublicStaticMethod(nameof(Prefix));
 
-        var decoratedMethodType = Type.GetType("Torch.Managers.PatchManager.DecoratedMethod, Torch")!;
+        var pattern = PatchHelper.CreateRewritePattern(source);
+        pattern.Prefixes.Add(target);
 
-        var decoratedMethod = (MethodRewritePattern)Activator.CreateInstance(decoratedMethodType,
-            BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.NonPublic, null, [ (MethodBase)source ], null)!;
-
-        decoratedMethod.Prefixes.Add(target);
-        decoratedMethodType.InvokeMember("Commit", BindingFlags.InvokeMethod | BindingFlags.Instance | BindingFlags.NonPublic, null, decoratedMethod, null);
+        PatchHelper.CommitMethodPatches(pattern);
 
         Plugin.Log.Info("Early patch completed.");
     }

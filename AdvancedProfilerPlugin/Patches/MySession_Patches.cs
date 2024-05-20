@@ -150,7 +150,7 @@ static class MySession_Patches
     //        Plugin.Log.Debug("Patch successful.");
     //}
 
-    static bool Prefix_UpdateComponents(Dictionary<int, SortedSet<MySessionComponentBase>> __field_m_sessionComponentsForUpdate)
+    static bool Prefix_UpdateComponents(MySession __instance, Dictionary<int, SortedSet<MySessionComponentBase>> __field_m_sessionComponentsForUpdate)
     {
         var sessionComponentsForUpdate = __field_m_sessionComponentsForUpdate;
         bool gameReady = MySandboxGame.IsGameReady;
@@ -170,8 +170,17 @@ static class MySession_Patches
             }
         }
 
-        Profiler.Restart("Simulate replication layer");
-        MyMultiplayer.Static?.ReplicationLayer.Simulate();
+        if (__instance.ComponentAssetModifiers != null)
+        {
+            Profiler.Restart("ComponentAssetModifiers.RunRemoval");
+            __instance.ComponentAssetModifiers.RunRemoval();
+        }
+
+        if (MyMultiplayer.Static != null)
+        {
+            Profiler.Restart("Simulate replication layer");
+            MyMultiplayer.Static.ReplicationLayer.Simulate();
+        }
 
         Profiler.Restart("Simulate");
         {
