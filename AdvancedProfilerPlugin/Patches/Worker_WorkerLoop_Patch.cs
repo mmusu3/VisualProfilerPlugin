@@ -29,6 +29,9 @@ static class Worker_WorkerLoop_Patch
         Profiler.SetSortingGroupForCurrentThread(groupName, __field_m_workerIndex);
         Profiler.SetSortingGroupOrderPriority(groupName, 20 + (int)threadPriority);
 
+        if (threadPriority == ThreadPriority.Highest)
+            Profiler.SetIsRealtimeThread(true);
+
         return true;
     }
 }

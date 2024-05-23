@@ -113,6 +113,7 @@ static class MyPhysics_Patches
         {
             int thisThreadIndex = m_threadPool.GetThisThreadIndex();
             Profiler.SetSortingGroupForCurrentThread("Havok", thisThreadIndex);
+            Profiler.SetIsRealtimeThread(true);
         });
     }
 

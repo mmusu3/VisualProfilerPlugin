@@ -9,6 +9,7 @@
     <AssemblyName>AdvancedProfiler</AssemblyName>
     <RootNamespace>AdvancedProfiler</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <OutputPath>bin\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>

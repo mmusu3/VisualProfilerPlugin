@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Threading;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -241,15 +242,31 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     void OnRecordingStopped()
     {
         startStopButton.Content = "Start Recording";
-        eventsGraph.ResetZoom();
 
-        int numRecordedFrames = 0;
-        var groups = Profiler.GetProfilerGroups();
+        var recording = Profiler.GetLastRecording();
 
-        foreach (var item in groups)
-            numRecordedFrames = Math.Max(numRecordedFrames, item.NumRecordedFrames);
+        frameCountLabel.Content = $"Recorded {recording.NumFrames} frames";
+        outliersList.Items.Clear();
 
-        frameCountLabel.Content = $"Recorded {numRecordedFrames} frames";
+        var outliers = recording.GetOutlierFrames();
+
+        foreach (int frameIndex in outliers)
+        {
+            var item = new ListViewItem { Content = frameIndex };
+            item.MouseDoubleClick += OutlierItem_MouseDoubleClick;
+
+            outliersList.Items.Add(item);
+        }
+
+        eventsGraph.SetRecordedEvents(recording);
+    }
+
+    void OutlierItem_MouseDoubleClick(object sender, MouseButtonEventArgs args)
+    {
+        var item = (ListViewItem)sender;
+        int index = (int)item.Content;
+
+        eventsGraph.ZoomToFrame(index);
     }
 
     void ResetViewButton_Click(object sender, RoutedEventArgs args)
@@ -262,7 +279,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (!Profiler.IsRecordingEvents)
             return;
 
-        Profiler.StopEventRecording();
+        Profiler.StopEventRecording(ProfilerHelper.ProfilerEventObjectResolver);
         ClearTimer();
         Dispatcher.BeginInvoke(OnRecordingStopped);
     }

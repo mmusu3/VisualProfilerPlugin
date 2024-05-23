@@ -52,7 +52,7 @@ static class Game_Patches
         const int expectedParts = 4;
         int patchedParts = 0;
 
-        var beginFrameMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.BeginFrameForCurrentThread));
+        var beginFrameMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(BeginFrame));
         var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [ typeof(string) ]);
         var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [ typeof(int), typeof(string) ]);
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
@@ -144,6 +144,20 @@ static class Game_Patches
 
     static readonly List<ProfilerGroup> profilerGroupsList = [];
 
+    static void BeginFrame()
+    {
+        Profiler.BeginFrameForCurrentThread();
+        Profiler.GetProfilerGroups(profilerGroupsList);
+
+        foreach (var item in profilerGroupsList)
+        {
+            if (item.SortingGroup == "Parallel_Highest" || item.SortingGroup == "Havok")
+                item.BeginFrame();
+        }
+
+        profilerGroupsList.Clear();
+    }
+
     static void EndFrame()
     {
         Profiler.EndFrameForCurrentThread(ProfilerHelper.ProfilerEventObjectResolver);
@@ -151,7 +165,7 @@ static class Game_Patches
 
         foreach (var item in profilerGroupsList)
         {
-            if (item.SortingGroup == "Havok")
+            if (item.SortingGroup == "Parallel_Highest" || item.SortingGroup == "Havok")
                 item.EndFrame(ProfilerHelper.ProfilerEventObjectResolver);
         }
 

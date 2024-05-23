@@ -13,7 +13,12 @@
             <RowDefinition/>
         </Grid.RowDefinitions>
 
-        <StackPanel Orientation="Horizontal" Height="26">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="auto"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Orientation="Horizontal" Height="26" Grid.ColumnSpan="2">
             <Label Content="Record for:"/>
 
             <TextBox Name="recordTimeBox" Width="50" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
@@ -38,6 +43,11 @@
             <Label Name="frameCountLabel" Content=""/>
         </StackPanel>
 
-        <local:ProfilerEventsGraphControl x:Name="eventsGraph" Grid.Row="1"/>
+        <StackPanel Grid.Row="1" Grid.Column="0">
+            <Label Content="Outlier Frame Indices"/>
+            <ListView Name="outliersList" Width="200"/>
+        </StackPanel>
+
+        <local:ProfilerEventsGraphControl x:Name="eventsGraph" Grid.Row="1" Grid.Column="1"/>
     </Grid>
 </Window>
