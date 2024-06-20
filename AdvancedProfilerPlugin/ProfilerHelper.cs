@@ -21,6 +21,19 @@ static class ProfilerHelper
     {
         switch (_event.ExtraValue.Object)
         {
+        case Type type:
+            {
+                _event.ExtraValue.Format = "Type: {0}";
+
+                if (cache.TryGetValue(type, out var cachedObj))
+                {
+                    _event.ExtraValue.Object = (string)cachedObj;
+                    break;
+                }
+
+                cache[type] = _event.ExtraValue.Object = type.FullName!;
+            }
+            break;
         case MyClusterTree.MyCluster cluster:
             {
                 _event.ExtraValue.Format = "{0}";
