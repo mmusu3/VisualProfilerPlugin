@@ -177,6 +177,10 @@ public sealed class ProfilerTimer : IDisposable
     public int[] InvokeCounts;
     int prevInvokeCount;
 
+    const int outlierAveragingSampleRange = 50;
+    const int minTicksForOutlier = 500;
+    const double maxOutlierDeviationFraction = 5;
+
     const long TicksPerMicrosecond = 10;
     const long TicksPerMillisecond = 10000;
     const long TicksPerSecond = TicksPerMillisecond * 1000;
@@ -452,24 +456,20 @@ public sealed class ProfilerTimer : IDisposable
 
         if (wasRun)
         {
-            const int averageSampleRange = 50;
-
             double deviation = TimeExclusive - AverageExclusiveTime;
             double d2 = deviation * deviation;
 
-            if (ExclusiveTimeVariance > 0 && TimeExclusive > 500)
+            if (ExclusiveTimeVariance > 0 && TimeExclusive > minTicksForOutlier)
             {
                 double stdDev = Math.Sqrt(ExclusiveTimeVariance);
                 double devFrac = deviation / stdDev;
 
-                const double maxDeviationFrac = 5;
-
-                if (devFrac > maxDeviationFrac)
+                if (devFrac > maxOutlierDeviationFraction)
                     hasOutliers = true;
             }
 
-            AverageExclusiveTime = AverageExclusiveTime * ((averageSampleRange - 1) / (double)averageSampleRange) + TimeExclusive * (1.0 / averageSampleRange);
-            ExclusiveTimeVariance = ExclusiveTimeVariance * ((averageSampleRange - 1) / (double)averageSampleRange) + d2 * (1.0 / averageSampleRange);
+            AverageExclusiveTime = AverageExclusiveTime * ((outlierAveragingSampleRange - 1) / (double)outlierAveragingSampleRange) + TimeExclusive * (1.0 / outlierAveragingSampleRange);
+            ExclusiveTimeVariance = ExclusiveTimeVariance * ((outlierAveragingSampleRange - 1) / (double)outlierAveragingSampleRange) + d2 * (1.0 / outlierAveragingSampleRange);
         }
 
         InclusiveTimes[CurrentIndex] = TimeInclusive;
@@ -886,7 +886,6 @@ public class ProfilerGroup
     object frameLock = new();
 
     EventsAllocator currentEvents = new();
-    GroupEventsRecording? recording;
 
     int prevFrameEndNextEventIndex;
 
@@ -1043,7 +1042,7 @@ public class ProfilerGroup
         }
     }
 
-    internal void StopEventRecording(ResolveProfilerEventObjectDelegate? eventObjectResolver)
+    internal GroupEventsRecording? StopEventRecording(ResolveProfilerEventObjectDelegate? eventObjectResolver)
     {
         lock (frameLock)
         {
@@ -1078,10 +1077,14 @@ public class ProfilerGroup
                 }
             }
 
+            GroupEventsRecording? recording = null;
+
             if (recordedEvents.NextIndex > 0)
                 recording = new GroupEventsRecording(recordedEvents, frameStartEventIndices.ToArray(), frameEndEventIndices.ToArray(), outlierFrameIndices.ToArray());
 
             prevFrameEndNextEventIndex = 0;
+
+            return recording;
         }
     }
 
@@ -1108,19 +1111,6 @@ public class ProfilerGroup
             numStart--; // End of last frame is cut off
 
         return Math.Min(numStart, numEnd);
-    }
-
-    internal GroupEventsRecording? GetLastRecording()
-    {
-        GroupEventsRecording? recording;
-
-        lock (frameLock)
-        {
-            recording = this.recording;
-            this.recording = null;
-        }
-
-        return recording;
     }
 }
 
@@ -1169,7 +1159,7 @@ public static class Profiler
     static bool isRecordingOutliers;
 
     static int? numFramesToRecord;
-    static Action? recordingCompletedCallback;
+    static Action<EventsRecording>? recordingCompletedCallback;
     static DateTime recordingStartTime;
 
     static List<(long FrameIndex, List<(int GroupId, ProfilerEvent[] Events)> Groups)> recordedFrameEventsPerGroup = [];
@@ -1596,7 +1586,7 @@ public static class Profiler
         }
     }
 
-    public static void StartEventRecording(int? numFrames = null, Action? completedCallback = null)
+    public static void StartEventRecording(int? numFrames = null, Action<EventsRecording>? completedCallback = null)
     {
         if (isRecordingEvents) throw new InvalidOperationException("Event recording has already started.");
 
@@ -1625,42 +1615,33 @@ public static class Profiler
         if (ThreadGroup.NumRecordedFrames < numFramesToRecord.Value)
             return;
 
-        StopEventRecording();
+        var recording = StopEventRecording();
 
         numFramesToRecord = null;
-        recordingCompletedCallback?.Invoke();
+        recordingCompletedCallback?.Invoke(recording);
         recordingCompletedCallback = null;
     }
 
-    public static void StopEventRecording(ResolveProfilerEventObjectDelegate? eventObjectResolver = null)
+    public static EventsRecording StopEventRecording(ResolveProfilerEventObjectDelegate? eventObjectResolver = null)
     {
         if (!isRecordingEvents) throw new InvalidOperationException("Event recording has not yet been started.");
 
         lock (profilerGroupsById)
         {
             if (!isRecordingEvents)
-                return;
+                return null!;
 
-            foreach (var item in profilerGroupsById.Values)
-                item.StopEventRecording(eventObjectResolver);
-
-            isRecordingEvents = false;
-        }
-    }
-
-    public static EventsRecording GetLastRecording()
-    {
-        lock (profilerGroupsById)
-        {
             var groups = new List<(int, ProfilerGroup.GroupEventsRecording)>(profilerGroupsById.Count);
 
             foreach (var item in profilerGroupsById)
             {
-                var events = item.Value.GetLastRecording();
+                var events = item.Value.StopEventRecording(eventObjectResolver);
 
                 if (events != null)
                     groups.Add((item.Key, events));
             }
+
+            isRecordingEvents = false;
 
             int numRecordedFrames = 0;
 

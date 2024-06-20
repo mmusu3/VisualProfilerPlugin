@@ -196,8 +196,10 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (Profiler.IsRecordingEvents)
         {
             ClearTimer();
-            Profiler.StopEventRecording();
-            OnRecordingStopped();
+
+            var recording = Profiler.StopEventRecording();
+
+            OnRecordingStopped(recording);
         }
         else
         {
@@ -239,12 +241,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(CanStartStopRecording));
     }
 
-    void OnRecordingStopped()
+    void OnRecordingStopped(Profiler.EventsRecording recording)
     {
         startStopButton.Content = "Start Recording";
-
-        var recording = Profiler.GetLastRecording();
-
         frameCountLabel.Content = $"Recorded {recording.NumFrames} frames";
         outliersList.Items.Clear();
 
@@ -279,15 +278,16 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (!Profiler.IsRecordingEvents)
             return;
 
-        Profiler.StopEventRecording(ProfilerHelper.ProfilerEventObjectResolver);
+        var recording = Profiler.StopEventRecording(ProfilerHelper.ProfilerEventObjectResolver);
+
         ClearTimer();
-        Dispatcher.BeginInvoke(OnRecordingStopped);
+        Dispatcher.BeginInvoke(OnRecordingStopped, recording);
     }
 
-    void RecordingFramesCompleted()
+    void RecordingFramesCompleted(Profiler.EventsRecording recording)
     {
         ClearTimer();
-        Dispatcher.BeginInvoke(OnRecordingStopped);
+        Dispatcher.BeginInvoke(OnRecordingStopped, recording);
     }
 
     void ClearTimer()
