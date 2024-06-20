@@ -939,7 +939,7 @@ public class ProfilerGroup
                 prevFrameEndNextEventIndex = events.NextIndex;
             }
 
-            if (endIndex >= startIndex && eventObjectResolver != null && (Profiler.IsRecordingEvents || hasOutliers))
+            if (endIndex >= startIndex && eventObjectResolver != null && (Profiler.IsRecordingEvents || (hasOutliers && Profiler.IsRecordingOutliers)))
             {
                 const int ss = EventsAllocator.SegmentSize;
 
@@ -970,7 +970,7 @@ public class ProfilerGroup
                 return;
             }
 
-            if (hasOutliers && endIndex >= startIndex)
+            if (hasOutliers && endIndex >= startIndex && Profiler.IsRecordingOutliers)
             {
                 var eventsArray = new ProfilerEvent[endIndex - startIndex + 1];
 
@@ -1164,6 +1164,10 @@ public static class Profiler
 
     public static bool IsRecordingEvents => isRecordingEvents;
     static bool isRecordingEvents;
+
+    public static bool IsRecordingOutliers => isRecordingOutliers;
+    static bool isRecordingOutliers;
+
     static int? numFramesToRecord;
     static Action? recordingCompletedCallback;
     static DateTime recordingStartTime;
@@ -1393,12 +1397,12 @@ public static class Profiler
         ThreadGroup?.EndFrame(eventObjectResolver);
     }
 
-    public static void EndFrameForThreadID(int threadId)
+    public static void EndFrameForThreadID(int threadId, ResolveProfilerEventObjectDelegate? eventObjectResolver = null)
     {
         lock (profilerGroupsById)
         {
             if (profilerGroupsById.TryGetValue(threadId, out var group))
-                group.EndFrame();
+                group.EndFrame(eventObjectResolver);
         }
     }
 
