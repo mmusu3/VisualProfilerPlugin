@@ -44,7 +44,7 @@
         </StackPanel>
 
         <StackPanel Grid.Row="1" Grid.Column="0">
-            <Label Content="Outlier Frame Indices"/>
+            <Label Content="Outlier Frames"/>
             <ListView Name="outliersList" Width="200"/>
         </StackPanel>
 

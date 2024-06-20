@@ -12,8 +12,9 @@ namespace AdvancedProfiler;
 public struct ProfilerEvent
 {
     [Flags]
-    public enum OptionFlags : byte
+    public enum EventFlags : byte
     {
+        None = 0,
         MemoryTracked = 1,
         SinglePoint = 2
     }
@@ -101,7 +102,7 @@ public struct ProfilerEvent
     public string Name;
     public long StartTime;
     public long EndTime;
-    public OptionFlags Options;
+    public EventFlags Flags;
     public long MemoryBefore;
     public long MemoryAfter;
     public int Depth;
@@ -110,12 +111,12 @@ public struct ProfilerEvent
     // TODO: Event chains for async task tracking
     // public int Next;
 
-    public readonly bool MemoryTracked => (Options & OptionFlags.MemoryTracked) != 0;
-    public readonly bool IsSinglePoint => (Options & OptionFlags.SinglePoint) != 0;
+    public readonly bool MemoryTracked => (Flags & EventFlags.MemoryTracked) != 0;
+    public readonly bool IsSinglePoint => (Flags & EventFlags.SinglePoint) != 0;
+
     public readonly TimeSpan ElapsedTime => ProfilerTimer.TimeSpanFromTimestampTicks(EndTime - StartTime);
 }
 
-// TODO: Rename to ProfilerBlock
 public sealed class ProfilerTimer : IDisposable
 {
     public readonly string Name;
@@ -290,7 +291,7 @@ public sealed class ProfilerTimer : IDisposable
 
         if (eventIndex != -1)
         {
-            _event.Options = ProfileMemory ? ProfilerEvent.OptionFlags.MemoryTracked : 0;
+            _event.Flags = ProfileMemory ? ProfilerEvent.EventFlags.MemoryTracked : 0;
             _event.MemoryBefore = _event.MemoryAfter = MemoryBefore;
         }
 
@@ -329,12 +330,12 @@ public sealed class ProfilerTimer : IDisposable
 
             if (ProfileMemory)
             {
-                _event.Options = ProfilerEvent.OptionFlags.MemoryTracked;
+                _event.Flags = ProfilerEvent.EventFlags.MemoryTracked;
                 _event.MemoryBefore = _event.MemoryAfter = GC.GetAllocatedBytesForCurrentThread();
             }
             else
             {
-                _event.Options = 0;
+                _event.Flags = 0;
                 _event.MemoryBefore = _event.MemoryAfter = 0;
             }
 
@@ -932,7 +933,9 @@ public class ProfilerGroup
 
             if (Profiler.IsRecordingEvents)
             {
-                frameEndEventIndices.Add(endIndex);
+                if (endIndex >= 0)
+                    frameEndEventIndices.Add(endIndex);
+
                 prevFrameEndNextEventIndex = events.NextIndex;
             }
 
@@ -1582,6 +1585,9 @@ public static class Profiler
                     endTime = end;
             }
 
+            if (startTime > endTime)
+                (startTime, endTime) = (endTime, startTime);
+
             return (startTime, endTime);
         }
     }
@@ -1689,7 +1695,7 @@ public static class Profiler
 
         ref var _event = ref array[index];
         _event.Name = name;
-        _event.Options = ProfilerEvent.OptionFlags.SinglePoint;
+        _event.Flags = ProfilerEvent.EventFlags.SinglePoint;
         _event.StartTime = _event.EndTime = Stopwatch.GetTimestamp();
         _event.MemoryBefore = _event.MemoryAfter = 0;
         _event.Depth = group.activeTimer?.Depth ?? 0;
