@@ -1,9 +1,11 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace AdvancedProfiler;
@@ -235,7 +237,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             frameCountLabel.Content = "";
             startStopButton.Content = "Stop Recording";
 
-            eventsGraph.InvalidateVisual();
+            eventsGraph.SetRecordedEvents(null);
         }
 
         OnPropertyChanged(nameof(CanStartStopRecording));
@@ -245,7 +247,12 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     {
         startStopButton.Content = "Start Recording";
         frameCountLabel.Content = $"Recorded {recording.NumFrames} frames";
+
+        eventsGraph.SetRecordedEvents(recording);
+
         outliersList.Items.Clear();
+        gridsList.Items.Clear();
+        programmableBlocksList.Items.Clear();
 
         var outliers = recording.GetOutlierFrames();
 
@@ -257,7 +264,45 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             outliersList.Items.Add(item);
         }
 
-        eventsGraph.SetRecordedEvents(recording);
+        var analysis = ProfilerHelper.AnalyzeRecording(recording);
+
+        var borderBrush = new SolidColorBrush { Color = Colors.Black };
+
+        var copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
+        copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
+
+        var gridsContextMenu = new ContextMenu();
+        gridsContextMenu.Items.Add(copyLastPosAsGPS);
+
+        foreach (var gridInfo in analysis.Grids.OrderByDescending(g => g.TotalTime))
+        {
+            var item = new ListViewItem {
+                Content = gridInfo,
+                ContextMenu = gridsContextMenu,
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                BorderBrush = borderBrush
+            };
+
+            gridsList.Items.Add(item);
+        }
+
+        copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
+        copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
+
+        var blocksContextMenu = new ContextMenu();
+        blocksContextMenu.Items.Add(copyLastPosAsGPS);
+
+        foreach (var blockInfo in analysis.ProgrammableBlocks.OrderByDescending(g => g.TotalTime))
+        {
+            var item = new ListViewItem {
+                Content = blockInfo,
+                ContextMenu = blocksContextMenu,
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                BorderBrush = borderBrush
+            };
+
+            programmableBlocksList.Items.Add(item);
+        }
     }
 
     void OutlierItem_MouseDoubleClick(object sender, MouseButtonEventArgs args)
@@ -298,5 +343,36 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         recordingTimer.Change(Timeout.Infinite, Timeout.Infinite); // Cancel timer
         recordingTimer.Dispose();
         recordingTimer = null;
+    }
+
+    void CopyLastPosAsGPS_Click(object sender, RoutedEventArgs e)
+    {
+        var menuItem = e.Source as MenuItem;
+        var menu = menuItem?.Parent as ContextMenu;
+        var listItem = menu?.PlacementTarget as ListViewItem;
+
+        if (listItem?.Content is CubeGridAnalysisInfo gridInfo)
+        {
+            var name = gridInfo.CustomNames.Length > 0 ? gridInfo.CustomNames[^1].Replace(':', '_') : $"{gridInfo.GridSize} Grid {gridInfo.EntityId}";
+            var gps = FormatGPS(name, gridInfo.Positions[^1]);
+
+            Clipboard.SetText(gps);
+        }
+        else if (listItem?.Content is CubeBlockAnalysisInfo blockInfo)
+        {
+            var name = blockInfo.CustomNames.Length > 0 ? blockInfo.CustomNames[^1].Replace(':', '_') : $"{blockInfo.BlockType.Name} {blockInfo.EntityId}";
+            var gps = FormatGPS(name, blockInfo.Positions[^1]);
+
+            Clipboard.SetText(gps);
+        }
+
+        static string FormatGPS(string name, VRageMath.Vector3D coords)
+        {
+            coords = VRageMath.Vector3D.Round(coords, 1);
+
+            var ivCt = System.Globalization.CultureInfo.InvariantCulture;
+
+            return $"GPS:{name}:{coords.X.ToString("R", ivCt)}:{coords.Y.ToString("R", ivCt)}:{coords.Z.ToString("R", ivCt)}:";
+        }
     }
 }

@@ -503,7 +503,7 @@ class ProfilerEventsGraphControl : Control
         InvalidateVisual();
     }
 
-    public void SetRecordedEvents(Profiler.EventsRecording recording)
+    public void SetRecordedEvents(Profiler.EventsRecording? recording)
     {
         Profiler.Start();
 
@@ -514,13 +514,16 @@ class ProfilerEventsGraphControl : Control
 
         float y = 0;
 
-        foreach (var (groupId, group) in recording.Groups)
+        if (recording != null)
         {
-            GetEventTimeBounds(group.EventSegments, group.EventCount, ref startTime, ref endTime);
+            foreach (var (groupId, group) in recording.Groups)
+            {
+                GetEventTimeBounds(group.EventSegments, group.EventCount, ref startTime, ref endTime);
 
-            int maxDepth = GetMaxDepthForGroup(group.EventSegments, group.EventCount);
+                int maxDepth = GetMaxDepthForGroup(group.EventSegments, group.EventCount);
 
-            y += barHeight * maxDepth + threadGroupPadding;
+                y += barHeight * maxDepth + threadGroupPadding;
+            }
         }
 
         ContentHeight = (int)y;
@@ -631,6 +634,13 @@ class ProfilerEventsGraphControl : Control
 
         var graphCtx = graphDrawing.RenderOpen();
 
+        if (recordedEvents == null)
+        {
+            graphCtx.Close();
+            Profiler.Stop();
+            return;
+        }
+
         graphCtx.PushClip(new RectangleGeometry(new Rect(0, 0, graphWidth, graphHeight)));
 
         // Draw time intervals
@@ -651,6 +661,7 @@ class ProfilerEventsGraphControl : Control
                 unit = "µs";
             }
 
+            double pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
             var sb = stringBuilder;
 
             for (int i = 0; i < lineCount; i++)
@@ -662,19 +673,12 @@ class ProfilerEventsGraphControl : Control
                 sb.AppendFormat("{0:N0}", time).Append(unit);
 
                 var ft = new FormattedText(sb.ToString(), CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-                    fontFace, FontSize, Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip) { TextAlignment = TextAlignment.Center };
+                    fontFace, FontSize, Brushes.White, pixelsPerDip) { TextAlignment = TextAlignment.Center };
 
                 graphCtx.DrawText(ft, new Point(x2, 0));
 
                 sb.Clear();
             }
-        }
-
-        if (recordedEvents == null)
-        {
-            graphCtx.Close();
-            Profiler.Stop();
-            return;
         }
 
         graphCtx.PushClip(new RectangleGeometry(new Rect(0, headerHeight, graphWidth, graphHeight - headerHeight)));

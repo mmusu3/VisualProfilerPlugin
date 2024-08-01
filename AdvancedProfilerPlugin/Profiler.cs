@@ -115,6 +115,7 @@ public struct ProfilerEvent
     public readonly bool IsSinglePoint => (Flags & EventFlags.SinglePoint) != 0;
 
     public readonly TimeSpan ElapsedTime => ProfilerTimer.TimeSpanFromTimestampTicks(EndTime - StartTime);
+    public readonly double ElapsedMilliseconds => ProfilerTimer.MillisecondsFromTicks(EndTime - StartTime);
 }
 
 public sealed class ProfilerTimer : IDisposable
@@ -852,6 +853,8 @@ public class ProfilerGroup
         public int[] FrameEndEventIndices = frameEndIndices;
         public int[] OutlierFrames = outlierFrames;
 
+        public int SegmentSize => EventsAllocator.SegmentSize;
+
         public ref ProfilerEvent GetEvent(int index)
         {
             int segmentIndex = index / EventsAllocator.SegmentSize;
@@ -1561,16 +1564,24 @@ public static class Profiler
             {
                 var g = item.Value;
 
-                if (frameIndex >= g.FrameEndEventIndices.Length || frameIndex >= g.FrameStartEventIndices.Length)
+                if (frameIndex >= g.FrameStartEventIndices.Length
+                    || frameIndex >= g.FrameEndEventIndices.Length)
                     continue;
 
+                int startIndex = g.FrameStartEventIndices[frameIndex];
                 int endIndex = g.FrameEndEventIndices[frameIndex];
 
-                if (endIndex == -1)
-                    continue;
-
-                long start = g.GetEvent(g.FrameStartEventIndices[frameIndex]).StartTime;
+                long start = g.GetEvent(startIndex).StartTime;
                 long end = g.GetEvent(endIndex).EndTime;
+
+                if (end < start)
+                {
+                    if (frameIndex + 1 >= g.FrameEndEventIndices.Length)
+                        continue;
+
+                    endIndex = g.FrameEndEventIndices[frameIndex + 1];
+                    end = g.GetEvent(endIndex).EndTime;
+                }
 
                 if (start < startTime)
                     startTime = start;

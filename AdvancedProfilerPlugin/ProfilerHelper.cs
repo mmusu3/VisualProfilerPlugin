@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Havok;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Character;
@@ -185,6 +186,123 @@ static class ProfilerHelper
             break;
         }
     }
+
+    public static RecordingAnalysisInfo AnalyzeRecording(Profiler.EventsRecording recording)
+    {
+        var grids = new Dictionary<long, CubeGridAnalysisInfo.Builder>();
+        var progBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
+
+        foreach (var group in recording.Groups)
+        {
+            int groupId = group.Key;
+            var events = group.Value;
+
+            if (events.FrameStartEventIndices.Length == 0
+                || events.FrameEndEventIndices.Length == 0)
+                continue;
+
+            int frameEndOffset = 0;
+
+            if (events.FrameEndEventIndices[0] < events.FrameStartEventIndices[0])
+                frameEndOffset = 1;
+
+            for (int f = 0; f < events.FrameStartEventIndices.Length; f++)
+            {
+                if (frameEndOffset + f >= events.FrameEndEventIndices.Length)
+                    break;
+
+                int startEventIndex = events.FrameStartEventIndices[f];
+                int endEventIndex = events.FrameEndEventIndices[frameEndOffset + f];
+                int startSegmentIndex = startEventIndex / events.SegmentSize;
+                int endSegmentIndex = endEventIndex / events.SegmentSize;
+
+                for (int s = startSegmentIndex; s <= endSegmentIndex; s++)
+                {
+                    var segment = events.EventSegments[s];
+                    int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - s * events.SegmentSize);
+
+                    for (int e = 0; e <= endIndexInSegment; e++)
+                    {
+                        ref var _event = ref segment[e];
+
+                        switch (_event.ExtraValue.Type)
+                        {
+                        case ProfilerEvent.ExtraValueTypeOption.Object:
+                            {
+                                // TODO: Record list of event IDs per object for highlighting events in graph when object selected
+
+                                switch (_event.ExtraValue.Object)
+                                {
+                                case CubeGridInfoProxy gridInfo:
+                                    AnalyzeGrid(gridInfo, in _event, groupId, f);
+                                    break;
+                                case CubeBlockInfoProxy blockInfo:
+                                    AnalyzeBlock(blockInfo, in _event, groupId, f);
+                                    break;
+                                }
+                            }
+                            break;
+                        case ProfilerEvent.ExtraValueTypeOption.Long:
+                        case ProfilerEvent.ExtraValueTypeOption.Double:
+                        case ProfilerEvent.ExtraValueTypeOption.Float:
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach (var item in grids)
+            item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
+
+        foreach (var item in progBlocks)
+            item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
+
+        return new RecordingAnalysisInfo(
+            grids.Values.Select(c => c.Finish()).ToArray(),
+            progBlocks.Values.Select(c => c.Finish()).ToArray());
+
+        void AnalyzeGrid(CubeGridInfoProxy gridInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
+        {
+            if (grids.TryGetValue(gridInfo.EntityId, out var anInf))
+                anInf.Add(gridInfo);
+            else
+                grids.Add(gridInfo.EntityId, anInf = new(gridInfo));
+
+            // TODO: Filter parent events to prevent time overlap
+            switch (_event.Name)
+            {
+            default:
+                break;
+            }
+
+            anInf.TotalTime += _event.ElapsedMilliseconds;
+            anInf.IncludedInGroups.Add(groupId);
+            anInf.FramesCounted.Add(frameIndex);
+        }
+
+        void AnalyzeBlock(CubeBlockInfoProxy blockInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
+        {
+            if (blockInfo.BlockType != typeof(Sandbox.Game.Entities.Blocks.MyProgrammableBlock))
+                return;
+
+            if (progBlocks.TryGetValue(blockInfo.EntityId, out var anInf))
+                anInf.Add(blockInfo);
+            else
+                progBlocks.Add(blockInfo.EntityId, anInf = new(blockInfo));
+
+            // TODO: Filter parent events to prevent time overlap
+            switch (_event.Name)
+            {
+            default:
+                break;
+            }
+
+            anInf.TotalTime += _event.ElapsedMilliseconds;
+            anInf.IncludedInGroups.Add(groupId);
+            anInf.FramesCounted.Add(frameIndex);
+        }
+    }
 }
 
 class PhysicsClusterInfoProxy
@@ -219,7 +337,7 @@ class PhysicsClusterInfoProxy
                 Physics Cluster
                    Center: {Vector3D.Round(AABB.Center, 0)}
                    Size: {Vector3D.Round(AABB.Size, 0)}
-                   RigidBodies: {RigidBodyCount} (Active: {ActiveRigidBodyCount})
+                   Rigid Bodies: {RigidBodyCount} (Active: {ActiveRigidBodyCount})
                    Characters: {CharacterCount}
                 """;
     }
@@ -259,9 +377,8 @@ class CubeGridInfoProxy
         var idPart = OwnerName != null ? $", Id: " : null;
 
         return $"""
-                {GridSize} Grid
-                   EntityId: {EntityId}
-                   CustomName: {CustomName}
+                {GridSize} Grid, ID: {EntityId}
+                   Custom Name: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Blocks: {BlockCount}
                    Position: {Vector3D.Round(Position, 0)}
@@ -299,9 +416,8 @@ class CubeBlockInfoProxy
         var idPart = OwnerName != null ? $", Id: " : null;
 
         return $"""
-                Block
-                   EntityId: {EntityId}
-                   CustomName: {CustomName}
+                Block, ID: {EntityId}
+                   Custom Name: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Type: {BlockType.Name}
                    Position: {Vector3D.Round(Position, 1)}
@@ -332,10 +448,9 @@ class CharacterInfoProxy
     public override string ToString()
     {
         return $"""
-                Character
-                   EntityId: {EntityId}
-                   IdentityId: {IdentityId}
-                   PlatformId: {PlatformId}
+                Character, ID: {EntityId}
+                   Identity ID: {IdentityId}
+                   Platform ID: {PlatformId}
                    Name: {Name}
                    Position: {Vector3D.Round(Position, 1)}
                 """;
@@ -358,11 +473,194 @@ class VoxelInfoProxy
     public override string ToString()
     {
         return $"""
-                Voxel
-                   EntityId: {EntityId}
+                Voxel, ID: {EntityId}
                    Name: {Name}
                    Center: {Vector3D.Round(AABB.Center, 0)}
                    Size: {Vector3D.Round(AABB.Size, 0)}
+                """;
+    }
+}
+
+class RecordingAnalysisInfo
+{
+    public CubeGridAnalysisInfo[] Grids;
+    public CubeBlockAnalysisInfo[] ProgrammableBlocks;
+
+    public RecordingAnalysisInfo(CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks)
+    {
+        Grids = grids;
+        ProgrammableBlocks = programmableBlocks;
+    }
+}
+
+class CubeGridAnalysisInfo
+{
+    public class Builder
+    {
+        public long EntityId;
+        public MyCubeSize GridSize;
+        public HashSet<string> CustomNames = [];
+        public Dictionary<long, string?> Owners = [];
+        public HashSet<int> BlockCounts = [];
+        public HashSet<Vector3D> Positions = [];
+        public HashSet<int> IncludedInGroups = [];
+        public HashSet<int> FramesCounted = [];
+
+        public double TotalTime;
+        public double AverageTimePerFrame;
+
+        public Builder(CubeGridInfoProxy info)
+        {
+            EntityId = info.EntityId;
+            GridSize = info.GridSize;
+
+            Add(info);
+        }
+
+        public void Add(CubeGridInfoProxy info)
+        {
+            CustomNames.Add(info.CustomName);
+            Owners[info.OwnerId] = info.OwnerName;
+            BlockCounts.Add(info.BlockCount);
+            Positions.Add(info.Position);
+        }
+
+        public CubeGridAnalysisInfo Finish()
+        {
+            return new CubeGridAnalysisInfo(EntityId, GridSize, CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
+                BlockCounts.ToArray(), Positions.ToArray(), TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
+        }
+    }
+
+    public long EntityId;
+    public MyCubeSize GridSize;
+    public string[] CustomNames;
+    public (long Id, string? Name)[] Owners;
+    public int[] BlockCounts;
+    public Vector3D[] Positions;
+
+    public double TotalTime;
+    public double AverageTimePerFrame;
+    public int IncludedInNumGroups;
+    public int NumFramesCounted;
+
+    public CubeGridAnalysisInfo(
+        long entityId, MyCubeSize gridSize,
+        string[] customNames, (long Id, string? Name)[] owners,
+        int[] blockCounts, Vector3D[] positions,
+        double totalTime, double averageTimePerFrame,
+        int includedInNumGroups, int numFramesCounted)
+    {
+        EntityId = entityId;
+        GridSize = gridSize;
+        CustomNames = customNames;
+        Owners = owners;
+        BlockCounts = blockCounts;
+        Positions = positions;
+        TotalTime = totalTime;
+        AverageTimePerFrame = averageTimePerFrame;
+        IncludedInNumGroups = includedInNumGroups;
+        NumFramesCounted = numFramesCounted;
+    }
+
+    public override string ToString()
+    {
+        return $"""
+                {GridSize} Grid, ID: {EntityId}
+                Custom Names: {string.Join(", ", CustomNames)}
+                Owners: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", Id: " : null) + o.Id.ToString()})"))}
+                Block Counts: {string.Join(", ", BlockCounts)}
+                Positions: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
+                Total Time: {TotalTime:N1}ms
+                Average Time: {AverageTimePerFrame:N2}ms
+                Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
+                """;
+    }
+}
+
+class CubeBlockAnalysisInfo
+{
+    public class Builder
+    {
+        public long EntityId;
+        public long GridId;
+        public Type BlockType;
+        public HashSet<string> CustomNames = [];
+        public Dictionary<long, string?> Owners = [];
+        public HashSet<Vector3D> Positions = [];
+        public HashSet<int> IncludedInGroups = [];
+        public HashSet<int> FramesCounted = [];
+
+        public double TotalTime;
+        public double AverageTimePerFrame;
+
+        public Builder(CubeBlockInfoProxy info)
+        {
+            EntityId = info.EntityId;
+            GridId = info.Grid.EntityId;
+            BlockType = info.BlockType;
+
+            Add(info);
+        }
+
+        public void Add(CubeBlockInfoProxy info)
+        {
+            if (info.CustomName != null)
+                CustomNames.Add(info.CustomName);
+
+            Owners[info.OwnerId] = info.OwnerName;
+            Positions.Add(info.Position);
+        }
+
+        public CubeBlockAnalysisInfo Finish()
+        {
+            return new CubeBlockAnalysisInfo(EntityId, GridId, BlockType, CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
+                Positions.ToArray(), TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
+        }
+    }
+
+    public long EntityId;
+    public long GridId;
+    public Type BlockType;
+    public string[] CustomNames;
+    public (long Id, string? Name)[] Owners;
+    public Vector3D[] Positions;
+
+    public double TotalTime;
+    public double AverageTimePerFrame;
+    public int IncludedInNumGroups;
+    public int NumFramesCounted;
+
+    public CubeBlockAnalysisInfo(
+        long entityId, long gridId, Type blockType,
+        string[] customNames, (long Id, string? Name)[] owners,
+        Vector3D[] positions,
+        double totalTime, double averageTimePerFrame,
+        int includedInNumGroups, int numFramesCounted)
+    {
+        EntityId = entityId;
+        GridId = gridId;
+        BlockType = blockType;
+        CustomNames = customNames;
+        Owners = owners;
+        Positions = positions;
+        TotalTime = totalTime;
+        AverageTimePerFrame = averageTimePerFrame;
+        IncludedInNumGroups = includedInNumGroups;
+        NumFramesCounted = numFramesCounted;
+    }
+
+    public override string ToString()
+    {
+        return $"""
+                {BlockType.Name}, ID: {EntityId}
+                Grid ID: {GridId}
+                Custom Names: {string.Join(", ", CustomNames)}
+                Owners: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", Id: " : null) + o.Id.ToString()})"))}
+                Positions: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
+                Total Time: {TotalTime:N1}ms
+                Average Time: {AverageTimePerFrame:N2}ms
+                Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
                 """;
     }
 }
