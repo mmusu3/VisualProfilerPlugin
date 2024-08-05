@@ -189,6 +189,7 @@ static class ProfilerHelper
 
     public static RecordingAnalysisInfo AnalyzeRecording(Profiler.EventsRecording recording)
     {
+        var clusters = new Dictionary<int, PhysicsClusterAnalysisInfo.Builder>();
         var grids = new Dictionary<long, CubeGridAnalysisInfo.Builder>();
         var progBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
 
@@ -219,9 +220,10 @@ static class ProfilerHelper
                 for (int s = startSegmentIndex; s <= endSegmentIndex; s++)
                 {
                     var segment = events.EventSegments[s];
+                    int startIndexInSegment = Math.Max(0, startEventIndex - s * events.SegmentSize);
                     int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - s * events.SegmentSize);
 
-                    for (int e = 0; e <= endIndexInSegment; e++)
+                    for (int e = startIndexInSegment; e <= endIndexInSegment; e++)
                     {
                         ref var _event = ref segment[e];
 
@@ -233,6 +235,9 @@ static class ProfilerHelper
 
                                 switch (_event.ExtraValue.Object)
                                 {
+                                case PhysicsClusterInfoProxy clusterInfo:
+                                    AnalyzePhysicsCluster(clusterInfo, in _event, groupId, f);
+                                    break;
                                 case CubeGridInfoProxy gridInfo:
                                     AnalyzeGrid(gridInfo, in _event, groupId, f);
                                     break;
@@ -252,6 +257,9 @@ static class ProfilerHelper
             }
         }
 
+        foreach (var item in clusters)
+            item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
+
         foreach (var item in grids)
             item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
 
@@ -259,8 +267,28 @@ static class ProfilerHelper
             item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
 
         return new RecordingAnalysisInfo(
+            clusters.Values.Select(c => c.Finish()).ToArray(),
             grids.Values.Select(c => c.Finish()).ToArray(),
             progBlocks.Values.Select(c => c.Finish()).ToArray());
+
+        void AnalyzePhysicsCluster(PhysicsClusterInfoProxy clusterInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
+        {
+            if (clusters.TryGetValue(clusterInfo.ID, out var anInf))
+                anInf.Add(clusterInfo);
+            else
+                clusters.Add(clusterInfo.ID, anInf = new(clusterInfo));
+
+            // TODO: Filter parent events to prevent time overlap
+            switch (_event.Name)
+            {
+            default:
+                break;
+            }
+
+            anInf.TotalTime += _event.ElapsedMilliseconds;
+            anInf.IncludedInGroups.Add(groupId);
+            anInf.FramesCounted.Add(frameIndex);
+        }
 
         void AnalyzeGrid(CubeGridInfoProxy gridInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
         {
@@ -307,6 +335,7 @@ static class ProfilerHelper
 
 class PhysicsClusterInfoProxy
 {
+    public int ID;
     public BoundingBoxD AABB;
     public bool HasWorld;
     public int RigidBodyCount;
@@ -317,6 +346,7 @@ class PhysicsClusterInfoProxy
     {
         var hkWorld = cluster.UserData as HkWorld;
 
+        ID = cluster.ClusterId;
         AABB = cluster.AABB;
 
         if (hkWorld != null)
@@ -334,7 +364,7 @@ class PhysicsClusterInfoProxy
             return "Physics Cluster without HKWorld";
 
         return $"""
-                Physics Cluster
+                Physics Cluster, ID: {ID}
                    Center: {Vector3D.Round(AABB.Center, 0)}
                    Size: {Vector3D.Round(AABB.Size, 0)}
                    Rigid Bodies: {RigidBodyCount} (Active: {ActiveRigidBodyCount})
@@ -483,13 +513,124 @@ class VoxelInfoProxy
 
 class RecordingAnalysisInfo
 {
+    public PhysicsClusterAnalysisInfo[] PhysicsClusters;
     public CubeGridAnalysisInfo[] Grids;
     public CubeBlockAnalysisInfo[] ProgrammableBlocks;
 
-    public RecordingAnalysisInfo(CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks)
+    public RecordingAnalysisInfo(PhysicsClusterAnalysisInfo[] physicsClusters, CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks)
     {
+        PhysicsClusters = physicsClusters;
         Grids = grids;
         ProgrammableBlocks = programmableBlocks;
+    }
+}
+
+class PhysicsClusterAnalysisInfo
+{
+    public class Builder
+    {
+        public int ID;
+        public HashSet<BoundingBoxD> AABBs = [];
+        public int MinObjects;
+        public int MaxObjects;
+        public int MinActiveObjects;
+        public int MaxActiveObjects;
+        public int MinCharacters;
+        public int MaxCharacters;
+
+        public double TotalTime;
+        public double AverageTimePerFrame;
+        public HashSet<int> IncludedInGroups = [];
+        public HashSet<int> FramesCounted = [];
+
+        public Builder(PhysicsClusterInfoProxy info)
+        {
+            ID = info.ID;
+            MinObjects = info.RigidBodyCount;
+            MaxObjects = info.RigidBodyCount;
+            MinActiveObjects = info.ActiveRigidBodyCount;
+            MaxActiveObjects = info.ActiveRigidBodyCount;
+            MinCharacters = info.CharacterCount;
+            MaxCharacters = info.CharacterCount;
+
+            AABBs.Add(info.AABB);
+        }
+
+        public void Add(PhysicsClusterInfoProxy info)
+        {
+            AABBs.Add(info.AABB);
+
+            if (info.HasWorld)
+            {
+                MinObjects = Math.Min(MinObjects, info.RigidBodyCount);
+                MaxObjects = Math.Max(MaxObjects, info.RigidBodyCount);
+                MinActiveObjects = Math.Min(MinActiveObjects, info.ActiveRigidBodyCount);
+                MaxActiveObjects = Math.Max(MaxActiveObjects, info.ActiveRigidBodyCount);
+                MinCharacters = Math.Min(MinCharacters, info.CharacterCount);
+                MaxCharacters = Math.Max(MaxCharacters, info.CharacterCount);
+            }
+        }
+
+        public PhysicsClusterAnalysisInfo Finish()
+        {
+            return new PhysicsClusterAnalysisInfo(ID, AABBs.ToArray(),
+                MinObjects, MaxObjects, MinActiveObjects, MaxActiveObjects, MinCharacters, MaxCharacters,
+                TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
+        }
+    }
+
+    public int ID;
+    public BoundingBoxD[] AABBs;
+    public int MinObjects;
+    public int MaxObjects;
+    public int MinActiveObjects;
+    public int MaxActiveObjects;
+    public int MinCharacters;
+    public int MaxCharacters;
+
+    public double TotalTime;
+    public double AverageTimePerFrame;
+    public int IncludedInNumGroups;
+    public int NumFramesCounted;
+
+    public PhysicsClusterAnalysisInfo(
+        int id, BoundingBoxD[] aabbs,
+        int minObjects, int maxObjects,
+        int minActiveObjects, int maxActiveObjects,
+        int minCharacters, int maxCharacters,
+        double totalTime, double averageTimePerFrame,
+        int includedInNumGroups, int numFramesCounted)
+    {
+        ID = id;
+        AABBs = aabbs;
+        MinObjects = minObjects;
+        MaxObjects = maxObjects;
+        MinActiveObjects = minActiveObjects;
+        MaxActiveObjects = maxActiveObjects;
+        MinCharacters = minCharacters;
+        MaxCharacters = maxCharacters;
+        TotalTime = totalTime;
+        AverageTimePerFrame = averageTimePerFrame;
+        IncludedInNumGroups = includedInNumGroups;
+        NumFramesCounted = numFramesCounted;
+    }
+
+    public override string ToString()
+    {
+        return $"""
+                Physics Cluster, ID: {ID}
+                AABB{(AABBs.Length > 1 ? "s" : "")}: {string.Join(", ", AABBs.Select(b => Round(b)).Distinct().Select(b => $"({ToString(b)})"))}
+                Num Objects{(MinObjects == MaxObjects ? $": {MaxObjects}" : $", Min: {MinObjects}, Max: {MaxObjects}")}
+                Num Active Objects{(MinActiveObjects == MaxActiveObjects ? $": {MaxActiveObjects}" : $", Min: {MinActiveObjects}, Max: {MaxActiveObjects}")}
+                Num Characters{(MinCharacters == MaxCharacters ? $": {MaxCharacters}" : $", Min: {MinCharacters}, Max: {MaxCharacters}")}
+                Total Time: {TotalTime:N1}ms
+                Average Time: {AverageTimePerFrame:N2}ms
+                Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
+                """;
+
+        static BoundingBoxD Round(in BoundingBoxD box) => new BoundingBoxD(Vector3D.Round(box.Min, 0), Vector3D.Round(box.Max, 0));
+
+        static string ToString(in BoundingBoxD box) => $"Center:{{{box.Center}}}, Size:{{{box.Size}}}";
     }
 }
 
@@ -567,10 +708,10 @@ class CubeGridAnalysisInfo
     {
         return $"""
                 {GridSize} Grid, ID: {EntityId}
-                Custom Names: {string.Join(", ", CustomNames)}
-                Owners: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", Id: " : null) + o.Id.ToString()})"))}
-                Block Counts: {string.Join(", ", BlockCounts)}
-                Positions: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
+                Custom Name{(CustomNames.Length > 1 ? "s" : "")}: {string.Join(", ", CustomNames)}
+                Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", Id: " : null) + o.Id.ToString()})"))}
+                Block Count{(BlockCounts.Length > 1 ? "s" : "")}: {string.Join(", ", BlockCounts)}
+                Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms
                 Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
@@ -655,9 +796,9 @@ class CubeBlockAnalysisInfo
         return $"""
                 {BlockType.Name}, ID: {EntityId}
                 Grid ID: {GridId}
-                Custom Names: {string.Join(", ", CustomNames)}
-                Owners: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", Id: " : null) + o.Id.ToString()})"))}
-                Positions: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
+                Custom Name{(CustomNames.Length > 1 ? "s" : "")}: {string.Join(", ", CustomNames)}
+                Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", Id: " : null) + o.Id.ToString()})"))}
+                Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms
                 Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}

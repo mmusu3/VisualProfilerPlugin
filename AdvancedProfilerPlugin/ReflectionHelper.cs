@@ -13,6 +13,11 @@ static class ReflectionHelper
         return obj;
     }
 
+    public static MethodInfo GetMethod(this Type type, string methodName, bool _public, bool _static)
+    {
+        return ThrowIfNull(type.GetMethod(methodName, (_public ? BindingFlags.Public : BindingFlags.NonPublic) | (_static ? BindingFlags.Static : BindingFlags.Instance)), methodName);
+    }
+
     public static MethodInfo GetPublicStaticMethod(this Type type, string methodName)
     {
         return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static), methodName);

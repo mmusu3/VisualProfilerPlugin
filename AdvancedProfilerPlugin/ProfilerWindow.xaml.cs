@@ -251,6 +251,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         eventsGraph.SetRecordedEvents(recording);
 
         outliersList.Items.Clear();
+        physicsClustersList.Items.Clear();
         gridsList.Items.Clear();
         programmableBlocksList.Items.Clear();
 
@@ -269,6 +270,24 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         var borderBrush = new SolidColorBrush { Color = Colors.Black };
 
         var copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
+        copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
+
+        var clustersContextMenu = new ContextMenu();
+        clustersContextMenu.Items.Add(copyLastPosAsGPS);
+
+        foreach (var clusterInfo in analysis.PhysicsClusters.OrderByDescending(g => g.TotalTime))
+        {
+            var item = new ListViewItem {
+                Content = clusterInfo,
+                ContextMenu = clustersContextMenu,
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                BorderBrush = borderBrush
+            };
+
+            physicsClustersList.Items.Add(item);
+        }
+
+        copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
         copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
 
         var gridsContextMenu = new ContextMenu();
@@ -351,24 +370,39 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         var menu = menuItem?.Parent as ContextMenu;
         var listItem = menu?.PlacementTarget as ListViewItem;
 
-        if (listItem?.Content is CubeGridAnalysisInfo gridInfo)
+        switch (listItem?.Content)
         {
-            var name = gridInfo.CustomNames.Length > 0 ? gridInfo.CustomNames[^1].Replace(':', '_') : $"{gridInfo.GridSize} Grid {gridInfo.EntityId}";
-            var gps = FormatGPS(name, gridInfo.Positions[^1]);
+        case PhysicsClusterAnalysisInfo clusterInfo:
+            {
+                var aabb = clusterInfo.AABBs[^1];
+                var size = VRageMath.Vector3D.Round(aabb.Size, 0);
+                var name = $"PhysicsCluster-{clusterInfo.ID}_({size.X}x{size.Y}x{size.Z})";
+                var gps = FormatGPS(name, aabb.Center, 0);
 
-            Clipboard.SetText(gps);
+                Clipboard.SetText(gps);
+                break;
+            }
+        case CubeGridAnalysisInfo gridInfo:
+            {
+                var name = gridInfo.CustomNames.Length > 0 ? gridInfo.CustomNames[^1].Replace(':', '_') : $"{gridInfo.GridSize} Grid {gridInfo.EntityId}";
+                var gps = FormatGPS(name, gridInfo.Positions[^1]);
+
+                Clipboard.SetText(gps);
+                break;
+            }
+        case CubeBlockAnalysisInfo blockInfo:
+            {
+                var name = blockInfo.CustomNames.Length > 0 ? blockInfo.CustomNames[^1].Replace(':', '_') : $"{blockInfo.BlockType.Name} {blockInfo.EntityId}";
+                var gps = FormatGPS(name, blockInfo.Positions[^1]);
+
+                Clipboard.SetText(gps);
+                break;
+            }
         }
-        else if (listItem?.Content is CubeBlockAnalysisInfo blockInfo)
-        {
-            var name = blockInfo.CustomNames.Length > 0 ? blockInfo.CustomNames[^1].Replace(':', '_') : $"{blockInfo.BlockType.Name} {blockInfo.EntityId}";
-            var gps = FormatGPS(name, blockInfo.Positions[^1]);
 
-            Clipboard.SetText(gps);
-        }
-
-        static string FormatGPS(string name, VRageMath.Vector3D coords)
+        static string FormatGPS(string name, VRageMath.Vector3D coords, int decimals = 1)
         {
-            coords = VRageMath.Vector3D.Round(coords, 1);
+            coords = VRageMath.Vector3D.Round(coords, decimals);
 
             var ivCt = System.Globalization.CultureInfo.InvariantCulture;
 

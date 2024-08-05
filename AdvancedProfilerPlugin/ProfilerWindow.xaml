@@ -47,7 +47,9 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="auto"/>
-                    <RowDefinition Height="100"/>
+                    <RowDefinition Height="80"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="170"/>
                     <RowDefinition Height="auto"/>
                     <RowDefinition Height="170"/>
                     <RowDefinition Height="auto"/>
@@ -60,15 +62,20 @@
 
                 <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
 
-                <Label Content="Cube Grids" Grid.Row="2" FontWeight="Bold"/>
-                <ListView Name="gridsList" Grid.Row="3" Margin="0,0,0,4" BorderThickness="0,1,0,0"/>
+                <Label Content="Physics Clusters" Grid.Row="2" FontWeight="Bold"/>
+                <ListView Name="physicsClustersList" Grid.Row="3" ScrollViewer.CanContentScroll="False" Margin="0,0,0,4" BorderThickness="0,1,0,0"/>
 
                 <GridSplitter Grid.Row="3" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
 
-                <Label Content="Programmable Blocks" Grid.Row="4" FontWeight="Bold"/>
-                <ListView Name="programmableBlocksList" BorderThickness="0,1,0,0" Grid.Row="5"/>
+                <Label Content="Cube Grids" Grid.Row="4" FontWeight="Bold"/>
+                <ListView Name="gridsList" Grid.Row="5" ScrollViewer.CanContentScroll="False" Margin="0,0,0,4" BorderThickness="0,1,0,0"/>
 
                 <GridSplitter Grid.Row="5" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
+
+                <Label Content="Programmable Blocks" Grid.Row="6" FontWeight="Bold"/>
+                <ListView Name="programmableBlocksList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" Grid.Row="7"/>
+
+                <GridSplitter Grid.Row="7" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
             </Grid>
         </ScrollViewer>
 

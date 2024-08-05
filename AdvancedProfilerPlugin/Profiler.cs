@@ -969,6 +969,7 @@ public class ProfilerGroup
                 if (hasOutliers && frameStartEventIndices.Count > 0)
                     outlierFrameIndices.Add(frameStartEventIndices.Count - 1);
 
+                eventObjectsCache.Clear();
                 return;
             }
 

@@ -1,13 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using Havok;
 using Sandbox.Engine.Physics;
+using Sandbox.Engine.Utils;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using Torch.Utils;
+using VRage;
+using VRage.Library.Utils;
 using VRageMath.Spatial;
 
 namespace AdvancedProfiler.Patches;
@@ -15,41 +20,37 @@ namespace AdvancedProfiler.Patches;
 [PatchShim]
 static class MyPhysics_Patches
 {
+    [ReflectedMethod(Type = typeof(MyPhysics))]
+    static Func<MyPhysics, int, int, bool> IsClusterActive = null!;
+
+    [ReflectedMethod(Type = typeof(MyPhysics))]
+    static Action<MyPhysics, HkWorld> StepSingleWorld = null!;
+
+    [ReflectedMethod(Type = typeof(MyPhysics))]
+    static Action<MyPhysics> StepWorldsParallel = null!;
+
     public static void Patch(PatchContext ctx)
     {
         Transpile(ctx, nameof(MyPhysics.LoadData), _public: true, _static: false);
         Transpile(ctx, "UnloadData", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "SimulateInternal", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "ExecuteParallelRayCasts", _public: false, _static: false);
-        PatchPrefixSuffixPair(ctx, "StepWorldsMeasured", _public: false, _static: false);
-        PatchPrefixSuffixPair(ctx, "StepSingleWorld", _public: false, _static: false);
+        //PatchPrefixSuffixPair(ctx, "StepSingleWorld", _public: false, _static: false);
         Transpile(ctx, "StepWorldsParallel", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "EnableOptimizations", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "DisableOptimizations", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "UpdateActiveRigidBodies", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "UpdateCharacters", _public: false, _static: false);
+
+        var stepWorldsInternal = GetSourceMethod("StepWorldsInternal", _public: false, _static: false);
+        var replacement = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("StepWorldsInternal");
+
+        ctx.GetPattern(stepWorldsInternal).Prefixes.Add(replacement);
     }
 
     static MethodInfo GetSourceMethod(string methodName, bool _public, bool _static)
     {
-        MethodInfo source;
-
-        if (_public)
-        {
-            if (_static)
-                source = typeof(MyPhysics).GetPublicStaticMethod(methodName);
-            else
-                source = typeof(MyPhysics).GetPublicInstanceMethod(methodName);
-        }
-        else
-        {
-            if (_static)
-                source = typeof(MyPhysics).GetNonPublicStaticMethod(methodName);
-            else
-                source = typeof(MyPhysics).GetNonPublicInstanceMethod(methodName);
-        }
-
-        return source;
+        return typeof(MyPhysics).GetMethod(methodName, _public, _static);
     }
 
     static void Transpile(PatchContext patchContext, string methodName, bool _public, bool _static)
@@ -180,19 +181,6 @@ static class MyPhysics_Patches
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Suffix_ExecuteParallelRayCasts(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_StepWorldsMeasured(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyPhysics.StepWorldsMeasured");
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_StepWorldsMeasured(ref ProfilerTimer __local_timer)
     {
         __local_timer.Stop();
     }
@@ -413,5 +401,57 @@ static class MyPhysics_Patches
     static void Suffix_UpdateCharacters(ref ProfilerTimer __local_timer)
     {
         __local_timer.Stop();
+    }
+
+    static bool StepWorldsInternal(MyPhysics __instance, List<MyTuple<HkWorld, MyTimeSpan>>? timings)
+    {
+        if (timings != null)
+        {
+            StepWorldsMeasured(__instance, timings);
+        }
+        else if (MyFakes.ENABLE_HAVOK_PARALLEL_SCHEDULING && !Profiler.IsRecordingEvents) // TODO: May want to add a dedicated option
+        {
+            StepWorldsParallel(__instance);
+        }
+        else
+        {
+            StepWorldsSequential(__instance);
+        }
+
+        if (HkBaseSystem.IsOutOfMemory)
+            throw new OutOfMemoryException("Havok run out of memory");
+
+        return false;
+    }
+
+    static void StepWorldsMeasured(MyPhysics __instance, List<MyTuple<HkWorld, MyTimeSpan>> timings)
+    {
+        using var _ = Profiler.Start("MyPhysics.StepWorldsMeasured");
+
+        foreach (var cluster in MyPhysics.Clusters.GetClusters())
+        {
+            var world = (HkWorld)cluster.UserData;
+            long start = Stopwatch.GetTimestamp();
+
+            using (Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(cluster)))
+                StepSingleWorld(__instance, world);
+
+            long end = Stopwatch.GetTimestamp();
+            timings.Add(MyTuple.Create(world, MyTimeSpan.FromTicks(end - start)));
+        }
+    }
+
+    static void StepWorldsSequential(MyPhysics __instance)
+    {
+        using var _ = Profiler.Start("MyPhysics.StepWorldsSequential");
+
+        foreach (var cluster in MyPhysics.Clusters.GetClusters())
+        {
+            if (cluster.UserData is HkWorld world && IsClusterActive(__instance, cluster.ClusterId, world.CharacterRigidBodies.Count))
+            {
+                using (Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(cluster)))
+                    StepSingleWorld(__instance, world);
+            }
+        }
     }
 }
