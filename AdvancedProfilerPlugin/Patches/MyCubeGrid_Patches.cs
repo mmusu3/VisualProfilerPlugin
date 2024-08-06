@@ -16,6 +16,8 @@ static class MyCubeGrid_Patches
         PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation10), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation100), _public: true, _static: false);
+
+        // TODO: Wrap Invoke call in Dispatch with transpiler
     }
 
     static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)

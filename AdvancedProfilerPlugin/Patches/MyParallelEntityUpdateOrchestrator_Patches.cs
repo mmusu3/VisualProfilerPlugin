@@ -261,6 +261,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_ProcessInvokeLater(ref ProfilerTimer __local_timer)
     {
+        // TODO: Wrap the invokes
         __local_timer = Profiler.Start("ProcessInvokeLater");
         return true;
     }
