@@ -13,11 +13,27 @@ static class MySession_Patches
 {
     public static void Patch(PatchContext ctx)
     {
-        var source = typeof(MySession).GetPublicInstanceMethod(nameof(MySession.GetCheckpoint));
-        var prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_GetCheckpoint));
-        var suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix_GetCheckpoint));
+        var source = typeof(MySession).GetPublicStaticMethod("Load");
+        var prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_Load));
+        var suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix_Load));
 
         var pattern = ctx.GetPattern(source);
+        pattern.Prefixes.Add(prefix);
+        pattern.Suffixes.Add(suffix);
+
+        source = typeof(MySession).GetNonPublicInstanceMethod("LoadWorld");
+        prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_LoadWorld));
+        suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix_LoadWorld));
+
+        pattern = ctx.GetPattern(source);
+        pattern.Prefixes.Add(prefix);
+        pattern.Suffixes.Add(suffix);
+
+        source = typeof(MySession).GetPublicInstanceMethod(nameof(MySession.GetCheckpoint));
+        prefix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Prefix_GetCheckpoint));
+        suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix_GetCheckpoint));
+
+        pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
 
@@ -49,6 +65,32 @@ static class MySession_Patches
         pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_Load(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MySession.Load");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_Load(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_LoadWorld(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MySession.LoadWorld");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_LoadWorld(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

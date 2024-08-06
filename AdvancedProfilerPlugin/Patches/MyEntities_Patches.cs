@@ -11,11 +11,19 @@ static class MyEntities_Patches
 {
     public static void Patch(PatchContext ctx)
     {
-        var source = typeof(MyEntities).GetPublicStaticMethod("CreateFromObjectBuilder");
-        var prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_CreateFromObjectBuilder));
-        var suffix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Suffix_CreateFromObjectBuilder));
+        var source = typeof(MyEntities).GetPublicStaticMethod("Load");
+        var prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_Load));
+        var suffix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Suffix_Load));
 
         var pattern = ctx.GetPattern(source);
+        pattern.Prefixes.Add(prefix);
+        pattern.Suffixes.Add(suffix);
+
+        source = typeof(MyEntities).GetPublicStaticMethod("CreateFromObjectBuilder");
+        prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_CreateFromObjectBuilder));
+        suffix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Suffix_CreateFromObjectBuilder));
+
+        pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
 
@@ -26,6 +34,19 @@ static class MyEntities_Patches
         pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_Load(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start("MyEntities.Load");
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Suffix_Load(ref ProfilerTimer __local_timer)
+    {
+        __local_timer.Stop();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
