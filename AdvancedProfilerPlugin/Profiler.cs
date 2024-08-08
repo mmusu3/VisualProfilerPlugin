@@ -1573,6 +1573,10 @@ public static class Profiler
                 int startIndex = g.FrameStartEventIndices[frameIndex];
                 int endIndex = g.FrameEndEventIndices[frameIndex];
 
+                // Empty frame
+                if (endIndex < startIndex)
+                    continue;
+
                 long start = g.GetEvent(startIndex).StartTime;
                 long end = g.GetEvent(endIndex).EndTime;
 
