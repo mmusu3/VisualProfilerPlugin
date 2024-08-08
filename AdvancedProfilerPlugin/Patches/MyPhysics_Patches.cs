@@ -65,7 +65,7 @@ static class MyPhysics_Patches
     {
         var source = GetSourceMethod(methodName, _public, _static);
         var prefix = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
-        var suffix = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("Suffix_" + methodName);
+        var suffix = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("Suffix");
 
         var pattern = patchContext.GetPattern(source);
         pattern.Prefixes.Add(prefix);
@@ -159,44 +159,19 @@ static class MyPhysics_Patches
         m_threadPool.RunOnEachWorker(Profiler.RemoveGroupForCurrentThread);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_SimulateInternal(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyPhysics.SimulateInternal");
-        return true;
-    }
+    const MethodImplOptions Inline = MethodImplOptions.AggressiveInlining;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_SimulateInternal(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static void Suffix(ref ProfilerTimer __local_timer)
+    { __local_timer.Stop(); }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_ExecuteParallelRayCasts(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyPhysics.ExecuteParallelRayCasts");
-        return true;
-    }
+    [MethodImpl(Inline)] static bool Prefix_SimulateInternal(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start("MyPhysics.SimulateInternal"); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_ExecuteParallelRayCasts(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_ExecuteParallelRayCasts(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start("MyPhysics.ExecuteParallelRayCasts"); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_StepSingleWorld(ref ProfilerTimer __local_timer, HkWorld world)
-    {
-        __local_timer = Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(world));
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_StepSingleWorld(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_StepSingleWorld(ref ProfilerTimer __local_timer, HkWorld world)
+    { __local_timer = Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(world)); return true; }
 
     static IEnumerable<MsilInstruction> Transpile_StepWorldsParallel(IEnumerable<MsilInstruction> instructionStream, MethodBody __methodBody, Func<Type, MsilLocal> __localCreator)
     {
@@ -351,57 +326,17 @@ static class MyPhysics_Patches
             Plugin.Log.Debug("Patch successful.");
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_EnableOptimizations(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyPhysics.EnableOptimizations");
-        return true;
-    }
+    [MethodImpl(Inline)] static bool Prefix_EnableOptimizations(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start("MyPhysics.EnableOptimizations"); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_EnableOptimizations(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_DisableOptimizations(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start("MyPhysics.DisableOptimizations"); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_DisableOptimizations(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyPhysics.DisableOptimizations");
-        return true;
-    }
+    [MethodImpl(Inline)] static bool Prefix_UpdateActiveRigidBodies(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start("MyPhysics.UpdateActiveRigidBodies"); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_DisableOptimizations(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_UpdateActiveRigidBodies(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyPhysics.UpdateActiveRigidBodies");
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_UpdateActiveRigidBodies(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_UpdateCharacters(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyPhysics.UpdateCharacters");
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_UpdateCharacters(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_UpdateCharacters(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start("MyPhysics.UpdateCharacters"); return true; }
 
     static bool StepWorldsInternal(MyPhysics __instance, List<MyTuple<HkWorld, MyTimeSpan>>? timings)
     {
@@ -426,9 +361,11 @@ static class MyPhysics_Patches
 
     static void StepWorldsMeasured(MyPhysics __instance, List<MyTuple<HkWorld, MyTimeSpan>> timings)
     {
-        using var _ = Profiler.Start("MyPhysics.StepWorldsMeasured");
+        var clusters = MyPhysics.Clusters.GetClusters();
 
-        foreach (var cluster in MyPhysics.Clusters.GetClusters())
+        using var _ = Profiler.Start("MyPhysics.StepWorldsMeasured", profileMemory: true, new(clusters.Count, "Num Clusters: {0}"));
+
+        foreach (var cluster in clusters)
         {
             var world = (HkWorld)cluster.UserData;
             long start = Stopwatch.GetTimestamp();
@@ -443,9 +380,11 @@ static class MyPhysics_Patches
 
     static void StepWorldsSequential(MyPhysics __instance)
     {
-        using var _ = Profiler.Start("MyPhysics.StepWorldsSequential");
+        var clusters = MyPhysics.Clusters.GetClusters();
 
-        foreach (var cluster in MyPhysics.Clusters.GetClusters())
+        using var _ = Profiler.Start("MyPhysics.StepWorldsSequential", profileMemory: true, new(clusters.Count, "Num Clusters: {0}"));
+
+        foreach (var cluster in clusters)
         {
             if (cluster.UserData is HkWorld world && IsClusterActive(__instance, cluster.ClusterId, world.CharacterRigidBodies.Count))
             {
