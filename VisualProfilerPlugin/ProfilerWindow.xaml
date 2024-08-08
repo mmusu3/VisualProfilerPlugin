@@ -1,0 +1,86 @@
+﻿<Window x:Class="VisualProfiler.ProfilerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:VisualProfiler"
+        mc:Ignorable="d"
+        Title="Profiler" Width="1000" Height="600"
+        DataContext="{Binding RelativeSource={RelativeSource Self}}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Orientation="Horizontal" Height="26" Grid.ColumnSpan="3">
+            <Label Content="Record for:"/>
+
+            <TextBox Name="recordTimeBox" Width="50" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                     ToolTip="Maximum is 60 seconds or 3600 frames"
+                     PreviewTextInput="RecordTimeBox_PreviewTextInput"
+                     DataObject.Pasting="RecordTimeBox_Pasting"
+                     TextChanged="RecordTimeBox_TextChanged">
+            </TextBox>
+
+            <ComboBox Name="recordTimeTypeBox" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                      SelectedIndex="0" SelectionChanged="RecordTimeTypeBox_SelectionChanged">
+                <ComboBoxItem Content="Seconds"/>
+                <ComboBoxItem Content="Frames"/>
+            </ComboBox>
+
+            <Button Name="startStopButton" Width="100" VerticalAlignment="Stretch"
+                    Content="Start Recording"
+                    IsEnabled="{Binding CanStartStopRecording}"
+                    Click="StartStopButton_Click"/>
+
+            <Button Content="Reset Zoom" Width="100" VerticalAlignment="Stretch" Click="ResetViewButton_Click"/>
+            <Label Name="frameCountLabel" Content=""/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Grid.Column="0" Margin="0,0,4,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="80"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="170"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="170"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="170"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Label Content="Outlier Frames" Grid.Row="0" FontWeight="Bold"/>
+                <ListView Name="outliersList" Grid.Row="1" Margin="0,0,0,4" BorderThickness="0,1,0,0"/>
+
+                <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
+
+                <Label Content="Physics Clusters" Grid.Row="2" FontWeight="Bold"/>
+                <ListView Name="physicsClustersList" Grid.Row="3" ScrollViewer.CanContentScroll="False" Margin="0,0,0,4" BorderThickness="0,1,0,0"/>
+
+                <GridSplitter Grid.Row="3" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
+
+                <Label Content="Cube Grids" Grid.Row="4" FontWeight="Bold"/>
+                <ListView Name="gridsList" Grid.Row="5" ScrollViewer.CanContentScroll="False" Margin="0,0,0,4" BorderThickness="0,1,0,0"/>
+
+                <GridSplitter Grid.Row="5" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
+
+                <Label Content="Programmable Blocks" Grid.Row="6" FontWeight="Bold"/>
+                <ListView Name="programmableBlocksList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" Grid.Row="7"/>
+
+                <GridSplitter Grid.Row="7" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
+            </Grid>
+        </ScrollViewer>
+
+        <GridSplitter Grid.Column="0" Grid.Row="1" VerticalAlignment="Stretch" Width="4" ShowsPreview="true" Background="LightGray"/>
+
+        <local:ProfilerEventsGraphControl x:Name="eventsGraph" Grid.Row="1" Grid.Column="1"/>
+    </Grid>
+</Window>
