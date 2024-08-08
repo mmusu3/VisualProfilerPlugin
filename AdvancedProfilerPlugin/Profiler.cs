@@ -845,8 +845,9 @@ public class ProfilerGroup
         }
     }
 
-    public class GroupEventsRecording(EventsAllocator events, int[] frameStartIndices, int[] frameEndIndices, int[] outlierFrames)
+    public class GroupEventsRecording(string name, EventsAllocator events, int[] frameStartIndices, int[] frameEndIndices, int[] outlierFrames)
     {
+        public string Name = name;
         public ProfilerEvent[][] EventSegments = events.Segments;
         public int EventCount = events.NextIndex;
         public int[] FrameStartEventIndices = frameStartIndices;
@@ -1084,7 +1085,7 @@ public class ProfilerGroup
             GroupEventsRecording? recording = null;
 
             if (recordedEvents.NextIndex > 0)
-                recording = new GroupEventsRecording(recordedEvents, frameStartEventIndices.ToArray(), frameEndEventIndices.ToArray(), outlierFrameIndices.ToArray());
+                recording = new GroupEventsRecording(Name, recordedEvents, frameStartEventIndices.ToArray(), frameEndEventIndices.ToArray(), outlierFrameIndices.ToArray());
 
             prevFrameEndNextEventIndex = 0;
 
