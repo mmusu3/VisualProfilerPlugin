@@ -15,10 +15,22 @@ static class Parallel_RunCallbacks_Patch
 {
     public static void Patch(PatchContext ctx)
     {
+        Keys.Init();
+
         var source = typeof(Parallel).GetPublicStaticMethod(nameof(Parallel.RunCallbacks));
         var transpiler = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(Transpile));
 
         ctx.GetPattern(source).Transpilers.Add(transpiler);
+    }
+
+    static class Keys
+    {
+        internal static ProfilerKey RunCallbacks;
+
+        internal static void Init()
+        {
+            RunCallbacks = ProfilerKeyCache.GetOrAdd("Parallel.RunCallbacks");
+        }
     }
 
     static IEnumerable<MsilInstruction> Transpile(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
@@ -28,7 +40,8 @@ static class Parallel_RunCallbacks_Patch
         const int expectedParts = 4;
         int patchedParts = 0;
 
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [ typeof(string) ]);
+        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
+        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(bool)]);
         var startCallbackMethod = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(StartCallback));
         var startDataCallbackMethod = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(StartDataCallback));
         var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
@@ -43,7 +56,9 @@ static class Parallel_RunCallbacks_Patch
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Parallel.RunCallbacks");
+        yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.RunCallbacks.GlobalIndex);
+        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
+        yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profileMemory: true
         yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod);
         yield return timerLocal1.AsValueStore();
 

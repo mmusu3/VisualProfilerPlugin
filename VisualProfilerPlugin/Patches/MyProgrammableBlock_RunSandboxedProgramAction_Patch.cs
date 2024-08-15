@@ -11,6 +11,8 @@ static class MyProgrammableBlock_RunSandboxedProgramAction_Patch
 {
     public static void Patch(PatchContext ctx)
     {
+        Keys.Init();
+
         var source = typeof(MyProgrammableBlock).GetPublicInstanceMethod(nameof(MyProgrammableBlock.RunSandboxedProgramAction));
         var prefix = typeof(MyProgrammableBlock_RunSandboxedProgramAction_Patch).GetNonPublicStaticMethod(nameof(Prefix_RunSandboxedProgramAction));
         var suffix = typeof(MyProgrammableBlock_RunSandboxedProgramAction_Patch).GetNonPublicStaticMethod(nameof(Suffix_RunSandboxedProgramAction));
@@ -20,11 +22,21 @@ static class MyProgrammableBlock_RunSandboxedProgramAction_Patch
         pattern.Suffixes.Add(suffix);
     }
 
+    static class Keys
+    {
+        internal static ProfilerKey RunSandboxedProgramAction;
+
+        internal static void Init()
+        {
+            RunSandboxedProgramAction = ProfilerKeyCache.GetOrAdd("MyProgrammableBlock.RunSandboxedProgramAction");
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_RunSandboxedProgramAction(ref ProfilerTimer __local_timer1, ref ProfilerTimer __local_timer2,
         MyProgrammableBlock __instance, Action<IMyGridProgram> action)
     {
-        __local_timer1 = Profiler.Start("MyProgrammableBlock.RunSandboxedProgramAction", profileMemory: true, new(__instance));
+        __local_timer1 = Profiler.Start(Keys.RunSandboxedProgramAction, profileMemory: true, new(__instance));
         __local_timer2 = Profiler.Start(0, action.Method.Name);
         return true;
     }

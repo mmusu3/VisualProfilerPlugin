@@ -9,9 +9,12 @@ static class MyPhysicsBody_Patches
 {
     public static void Patch(PatchContext ctx)
     {
+        Keys.Init();
+
+        var suffix = typeof(MyPhysicsBody_Patches).GetNonPublicStaticMethod(nameof(Suffix));
+
         var source = typeof(MyPhysicsBody).GetNonPublicInstanceMethod("OnContactPointCallback");
         var prefix = typeof(MyPhysicsBody_Patches).GetNonPublicStaticMethod(nameof(Prefix_OnContactPointCallback));
-        var suffix = typeof(MyPhysicsBody_Patches).GetNonPublicStaticMethod(nameof(Suffix_OnContactPointCallback));
 
         var pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
@@ -19,40 +22,43 @@ static class MyPhysicsBody_Patches
 
         source = typeof(MyPhysicsBody).GetNonPublicInstanceMethod("OnContactSoundCallback");
         prefix = typeof(MyPhysicsBody_Patches).GetNonPublicStaticMethod(nameof(Prefix_OnContactSoundCallback));
-        suffix = typeof(MyPhysicsBody_Patches).GetNonPublicStaticMethod(nameof(Suffix_OnContactSoundCallback));
 
         pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_OnContactPointCallback(ref ProfilerTimer __local_timer, MyPhysicsBody __instance)
+    static class Keys
     {
-        __local_timer = Profiler.Start("MyPhysicsBody.OnContactPointCallback", profileMemory: true,
-            new(__instance.Entity, "PhysicsBody entity: {0}"));
+        internal static ProfilerKey OnContactPointCallback;
+        internal static ProfilerKey OnContactSoundCallback;
 
-        return true;
+        internal static void Init()
+        {
+            OnContactPointCallback = ProfilerKeyCache.GetOrAdd("MyPhysicsBody.OnContactPointCallback");
+            OnContactSoundCallback = ProfilerKeyCache.GetOrAdd("MyPhysicsBody.OnContactSoundCallback");
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_OnContactPointCallback(ref ProfilerTimer __local_timer)
+    static void Suffix(ref ProfilerTimer __local_timer)
+    { __local_timer.Stop(); }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_OnContactPointCallback(ref ProfilerTimer __local_timer, MyPhysicsBody __instance)
     {
-        __local_timer.Stop();
+        __local_timer = Profiler.Start(Keys.OnContactPointCallback, profileMemory: true,
+            new(__instance.Entity, "PhysicsBody entity: {0}"));
+
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_OnContactSoundCallback(ref ProfilerTimer __local_timer, MyPhysicsBody __instance)
     {
-        __local_timer = Profiler.Start("MyPhysicsBody.OnContactSoundCallback", profileMemory: true,
+        __local_timer = Profiler.Start(Keys.OnContactSoundCallback, profileMemory: true,
             new(__instance.Entity, "PhysicsBody entity: {0}"));
 
         return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_OnContactSoundCallback(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
     }
 }

@@ -505,7 +505,7 @@ class ProfilerEventsGraphControl : Control
 
     public void SetRecordedEvents(Profiler.EventsRecording? recording)
     {
-        Profiler.Start();
+        Profiler.Start(ProfilerKeys.SetRecordedEvents);
 
         startTime = long.MaxValue;
         endTime = 0;
@@ -612,7 +612,7 @@ class ProfilerEventsGraphControl : Control
 
     protected override void OnRender(DrawingContext drawCtx)
     {
-        Profiler.Start("Draw ProfilerEventsGraph");
+        Profiler.Start(ProfilerKeys.DrawProfilerEventsGraph);
 
         base.OnRender(drawCtx);
 
@@ -686,7 +686,7 @@ class ProfilerEventsGraphControl : Control
         var threadProfilers = Profiler.GetProfilerGroups();
         Array.Sort(threadProfilers, ThreadGroupComparer);
 
-        Profiler.Start("Draw group events");
+        Profiler.Start(ProfilerKeys.DrawGroupEvents);
 
         float y = headerHeight - (float)vScroll.Value;
 
@@ -715,7 +715,7 @@ class ProfilerEventsGraphControl : Control
 
         double graphHeight = ViewportHeight;
 
-        Profiler.Start("Draw hover info");
+        Profiler.Start(ProfilerKeys.DrawHoverInfo);
 
         for (int i = 0; i < hoverEvents.Count; i++)
         {
@@ -1074,5 +1074,21 @@ class ProfilerEventsGraphControl : Control
             B = (byte)(vector.Z * 255),
             A = 255
         };
+    }
+
+    static class ProfilerKeys
+    {
+        internal readonly static ProfilerKey SetRecordedEvents;
+        internal readonly static ProfilerKey DrawProfilerEventsGraph;
+        internal readonly static ProfilerKey DrawGroupEvents;
+        internal readonly static ProfilerKey DrawHoverInfo;
+
+        static ProfilerKeys()
+        {
+            SetRecordedEvents = ProfilerKeyCache.GetOrAdd("SetRecordedEvents");
+            DrawProfilerEventsGraph = ProfilerKeyCache.GetOrAdd("Draw ProfilerEventsGraph");
+            DrawGroupEvents = ProfilerKeyCache.GetOrAdd("Draw Group Events");
+            DrawHoverInfo = ProfilerKeyCache.GetOrAdd("Draw Hover Info");
+        }
     }
 }

@@ -12,6 +12,8 @@ static class MyGridPhysics_Patches
 {
     public static void Patch(PatchContext ctx)
     {
+        Keys.Init();
+
         PatchPrefixSuffixPair(ctx, "RigidBody_ContactPointCallback", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "PerformDeformation", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "DeformBones", _public: false, _static: false);
@@ -43,6 +45,24 @@ static class MyGridPhysics_Patches
         pattern.Suffixes.Add(suffix);
     }
 
+    static class Keys
+    {
+        internal static ProfilerKey RigidBody_ContactPointCallback;
+        internal static ProfilerKey PerformDeformation;
+        internal static ProfilerKey ApplyDeformation;
+        internal static ProfilerKey DeformBones;
+        internal static ProfilerKey UpdateShape;
+
+        internal static void Init()
+        {
+            RigidBody_ContactPointCallback = ProfilerKeyCache.GetOrAdd("MyGridPhysics.RigidBody_ContactPointCallback");
+            PerformDeformation = ProfilerKeyCache.GetOrAdd("MyGridPhysics.PerformDeformation");
+            ApplyDeformation = ProfilerKeyCache.GetOrAdd("MyGridPhysics.ApplyDeformation");
+            DeformBones = ProfilerKeyCache.GetOrAdd("MyGridPhysics.DeformBones");
+            UpdateShape = ProfilerKeyCache.GetOrAdd("MyGridPhysics.UpdateShape");
+        }
+    }
+
     const MethodImplOptions Inline = MethodImplOptions.AggressiveInlining;
 
     [MethodImpl(Inline)] static void Suffix(ref ProfilerTimer __local_timer) => __local_timer.Stop();
@@ -50,7 +70,7 @@ static class MyGridPhysics_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_RigidBody_ContactPointCallback(ref ProfilerTimer __local_timer, MyGridPhysics __instance)
     {
-        __local_timer = Profiler.Start("MyGridPhysics.RigidBody_ContactPointCallback", profileMemory: true,
+        __local_timer = Profiler.Start(Keys.RigidBody_ContactPointCallback, profileMemory: true,
             new(__instance.Entity, "Grid entity: {0}"));
 
         return true;
@@ -59,7 +79,7 @@ static class MyGridPhysics_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_PerformDeformation(ref ProfilerTimer __local_timer, MyGridPhysics __instance)
     {
-        __local_timer = Profiler.Start("MyGridPhysics.PerformDeformation", profileMemory: true,
+        __local_timer = Profiler.Start(Keys.PerformDeformation, profileMemory: true,
             new(__instance.Entity, "Grid entity: {0}"));
 
         return true;
@@ -68,7 +88,7 @@ static class MyGridPhysics_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_ApplyDeformation(ref ProfilerTimer __local_timer, MyGridPhysics __instance)
     {
-        __local_timer = Profiler.Start("MyGridPhysics.ApplyDeformation", profileMemory: true,
+        __local_timer = Profiler.Start(Keys.ApplyDeformation, profileMemory: true,
             new(__instance.Entity, "Grid entity: {0}"));
 
         return true;
@@ -77,7 +97,7 @@ static class MyGridPhysics_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_DeformBones(ref ProfilerTimer __local_timer, MyGridPhysics __instance)
     {
-        __local_timer = Profiler.Start("MyGridPhysics.DeformBones", profileMemory: true,
+        __local_timer = Profiler.Start(Keys.DeformBones, profileMemory: true,
             new(__instance.Entity, "Grid entity: {0}"));
 
         return true;
@@ -86,7 +106,7 @@ static class MyGridPhysics_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_UpdateShape(ref ProfilerTimer __local_timer, MyGridPhysics __instance)
     {
-        __local_timer = Profiler.Start("MyGridPhysics.UpdateShape", profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateShape, profileMemory: true,
             new(__instance.Entity, "Grid entity: {0}"));
 
         return true;

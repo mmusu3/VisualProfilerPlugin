@@ -118,9 +118,17 @@ public struct ProfilerEvent
     public readonly double ElapsedMilliseconds => ProfilerTimer.MillisecondsFromTicks(EndTime - StartTime);
 }
 
+public readonly struct ProfilerKey
+{
+    internal readonly int GlobalIndex;
+
+    internal ProfilerKey(int globalIndex) => GlobalIndex = globalIndex;
+}
+
 public sealed class ProfilerTimer : IDisposable
 {
     public readonly string Name;
+    public readonly ProfilerKey Key;
 
     long startTimestamp;
     long elapsedTicks;
@@ -141,7 +149,7 @@ public sealed class ProfilerTimer : IDisposable
     public IReadOnlyList<ProfilerTimer?> SubTimers => subTimers;
     internal ProfilerTimer?[] subTimers;
 
-    internal readonly Dictionary<string, int> subTimersMap;
+    internal readonly Dictionary<int, int> subTimersMap;
 
     public const int BufferSize = 300;
 
@@ -179,7 +187,7 @@ public sealed class ProfilerTimer : IDisposable
     int prevInvokeCount;
 
     const int outlierAveragingSampleRange = 50;
-    const int minTicksForOutlier = 500;
+    const int minTicksForOutlier = 1000;
     const double maxOutlierDeviationFraction = 5;
 
     const long TicksPerMicrosecond = 10;
@@ -209,9 +217,10 @@ public sealed class ProfilerTimer : IDisposable
         return new TimeSpan(dateTimeTicks);
     }
 
-    internal ProfilerTimer(string name, bool profileMemory, ProfilerGroup group, ProfilerTimer? parent)
+    internal ProfilerTimer(string name, ProfilerKey key, bool profileMemory, ProfilerGroup group, ProfilerTimer? parent)
     {
         Name = name;
+        Key = key;
         ProfileMemory = profileMemory;
         this.group = group;
 
@@ -234,12 +243,23 @@ public sealed class ProfilerTimer : IDisposable
         subTimersMap = [];
     }
 
+    public ProfilerTimer? FindSubTimer(ProfilerKey key)
+    {
+        if (subTimersMap.TryGetValue(key.GlobalIndex, out int index))
+            return subTimers[index];
+
+        return null;
+    }
+
     public ProfilerTimer? FindSubTimer(string name)
     {
-        if (!subTimersMap.TryGetValue(name, out int timerIndex))
+        if (!ProfilerKeyCache.TryGet(name, out var key, group))
             return null;
 
-        return subTimers[timerIndex];
+        if (subTimersMap.TryGetValue(key.GlobalIndex, out int index))
+            return subTimers[index];
+
+        return null;
     }
 
     public void Start()
@@ -531,31 +551,52 @@ public sealed class ProfilerTimer : IDisposable
 
     internal ProfilerTimer CreateSubTimer(int index, string name, bool profileMemory)
     {
-        var timer = new ProfilerTimer(name, profileMemory, group, this);
+        var key = ProfilerKeyCache.GetOrAdd(name, group);
+        var timer = new ProfilerTimer(name, key, profileMemory, group, this);
 
         if (index >= subTimers.Length)
             Array.Resize(ref subTimers, index + 1);
 
         subTimers[index] = timer;
-        subTimersMap.Add(name, index);
+        subTimersMap.Add(key.GlobalIndex, index);
 
         return timer;
     }
 
-    internal ProfilerTimer CreateSubTimer(string name, bool profileMemory)
+    internal ProfilerTimer CreateSubTimer(ProfilerKey key, bool profileMemory)
     {
-        var timer = new ProfilerTimer(name, profileMemory, group, this);
+        var name = ProfilerKeyCache.GetName(key);
+        var timer = new ProfilerTimer(name, key, profileMemory, group, this);
 
         int index;
 
-        if (!subTimersMap.TryGetValue(name, out index))
+        if (!subTimersMap.TryGetValue(key.GlobalIndex, out index))
             index = subTimers.Length;
 
         if (index >= subTimers.Length)
             Array.Resize(ref subTimers, index + 1);
 
         subTimers[index] = timer;
-        subTimersMap.Add(name, index);
+        subTimersMap.Add(key.GlobalIndex, index);
+
+        return timer;
+    }
+
+    internal ProfilerTimer CreateSubTimer(string name, bool profileMemory)
+    {
+        var key = ProfilerKeyCache.GetOrAdd(name, group);
+        var timer = new ProfilerTimer(name, key, profileMemory, group, this);
+
+        int index;
+
+        if (!subTimersMap.TryGetValue(key.GlobalIndex, out index))
+            index = subTimers.Length;
+
+        if (index >= subTimers.Length)
+            Array.Resize(ref subTimers, index + 1);
+
+        subTimers[index] = timer;
+        subTimersMap.Add(key.GlobalIndex, index);
 
         return timer;
     }
@@ -624,6 +665,8 @@ public class ProfilerGroup
     public int OrderInSortingGroup;
     public bool IsRealtimeThread = false;
 
+    internal Dictionary<string, int> LocalKeyCache = [];
+
     public ProfilerGroup(string name, Thread thread)
     {
         Name = name;
@@ -685,9 +728,11 @@ public class ProfilerGroup
         }
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     ProfilerTimer CreateRootTimer(string name, bool profileMemory)
     {
-        var timer = new ProfilerTimer(name, profileMemory, this, null);
+        var key = ProfilerKeyCache.GetOrAdd(name, this);
+        var timer = new ProfilerTimer(name, key, profileMemory, this, null);
         int index = rootTimers.Length;
 
         Array.Resize(ref rootTimers, index + 1);
@@ -728,9 +773,58 @@ public class ProfilerGroup
         return timer;
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     ProfilerTimer CreateRootTimer(int index, string name, bool profileMemory)
     {
-        var timer = new ProfilerTimer(name, profileMemory, group: this, parent: null);
+        var key = ProfilerKeyCache.GetOrAdd(name, this);
+        var timer = new ProfilerTimer(name, key, profileMemory, group: this, parent: null);
+
+        Array.Resize(ref rootTimers, index + 1);
+
+        rootTimers[index] = timer;
+        timers.Add(timer);
+
+        return timer;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ProfilerTimer GetOrCreateTimer(ProfilerKey key, bool profileMemory)
+        => GetOrCreateTimer(key, profileMemory, activeTimer);
+
+    internal ProfilerTimer GetOrCreateTimer(ProfilerKey key, bool profileMemory, ProfilerTimer? parentTimer)
+    {
+        if (parentTimer != null)
+            return parentTimer.FindSubTimer(key) ?? CreateSubTimer(parentTimer, key, profileMemory);
+        else
+            return GetRootTimer(key) ?? CreateRootTimer(key, profileMemory);
+    }
+
+    ProfilerTimer CreateSubTimer(ProfilerTimer parentTimer, ProfilerKey key, bool profileMemory)
+    {
+        var timer = parentTimer.CreateSubTimer(key, profileMemory);
+        timers.Add(timer);
+        return timer;
+    }
+
+    public ProfilerTimer? GetRootTimer(ProfilerKey key)
+    {
+        for (int i = 0; i < rootTimers.Length; i++)
+        {
+            var t = rootTimers[i];
+
+            if (t != null && t.Key.GlobalIndex == key.GlobalIndex)
+                return t;
+        }
+
+        return null;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    ProfilerTimer CreateRootTimer(ProfilerKey key, bool profileMemory)
+    {
+        var name = ProfilerKeyCache.GetName(key);
+        var timer = new ProfilerTimer(name, key, profileMemory, this, null);
+        int index = rootTimers.Length;
 
         Array.Resize(ref rootTimers, index + 1);
 
@@ -1191,6 +1285,20 @@ public static class Profiler
         return timer;
     }
 
+    public static ProfilerTimer Start(ProfilerKey key, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
+    {
+        Assert.True(key.GlobalIndex < 0, "Invalid key");
+
+        var group = GetOrCreateGroupForCurrentThread();
+        var timer = group.GetOrCreateTimer(key, profileMemory);
+
+        group.activeTimer = timer;
+
+        timer.StartInternal(extraValueData);
+
+        return timer;
+    }
+
     public static ProfilerTimer Start(string name, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
     {
         Assert.NotNull(name, "Name must not be null");
@@ -1233,7 +1341,21 @@ public static class Profiler
         return timer;
     }
 
-    public static ProfilerTimer Start([CallerMemberName] string name = null!, bool profileMemory = true)
+    public static ProfilerTimer Start(ProfilerKey key, bool profileMemory = true)
+    {
+        Assert.True(key.GlobalIndex < 0, "Invalid key");
+
+        var group = GetOrCreateGroupForCurrentThread();
+        var timer = group.GetOrCreateTimer(key, profileMemory);
+
+        group.activeTimer = timer;
+
+        timer.StartInternal();
+
+        return timer;
+    }
+
+    public static ProfilerTimer Start(string name, bool profileMemory = true)
     {
         Assert.NotNull(name, "Name must not be null");
 
@@ -1247,7 +1369,51 @@ public static class Profiler
         return timer;
     }
 
-    public static ProfilerTimer Restart([CallerMemberName] string name = null!, bool profileMemory = true)
+    public static ProfilerTimer Restart(int index, string name, bool profileMemory = true)
+    {
+        Assert.NotNull(name, "Name must not be null");
+
+        var group = ThreadGroup;
+
+        Assert.NotNull(group, "Must call Profiler.Start first");
+
+        var timer = group.activeTimer;
+
+        Assert.NotNull(timer, "Must call Profiler.Start first");
+
+        timer.StopInternal();
+
+        timer = group.GetOrCreateTimer(index, name, profileMemory, timer.Parent);
+        group.activeTimer = timer;
+
+        timer.StartInternal();
+
+        return timer;
+    }
+
+    public static ProfilerTimer Restart(ProfilerKey key, bool profileMemory = true)
+    {
+        Assert.True(key.GlobalIndex < 0, "Invalid key");
+
+        var group = ThreadGroup;
+
+        Assert.NotNull(group, "Must call Profiler.Start first");
+
+        var timer = group.activeTimer;
+
+        Assert.NotNull(timer, "Must call Profiler.Start first");
+
+        timer.StopInternal();
+
+        timer = group.GetOrCreateTimer(key, profileMemory, timer.Parent);
+        group.activeTimer = timer;
+
+        timer.StartInternal();
+
+        return timer;
+    }
+
+    public static ProfilerTimer Restart(string name, bool profileMemory = true)
     {
         Assert.NotNull(name, "Name must not be null");
 
@@ -1313,7 +1479,7 @@ public static class Profiler
     }
 
     [Conditional("DEBUG")]
-    public static void StartDebug([CallerMemberName] string name = null!, bool profileMemory = true) => Start(name, profileMemory);
+    public static void StartDebug(string name, bool profileMemory = true) => Start(name, profileMemory);
 
     [Conditional("DEBUG")]
     public static void StopDebug() => Stop();
@@ -1706,3 +1872,62 @@ public static class Profiler
 }
 
 public delegate void ResolveProfilerEventObjectDelegate(Dictionary<object, object> cache, ref ProfilerEvent _event);
+
+static class ProfilerKeyCache
+{
+    static readonly object lockObj = new();
+    static readonly Dictionary<string, int> namesToKeys = [];
+    static readonly Dictionary<int, string> keysToNames = [];
+    static int indexGenerator = -1;
+
+    public static ProfilerKey GetOrAdd(string name, ProfilerGroup? group = null)
+    {
+        int key;
+
+        if (group != null && group.LocalKeyCache.TryGetValue(name, out key))
+            return new ProfilerKey(key);
+
+        lock (lockObj)
+        {
+            if (!namesToKeys.TryGetValue(name, out key))
+            {
+                key = indexGenerator--;
+                namesToKeys.Add(name, key);
+                keysToNames.Add(key, name);
+            }
+        }
+
+        group?.LocalKeyCache.Add(name, key);
+
+        return new ProfilerKey(key);
+    }
+
+    public static bool TryGet(string name, out ProfilerKey key, ProfilerGroup? group = null)
+    {
+        int index;
+
+        if (group != null && group.LocalKeyCache.TryGetValue(name, out index))
+        {
+            key = new ProfilerKey(index);
+            return true;
+        }
+
+        lock (lockObj)
+        {
+            if (!namesToKeys.TryGetValue(name, out index))
+            {
+                key = default;
+                return false;
+            }
+        }
+
+        key = new ProfilerKey(index);
+        return true;
+    }
+
+    public static string GetName(ProfilerKey key)
+    {
+        lock (lockObj)
+            return keysToNames[key.GlobalIndex];
+    }
+}

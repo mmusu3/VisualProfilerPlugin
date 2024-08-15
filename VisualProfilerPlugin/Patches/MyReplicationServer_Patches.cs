@@ -1,5 +1,4 @@
-﻿using System.Reflection;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Torch.Managers.PatchManager;
 using VRage.Network;
 
@@ -10,6 +9,8 @@ static class MyReplicationServer_Patches
 {
     public static void Patch(PatchContext ctx)
     {
+        Keys.Init();
+
         PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.Destroy), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.UpdateBefore), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyReplicationServer.SendUpdate), _public: true, _static: false);
@@ -26,171 +27,81 @@ static class MyReplicationServer_Patches
 
     static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
     {
-        MethodInfo source;
-
-        if (_public)
-        {
-            if (_static)
-                source = typeof(MyReplicationServer).GetPublicStaticMethod(methodName);
-            else
-                source = typeof(MyReplicationServer).GetPublicInstanceMethod(methodName);
-        }
-        else
-        {
-            if (_static)
-                source = typeof(MyReplicationServer).GetNonPublicStaticMethod(methodName);
-            else
-                source = typeof(MyReplicationServer).GetNonPublicInstanceMethod(methodName);
-        }
-
+        var source = typeof(MyReplicationServer).GetMethod(methodName, _public, _static);
         var prefix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
-        var suffix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod("Suffix_" + methodName);
+        var suffix = typeof(MyReplicationServer_Patches).GetNonPublicStaticMethod("Suffix");
 
         var pattern = patchContext.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_Destroy(ref ProfilerTimer __local_timer)
+    static class Keys
     {
-        __local_timer = Profiler.Start("MyReplicationServer.Destroy");
-        return true;
+        internal static ProfilerKey Destroy;
+        internal static ProfilerKey UpdateBefore;
+        internal static ProfilerKey SendUpdate;
+        internal static ProfilerKey RefreshReplicable;
+        internal static ProfilerKey ApplyDirtyGroups;
+        internal static ProfilerKey FilterStateSync;
+        internal static ProfilerKey AddForClient;
+        internal static ProfilerKey SendStreamingEntry;
+        internal static ProfilerKey ScheduleStateGroupSync;
+        internal static ProfilerKey ReplicableReady;
+        internal static ProfilerKey ReplicableRequest;
+
+        internal static void Init()
+        {
+            Destroy = ProfilerKeyCache.GetOrAdd("MyReplicationServer.Destroy");
+            UpdateBefore = ProfilerKeyCache.GetOrAdd("MyReplicationServer.UpdateBefore");
+            SendUpdate = ProfilerKeyCache.GetOrAdd("MyReplicationServer.SendUpdate");
+            RefreshReplicable = ProfilerKeyCache.GetOrAdd("MyReplicationServer.RefreshReplicable");
+            ApplyDirtyGroups = ProfilerKeyCache.GetOrAdd("MyReplicationServer.ApplyDirtyGroups");
+            FilterStateSync = ProfilerKeyCache.GetOrAdd("MyReplicationServer.FilterStateSync");
+            AddForClient = ProfilerKeyCache.GetOrAdd("MyReplicationServer.AddForClient");
+            SendStreamingEntry = ProfilerKeyCache.GetOrAdd("MyReplicationServer.SendStreamingEntry");
+            ScheduleStateGroupSync = ProfilerKeyCache.GetOrAdd("MyReplicationServer.ScheduleStateGroupSync");
+            ReplicableReady = ProfilerKeyCache.GetOrAdd("MyReplicationServer.ReplicableReady");
+            ReplicableRequest = ProfilerKeyCache.GetOrAdd("MyReplicationServer.ReplicableRequest");
+        }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_Destroy(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    const MethodImplOptions Inline = MethodImplOptions.AggressiveInlining;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_UpdateBefore(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.UpdateBefore");
-        return true;
-    }
+    [MethodImpl(Inline)]
+    static void Suffix(ref ProfilerTimer __local_timer)
+    { __local_timer.Stop();}
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_UpdateBefore(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_Destroy(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.Destroy); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_SendUpdate(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.SendUpdate");
-        return true;
-    }
+    [MethodImpl(Inline)] static bool Prefix_UpdateBefore(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.UpdateBefore); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_SendUpdate(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_SendUpdate(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.SendUpdate); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_RefreshReplicable(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.RefreshReplicable");
-        return true;
-    }
+    [MethodImpl(Inline)] static bool Prefix_RefreshReplicable(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.RefreshReplicable); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_RefreshReplicable(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_ApplyDirtyGroups(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.ApplyDirtyGroups); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_ApplyDirtyGroups(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.ApplyDirtyGroups");
-        return true;
-    }
+    [MethodImpl(Inline)] static bool Prefix_FilterStateSync(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.FilterStateSync); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_ApplyDirtyGroups(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_AddForClient(ref ProfilerTimer __local_timer, IMyReplicable replicable)
+    { __local_timer = Profiler.Start(Keys.AddForClient, profileMemory: true, new(replicable)); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_FilterStateSync(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.FilterStateSync");
-        return true;
-    }
+    [MethodImpl(Inline)] static bool Prefix_SendStreamingEntry(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.SendStreamingEntry); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_FilterStateSync(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_ScheduleStateGroupSync(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.ScheduleStateGroupSync); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_AddForClient(ref ProfilerTimer __local_timer, IMyReplicable replicable)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.AddForClient", profileMemory: true, new(replicable));
-        return true;
-    }
+    [MethodImpl(Inline)] static bool Prefix_ReplicableReady(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.ReplicableReady); return true; }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_AddForClient(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_SendStreamingEntry(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.SendStreamingEntry");
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_SendStreamingEntry(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_ScheduleStateGroupSync(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.ScheduleStateGroupSync");
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_ScheduleStateGroupSync(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_ReplicableReady(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.ReplicableReady");
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_ReplicableReady(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_ReplicableRequest(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyReplicationServer.ReplicableRequest");
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_ReplicableRequest(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    [MethodImpl(Inline)] static bool Prefix_ReplicableRequest(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.ReplicableRequest); return true; }
 }

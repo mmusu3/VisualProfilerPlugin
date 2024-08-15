@@ -9,9 +9,11 @@ static class MyDedicatedServerBase_Patches
 {
     public static void Patch(PatchContext ctx)
     {
+        Keys.Init();
+
         var source = typeof(MyDedicatedServerBase).GetNonPublicInstanceMethod("UpdateSteamServerData");
         var prefix = typeof(MyDedicatedServerBase_Patches).GetNonPublicStaticMethod(nameof(Prefix_UpdateSteamServerData));
-        var suffix = typeof(MyDedicatedServerBase_Patches).GetNonPublicStaticMethod(nameof(Suffix_UpdateSteamServerData));
+        var suffix = typeof(MyDedicatedServerBase_Patches).GetNonPublicStaticMethod(nameof(Suffix));
 
         var pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
@@ -19,36 +21,34 @@ static class MyDedicatedServerBase_Patches
 
         source = typeof(MyDedicatedServerBase).GetNonPublicInstanceMethod("ClientConnected");
         prefix = typeof(MyDedicatedServerBase_Patches).GetNonPublicStaticMethod(nameof(Prefix_ClientConnected));
-        suffix = typeof(MyDedicatedServerBase_Patches).GetNonPublicStaticMethod(nameof(Suffix_ClientConnected));
+        suffix = typeof(MyDedicatedServerBase_Patches).GetNonPublicStaticMethod(nameof(Suffix));
 
         pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_UpdateSteamServerData(ref ProfilerTimer __local_timer)
+    static class Keys
     {
-        __local_timer = Profiler.Start("MyDedicatedServerBase.UpdateSteamServerData");
-        return true;
+        internal static ProfilerKey UpdateSteamServerData;
+        internal static ProfilerKey ClientConnected;
+
+        internal static void Init()
+        {
+            UpdateSteamServerData = ProfilerKeyCache.GetOrAdd("MyDedicatedServerBase.UpdateSteamServerData");
+            ClientConnected = ProfilerKeyCache.GetOrAdd("MyDedicatedServerBase.ClientConnected");
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_UpdateSteamServerData(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    static void Suffix(ref ProfilerTimer __local_timer)
+    { __local_timer.Stop(); }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_UpdateSteamServerData(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.UpdateSteamServerData); return true; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_ClientConnected(ref ProfilerTimer __local_timer)
-    {
-        __local_timer = Profiler.Start("MyDedicatedServerBase.ClientConnected");
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_ClientConnected(ref ProfilerTimer __local_timer)
-    {
-        __local_timer.Stop();
-    }
+    { __local_timer = Profiler.Start(Keys.ClientConnected); return true; }
 }

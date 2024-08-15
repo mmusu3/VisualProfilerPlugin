@@ -18,6 +18,8 @@ static class MySandboxGame_Patches
 {
     public static void Patch(PatchContext ctx)
     {
+        Keys.Init();
+
         var source = typeof(MySandboxGame).GetPublicInstanceMethod("Run");
         var prefix = typeof(MySandboxGame_Patches).GetNonPublicStaticMethod(nameof(Prefix_Run));
 
@@ -32,6 +34,16 @@ static class MySandboxGame_Patches
         transpiler = typeof(MySandboxGame_Patches).GetNonPublicStaticMethod(nameof(Transpile_ProcessInvoke));
 
         ctx.GetPattern(source).Transpilers.Add(transpiler);
+    }
+
+    static class Keys
+    {
+        internal static ProfilerKey ProcessInvoke;
+
+        internal static void Init()
+        {
+            ProcessInvoke = ProfilerKeyCache.GetOrAdd("MySandboxGame.ProcessInvoke");
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -107,8 +119,9 @@ static class MySandboxGame_Patches
         const int expectedParts = 2;
         int patchedParts = 0;
 
+        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
         var profilerEventExtraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
-        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
+        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
         var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(string)]);
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
 
@@ -122,7 +135,8 @@ static class MySandboxGame_Patches
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("MySandboxGame.ProcessInvoke");
+        yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.ProcessInvoke.GlobalIndex);
+        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
         yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profileMemory: true
         yield return new MsilInstruction(OpCodes.Ldarg_0);
         yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(invokeQueueField);

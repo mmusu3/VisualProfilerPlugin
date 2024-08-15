@@ -15,6 +15,8 @@ static class WorkItem_Patches
 {
     public static void Patch(PatchContext ctx)
     {
+        Keys.Init();
+
         var source = typeof(WorkItem).GetPublicInstanceMethod(nameof(WorkItem.DoWork));
         var transpiler = typeof(WorkItem_Patches).GetNonPublicStaticMethod(nameof(Transpile_DoWork));
 
@@ -24,6 +26,16 @@ static class WorkItem_Patches
         transpiler = typeof(WorkItem_Patches).GetNonPublicStaticMethod(nameof(Transpile_Wait));
 
         ctx.GetPattern(source).Transpilers.Add(transpiler);
+    }
+
+    static class Keys
+    {
+        internal static ProfilerKey WaitTask;
+
+        internal static void Init()
+        {
+            WaitTask = ProfilerKeyCache.GetOrAdd("WaitTask");
+        }
     }
 
     static IEnumerable<MsilInstruction> Transpile_DoWork(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
@@ -117,7 +129,8 @@ static class WorkItem_Patches
         const int expectedParts = 2;
         int patchedParts = 0;
 
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [ typeof(string) ]);
+        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(ProfilerKey), typeof(bool)], null);
+        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(bool)]);
         var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
@@ -139,7 +152,9 @@ static class WorkItem_Patches
 
             if (ins.OpCode == OpCodes.Nop && instructions[i - 1].OpCode == OpCodes.Ret)
             {
-                yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("WaitTask");
+                yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.WaitTask.GlobalIndex);
+                yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
+                yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profileMemory: true
                 yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod); // OnTaskStarted(MyProfiler.TaskType.SyncWait, "WaitTask");
                 yield return timerLocal.AsValueStore();
                 patchedParts++;
