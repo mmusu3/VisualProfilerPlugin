@@ -864,11 +864,21 @@ class ProfilerEventsGraphControl : Control
                         minifiedDrawStack[k] = (-1, 0);
                 }
 
-                float startX = (float)TicksToPixels(_event.StartTime - startTicks + shiftX);
-                float width = _event.IsSinglePoint ? 4 : (float)TicksToPixels(_event.EndTime - _event.StartTime);
+                double startX = TicksToPixels(_event.StartTime - startTicks + shiftX);
+                double width = _event.IsSinglePoint ? 4 : TicksToPixels(_event.EndTime - _event.StartTime);
 
                 if (startX + width < 0 || startX > graphWidth)
                     continue;
+
+                if (startX < -graphWidth)
+                {
+                    double s = -graphWidth;
+                    width -= s - startX;
+                    startX = s;
+                }
+
+                if (width > graphWidth * 2)
+                    width = graphWidth * 2;
 
                 var hsv = colorHSV;
                 // TODO: Fix double size dark band
@@ -886,7 +896,7 @@ class ProfilerEventsGraphControl : Control
                 if (width < minBarWidth)
                 {
                     float startXRound = (float)Math.Round(startX);
-                    float fill = width / minBarWidth;
+                    float fill = (float)(width / minBarWidth);
 
                     if (minif.StartX < 0)
                     {
@@ -950,7 +960,7 @@ class ProfilerEventsGraphControl : Control
                     float luma = 1 - barLuma;
                     var textColor = new Vector3(luma < 0.5f ? 0.1f : 1);
 
-                    float w = width;
+                    double w = width;
 
                     if (area.X < 0)
                     {
