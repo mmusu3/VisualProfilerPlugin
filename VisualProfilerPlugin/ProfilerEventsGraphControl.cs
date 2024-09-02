@@ -96,6 +96,13 @@ class ProfilerEventsGraphControl : Control
     List<(int Segment, int Index)> hoverEvents = [];
     (float StartX, float FillPercent)[] minifiedDrawStack = [];
 
+    struct PointEvent
+    {
+        public Rect Area;
+    }
+
+    List<PointEvent> pointEvents = [];
+
     ScrollBar hScroll;
     ScrollBar vScroll;
 
@@ -939,22 +946,12 @@ class ProfilerEventsGraphControl : Control
 
                 if (_event.IsSinglePoint)
                 {
-                    var polyPoints = new Point[] {
-                        //area.TopLeft,
-                        area.TopRight,
-                        new Point(area.Right - 1, area.Bottom),
-                        new Point(area.Left + 1, area.Bottom)
-                    };
-
-                    drawCtx.DrawGeometry(eventBrush, null, new PathGeometry([new PathFigure(area.TopLeft, [new PolyLineSegment(polyPoints, isStroked: false)], closed: true)]));
+                    pointEvents.Add(new() { Area = area });
                 }
                 else
                 {
                     drawCtx.DrawRectangle(barBrush, null, area);
-                }
 
-                if (!_event.IsSinglePoint)
-                {
                     var lumaConstants = new Vector3(0.2127f, 0.7152f, 0.0722f);
                     float barLuma = Vector3.Dot(rgb, lumaConstants);
                     float luma = 1 - barLuma;
@@ -1015,6 +1012,21 @@ class ProfilerEventsGraphControl : Control
             minif.StartX = -1;
             minif.FillPercent = 0;
         }
+
+        for (int i = 0; i < pointEvents.Count; i++)
+        {
+            var area = pointEvents[i].Area;
+
+            var polyPoints = new Point[] {
+                area.TopRight,
+                new Point(area.Right - 1, area.Bottom),
+                new Point(area.Left + 1, area.Bottom)
+            };
+
+            drawCtx.DrawGeometry(eventBrush, null, new PathGeometry([new PathFigure(area.TopLeft, [new PolyLineSegment(polyPoints, isStroked: false)], closed: true)]));
+        }
+
+        pointEvents.Clear();
     }
 
     SolidColorBrush GetBrushForColor(Vector3 color)
