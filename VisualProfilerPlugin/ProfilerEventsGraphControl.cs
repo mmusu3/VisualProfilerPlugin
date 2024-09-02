@@ -37,6 +37,7 @@ class ProfilerEventsGraphControl : Control
     const double maxZoom = 1000 * 50; // 50px per µs
 
     Profiler.EventsRecording? recordedEvents;
+    Dictionary<int, int> groupMaxDepths = [];
 
     long startTime;
     long endTime;
@@ -239,9 +240,9 @@ class ProfilerEventsGraphControl : Control
 
         for (int i = 0; i < threadProfilers.Length; i++)
         {
-            int maxDepth = 0;
+            var group = threadProfilers[i];
 
-            GetHoveredEvents(threadProfilers[i], startTime, y, ref maxDepth);
+            GetHoveredEvents(group, startTime, y);
 
             if (hoverEvents.Count > 0)
             {
@@ -252,13 +253,14 @@ class ProfilerEventsGraphControl : Control
                     || hoverEvents.Count != hoverIndices.Count)
                     reDraw = true;
 
-                hoverGroup = threadProfilers[i];
+                hoverGroup = group;
                 hoverIndices = (segmentIndex, eventIndex, hoverEvents.Count);
                 hoverY = y;
                 break;
             }
 
-            y += barHeight * maxDepth + threadGroupPadding;
+            if (groupMaxDepths.TryGetValue(group.ID, out int maxDepth))
+                y += barHeight * maxDepth + threadGroupPadding;
         }
 
         if (hoverGroup != null)
@@ -291,7 +293,7 @@ class ProfilerEventsGraphControl : Control
         }
     }
 
-    void GetHoveredEvents(ProfilerGroup group, long startTicks, float startY, ref int maxDepth)
+    void GetHoveredEvents(ProfilerGroup group, long startTicks, float startY)
     {
         if (recordedEvents == null || !recordedEvents.Groups.TryGetValue(group.ID, out var events) || events.EventCount == 0)
             return;
@@ -315,12 +317,8 @@ class ProfilerEventsGraphControl : Control
             for (int j = 0; j <= endIndexInSegment; j++)
             {
                 ref var _event = ref segment[j];
-
-                if (_event.Depth + 1 > maxDepth)
-                    maxDepth = _event.Depth + 1;
-
-                float startX = (float)TicksToPixels(_event.StartTime - startTicks + shiftX);
-                float width = _event.IsSinglePoint ? 4 : (float)TicksToPixels(_event.EndTime - _event.StartTime);
+                double startX = TicksToPixels(_event.StartTime - startTicks + shiftX);
+                double width = _event.IsSinglePoint ? 4 : TicksToPixels(_event.EndTime - _event.StartTime);
 
                 if (startX + width < 0 || startX > graphWidth)
                     continue;
@@ -511,6 +509,7 @@ class ProfilerEventsGraphControl : Control
         endTime = 0;
 
         recordedEvents = recording;
+        groupMaxDepths.Clear();
 
         float y = 0;
 
@@ -521,6 +520,8 @@ class ProfilerEventsGraphControl : Control
                 GetEventTimeBounds(group.EventSegments, group.EventCount, ref startTime, ref endTime);
 
                 int maxDepth = GetMaxDepthForGroup(group.EventSegments, group.EventCount);
+
+                groupMaxDepths[groupId] = maxDepth;
 
                 y += barHeight * maxDepth + threadGroupPadding;
             }
@@ -693,12 +694,14 @@ class ProfilerEventsGraphControl : Control
         for (int i = 0; i < threadProfilers.Length; i++)
         {
             var colorHSV = GetColorHSV(i, threadProfilers.Length);
-            int maxDepth = 0;
+            int groupId = threadProfilers[i].ID;
 
-            if (recordedEvents.Groups.TryGetValue(threadProfilers[i].ID, out var events))
-                DrawGroupEvents(graphCtx, events.EventSegments, events.EventCount, colorHSV, startTime, y, ref maxDepth);
+            if (recordedEvents.Groups.TryGetValue(groupId, out var events))
+            {
+                DrawGroupEvents(graphCtx, events.EventSegments, events.EventCount, colorHSV, startTime, y);
 
-            y += barHeight * maxDepth + threadGroupPadding;
+                y += barHeight * groupMaxDepths[groupId] + threadGroupPadding;
+            }
         }
 
         Profiler.Stop();
@@ -827,7 +830,7 @@ class ProfilerEventsGraphControl : Control
         Profiler.Stop();
     }
 
-    void DrawGroupEvents(DrawingContext drawCtx, ProfilerEvent[][] events, int eventCount, Vector3 colorHSV, long startTicks, float y, ref int maxDepth)
+    void DrawGroupEvents(DrawingContext drawCtx, ProfilerEvent[][] events, int eventCount, Vector3 colorHSV, long startTicks, float y)
     {
         if (eventCount == 0)
             return;
@@ -851,9 +854,6 @@ class ProfilerEventsGraphControl : Control
             for (int j = 0; j <= endIndexInSegment; j++)
             {
                 ref var _event = ref segment[j];
-
-                if (_event.Depth + 1 > maxDepth)
-                    maxDepth = _event.Depth + 1;
 
                 if (minifiedDrawStack.Length <= _event.Depth)
                 {
