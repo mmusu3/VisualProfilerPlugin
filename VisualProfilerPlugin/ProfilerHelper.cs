@@ -22,6 +22,8 @@ static class ProfilerHelper
     {
         switch (_event.ExtraValue.Object)
         {
+        case GCEventInfo:
+            break;
         case Type type:
             {
                 _event.ExtraValue.Format = "Type: {0}";
@@ -183,6 +185,7 @@ static class ProfilerHelper
             }
             break;
         default:
+            _event.ExtraValue.Object = _event.ExtraValue.Object?.ToString();
             break;
         }
     }

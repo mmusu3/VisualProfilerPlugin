@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using VRageMath;
 
 namespace VisualProfiler;
 
@@ -118,6 +119,25 @@ public struct ProfilerEvent
     public readonly double ElapsedMilliseconds => ProfilerTimer.MillisecondsFromTicks(EndTime - StartTime);
 }
 
+public class GCEventInfo
+{
+    public int Gen0Collections;
+    public int Gen1Collections;
+    public int Gen2Collections;
+
+    public GCEventInfo(Vector3I collections)
+    {
+        Gen0Collections = collections.X;
+        Gen1Collections = collections.Y;
+        Gen2Collections = collections.Z;
+    }
+
+    public override string ToString()
+    {
+        return $"Collection Counts\n{(Gen0Collections > 0 ? $"Gen 0: {Gen0Collections}\n" : "")}{(Gen1Collections > 0 ? $"Gen 1: {Gen1Collections}\n" : "")}{(Gen2Collections > 0 ? $"Gen 2: {Gen2Collections}" : "")}";
+    }
+}
+
 public readonly struct ProfilerKey
 {
     internal readonly int GlobalIndex;
@@ -166,6 +186,23 @@ public sealed class ProfilerTimer : IDisposable
 
     public long[] ExclusiveMemoryDeltas;
     public long ExclusiveMemoryDelta;
+
+    public struct GCCountsInfo
+    {
+        public Vector3I[] History;
+
+        public Vector3I Before;
+        public Vector3I After;
+        public Vector3I Inclusive;
+        public Vector3I Exclusive;
+        public Vector3I CumulativeExclusive;
+
+        internal Vector3I CumulativeInclusiveForChildren;
+        internal long FirstChildStartTime;
+        internal Vector3I FirstChildBefore;
+    }
+
+    public GCCountsInfo GCCounts;
 
 #if NET7_0_OR_GREATER
     public TimeSpan GCTimeBefore;
@@ -231,6 +268,7 @@ public sealed class ProfilerTimer : IDisposable
         if (parent != null)
             Depth = parent.Depth + 1;
 
+        GCCounts.History = new Vector3I[BufferSize];
 #if NET7_0_OR_GREATER
         GCTimes = new TimeSpan[BufferSize];
 #endif
@@ -290,7 +328,6 @@ public sealed class ProfilerTimer : IDisposable
         }
 
         isRunning = true;
-        wasRun = true;
 
         prevInvokeCount++;
 
@@ -309,6 +346,15 @@ public sealed class ProfilerTimer : IDisposable
         if (ProfileMemory)
         {
             MemoryBefore = GC.GetAllocatedBytesForCurrentThread();
+
+            if (Profiler.IsRecordingEvents)
+            {
+                GCCounts.Before.X = GC.CollectionCount(0);
+                GCCounts.Before.Y = GC.CollectionCount(1);
+                GCCounts.Before.Z = GC.CollectionCount(2);
+                GCCounts.CumulativeInclusiveForChildren = default;
+            }
+
 #if NET7_0_OR_GREATER
             GCTimeBefore = GC.GetTotalPauseDuration();
 #endif
@@ -406,11 +452,53 @@ public sealed class ProfilerTimer : IDisposable
 
         if (ProfileMemory)
         {
-            // Get post memory usage
             MemoryAfter = GC.GetAllocatedBytesForCurrentThread();
 
             long memDelta = MemoryAfter - MemoryBefore;
             InclusiveMemoryDelta += memDelta;
+
+            if (Profiler.IsRecordingEvents)
+            {
+                ref var c = ref GCCounts;
+                c.After.X = GC.CollectionCount(0);
+                c.After.Y = GC.CollectionCount(1);
+                c.After.Z = GC.CollectionCount(2);
+
+                c.Inclusive = c.After - c.Before;
+                c.Exclusive = c.Inclusive - c.CumulativeInclusiveForChildren;
+                c.CumulativeExclusive += c.Exclusive;
+
+                var exclusiveAfterChildren = c.Exclusive;
+
+                if (c.FirstChildStartTime != 0)
+                {
+                    var exclusiveBeforeChildren = c.FirstChildBefore - c.Before;
+                    exclusiveAfterChildren -= exclusiveBeforeChildren;
+
+                    if (exclusiveBeforeChildren != default)
+                        group.AddEvent("GC", c.FirstChildStartTime, new(new GCEventInfo(exclusiveBeforeChildren), "{0}"));
+
+                    c.FirstChildStartTime = 0;
+                }
+
+                if (exclusiveAfterChildren != default)
+                    group.AddEvent("GC", endTimestamp, new(new GCEventInfo(exclusiveAfterChildren), "{0}"));
+
+                if (Parent != null)
+                {
+                    ref var pc = ref Parent.GCCounts;
+
+                    // Children may be run more than once, sum their inclusive counts for
+                    // calculating parent exclusive count.
+                    pc.CumulativeInclusiveForChildren += c.Inclusive;
+
+                    if (pc.FirstChildStartTime == 0)
+                    {
+                        pc.FirstChildStartTime = startTimestamp;
+                        pc.FirstChildBefore = c.Before;
+                    }
+                }
+            }
 
 #if NET7_0_OR_GREATER
             GCTimeAfter = GC.GetTotalPauseDuration();
@@ -427,6 +515,8 @@ public sealed class ProfilerTimer : IDisposable
             eventArray = null;
             eventIndex = -1;
         }
+
+        wasRun = true;
     }
 
     public void AddElapsedTicks(long elapsedTicks)
@@ -472,7 +562,6 @@ public sealed class ProfilerTimer : IDisposable
         //Assert.True(elapsedTicks >= subTimerTicks);
 
         //TimeExclusive -= subTimerTicks;
-        // GPU times are not behaving
         TimeExclusive = Math.Max(0, TimeExclusive - subTimerTicks);
 
         if (wasRun)
@@ -502,6 +591,7 @@ public sealed class ProfilerTimer : IDisposable
         if (InclusiveMemoryDelta > 0)
             InclusiveMemoryTotal += InclusiveMemoryDelta;
 
+        GCCounts.History[CurrentIndex] = GCCounts.CumulativeExclusive;
 #if NET7_0_OR_GREATER
         GCTimes[CurrentIndex] = GCTimeDelta;
 #endif
@@ -526,6 +616,10 @@ public sealed class ProfilerTimer : IDisposable
         startTimestamp = 0;
         prevInvokeCount = 0;
         InclusiveMemoryDelta = 0;
+
+        GCCounts.CumulativeExclusive = default;
+        GCCounts.CumulativeInclusiveForChildren = default;
+        GCCounts.FirstChildStartTime = 0;
     }
 
     public void CalculateAverageTimes(out double averageInclusiveTime, out double averageExclusiveTime)
@@ -917,25 +1011,31 @@ public class ProfilerGroup
 
         public void Alloc(out ProfilerEvent[] array, out int index)
         {
-            if (NextIndex == Segments.Length * SegmentSize)
-                ExpandCapacity();
-
             int i = NextIndex++;
+            var segments = Segments;
+
+            if (i == segments.Length * SegmentSize)
+                segments = ExpandCapacity();
+
             int segmentIndex = i / SegmentSize;
 
-            array = Segments[segmentIndex];
+            array = segments[segmentIndex];
             index = i - segmentIndex * SegmentSize;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        void ExpandCapacity()
+        ProfilerEvent[][] ExpandCapacity()
         {
             // TODO: Add event for allocating new segment
 
-            int newSegCount = Segments.Length + 1;
-            Array.Resize(ref Segments, newSegCount);
+            ref var segments = ref Segments;
+            int newSegCount = segments.Length + 1;
 
-            Segments[^1] = new ProfilerEvent[SegmentSize];
+            Array.Resize(ref segments, newSegCount);
+
+            segments[^1] = new ProfilerEvent[SegmentSize];
+
+            return segments;
         }
     }
 
@@ -992,6 +1092,20 @@ public class ProfilerGroup
     List<int> frameStartEventIndices = [];
     List<int> frameEndEventIndices = [];
     List<int> outlierFrameIndices = [];
+
+    internal void AddEvent(string name, long timestamp, ProfilerEvent.ExtraData extraData = default)
+    {
+        currentEvents.Alloc(out var array, out int index);
+
+        array[index] = new ProfilerEvent {
+            Name = name,
+            Flags = ProfilerEvent.EventFlags.SinglePoint,
+            StartTime = timestamp,
+            EndTime = timestamp,
+            Depth = ActiveTimer?.Depth ?? 0,
+            ExtraValue = extraData
+        };
+    }
 
     internal void StartEvent(out ProfilerEvent[] array, out int index)
     {
