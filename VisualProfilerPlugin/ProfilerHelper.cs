@@ -222,7 +222,7 @@ static class ProfilerHelper
 
                 for (int s = startSegmentIndex; s <= endSegmentIndex; s++)
                 {
-                    var segment = events.EventSegments[s];
+                    var segment = events.EventSegments[s].Events;
                     int startIndexInSegment = Math.Max(0, startEventIndex - s * events.SegmentSize);
                     int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - s * events.SegmentSize);
 

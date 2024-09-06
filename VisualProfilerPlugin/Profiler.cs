@@ -119,6 +119,13 @@ public struct ProfilerEvent
     public readonly double ElapsedMilliseconds => ProfilerTimer.MillisecondsFromTicks(EndTime - StartTime);
 }
 
+public struct ProfilerEventsSegment
+{
+    public ProfilerEvent[] Events;
+    public long StartTime;
+    public long EndTime;
+}
+
 public class GCEventInfo
 {
     public int Gen0Collections;
@@ -134,7 +141,7 @@ public class GCEventInfo
 
     public override string ToString()
     {
-        return $"Collection Counts\n{(Gen0Collections > 0 ? $"Gen 0: {Gen0Collections}\n" : "")}{(Gen1Collections > 0 ? $"Gen 1: {Gen1Collections}\n" : "")}{(Gen2Collections > 0 ? $"Gen 2: {Gen2Collections}" : "")}";
+        return $"Collections\n{(Gen0Collections > 0 ? $"Gen0: {Gen0Collections}\n" : "")}{(Gen1Collections > 0 ? $"Gen1: {Gen1Collections}\n" : "")}{(Gen2Collections > 0 ? $"Gen2: {Gen2Collections}" : "")}";
     }
 }
 
@@ -1039,14 +1046,55 @@ public class ProfilerGroup
         }
     }
 
-    public class GroupEventsRecording(string name, EventsAllocator events, int[] frameStartIndices, int[] frameEndIndices, int[] outlierFrames)
+    public class GroupEventsRecording
     {
-        public string Name = name;
-        public ProfilerEvent[][] EventSegments = events.Segments;
-        public int EventCount = events.NextIndex;
-        public int[] FrameStartEventIndices = frameStartIndices;
-        public int[] FrameEndEventIndices = frameEndIndices;
-        public int[] OutlierFrames = outlierFrames;
+        public string Name;
+        public ProfilerEventsSegment[] EventSegments;
+        public int EventCount;
+        public int[] FrameStartEventIndices;
+        public int[] FrameEndEventIndices;
+        public int[] OutlierFrames;
+
+        public GroupEventsRecording(string name, EventsAllocator events, int[] frameStartIndices, int[] frameEndIndices, int[] outlierFrames)
+        {
+            Name = name;
+            EventSegments = new ProfilerEventsSegment[events.Segments.Length];
+            EventCount = events.NextIndex;
+            FrameStartEventIndices = frameStartIndices;
+            FrameEndEventIndices = frameEndIndices;
+            OutlierFrames = outlierFrames;
+
+            for (int s = 0; s < events.Segments.Length; s++)
+            {
+                var segmentEvents = events.Segments[s];
+                int endIndexInSegment = Math.Min(segmentEvents.Length - 1, (EventCount - 1) - s * SegmentSize);
+                long endTime = segmentEvents[endIndexInSegment].EndTime;
+
+                // The EndTime of the last event is not usually the end bounds of
+                // the segment. The parent events end after the children but
+                // come before them in the array.
+
+                if (segmentEvents[endIndexInSegment].Depth != 0)
+                {
+                    for (int i = endIndexInSegment - 1; i >= 0; i--)
+                    {
+                        ref var e = ref segmentEvents[i];
+
+                        if (e.EndTime > endTime)
+                            endTime = e.EndTime;
+
+                        if (e.Depth == 0)
+                            break;
+                    }
+                }
+
+                EventSegments[s] = new ProfilerEventsSegment {
+                    Events = segmentEvents,
+                    StartTime = segmentEvents[0].StartTime,
+                    EndTime = endTime
+                };
+            }
+        }
 
         public int SegmentSize => EventsAllocator.SegmentSize;
 
@@ -1054,7 +1102,7 @@ public class ProfilerGroup
         {
             int segmentIndex = index / EventsAllocator.SegmentSize;
 
-            return ref EventSegments[segmentIndex][index - segmentIndex * EventsAllocator.SegmentSize];
+            return ref EventSegments[segmentIndex].Events[index - segmentIndex * EventsAllocator.SegmentSize];
         }
 
         public int GetNumRecordedFrames()

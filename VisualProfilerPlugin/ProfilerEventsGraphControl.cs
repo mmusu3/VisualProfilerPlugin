@@ -315,17 +315,17 @@ class ProfilerEventsGraphControl : Control
         for (int i = 0; i <= endSegmentIndex; i++)
         {
             var segment = events.EventSegments[i];
-            int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - i * ProfilerGroup.EventsAllocator.SegmentSize);
+            int endIndexInSegment = Math.Min(segment.Events.Length - 1, endEventIndex - i * ProfilerGroup.EventsAllocator.SegmentSize);
 
-            if (segment[endIndexInSegment].EndTime - startTicks < -shiftX)
+            if (segment.EndTime - startTicks < -shiftX)
                 continue;
 
-            if (segment[0].StartTime - startTicks > -shiftX + (long)PixelsToTicks(graphWidth))
+            if (segment.StartTime - startTicks > -shiftX + (long)PixelsToTicks(graphWidth))
                 break;
 
             for (int j = 0; j <= endIndexInSegment; j++)
             {
-                ref var _event = ref segment[j];
+                ref var _event = ref segment.Events[j];
                 double startX = TicksToPixels(_event.StartTime - startTicks + shiftX);
                 double width = _event.IsSinglePoint ? 4 : TicksToPixels(_event.EndTime - _event.StartTime);
 
@@ -547,12 +547,12 @@ class ProfilerEventsGraphControl : Control
         Profiler.Stop();
     }
 
-    static void GetEventTimeBounds(ProfilerEvent[][] events, int eventCount, ref long startTime, ref long endTime)
+    static void GetEventTimeBounds(ProfilerEventsSegment[] events, int eventCount, ref long startTime, ref long endTime)
     {
         if (eventCount == 0)
             return;
 
-        long start = events[0][0].StartTime;
+        long start = events[0].Events[0].StartTime;
 
         if (start < startTime)
             startTime = start;
@@ -561,13 +561,13 @@ class ProfilerEventsGraphControl : Control
 
         int lastIndex = eventCount - 1;
         var endSegment = events[lastIndex / ss];
-        long end = endSegment[lastIndex % ss].EndTime;
+        long end = endSegment.Events[lastIndex % ss].EndTime;
 
         if (end > endTime)
             endTime = end;
     }
 
-    static int GetMaxDepthForGroup(ProfilerEvent[][] events, int eventCount)
+    static int GetMaxDepthForGroup(ProfilerEventsSegment[] events, int eventCount)
     {
         if (eventCount == 0)
             return 0;
@@ -578,7 +578,7 @@ class ProfilerEventsGraphControl : Control
 
         for (int i = 0; i <= endSegmentIndex; i++)
         {
-            var segment = events[i];
+            var segment = events[i].Events;
             int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - i * ProfilerGroup.EventsAllocator.SegmentSize);
 
             for (int j = 0; j <= endIndexInSegment; j++)
@@ -733,7 +733,7 @@ class ProfilerEventsGraphControl : Control
         {
             var (hoverSegment, hoverIndex) = hoverEvents[i];
             var segment = events.EventSegments[hoverSegment];
-            ref var _event = ref segment[hoverIndex];
+            ref var _event = ref segment.Events[hoverIndex];
 
             float nameWidth = MeasureString(_event.Name, fontFace, FontSize).X;
             double barY = y + _event.Depth * barHeight;
@@ -851,7 +851,7 @@ class ProfilerEventsGraphControl : Control
         Profiler.Stop();
     }
 
-    void DrawGroupEvents(DrawingContext drawCtx, ProfilerEvent[][] events, int eventCount, Vector3 colorHSV, long startTicks, float y)
+    void DrawGroupEvents(DrawingContext drawCtx, ProfilerEventsSegment[] events, int eventCount, Vector3 colorHSV, long startTicks, float y)
     {
         if (eventCount == 0)
             return;
@@ -861,21 +861,20 @@ class ProfilerEventsGraphControl : Control
         int endEventIndex = eventCount - 1;
         int endSegmentIndex = endEventIndex / ProfilerGroup.EventsAllocator.SegmentSize;
 
-        for (int i = 0; i <= endSegmentIndex; i++)
+        for (int s = 0; s <= endSegmentIndex; s++)
         {
-            var segment = events[i];
-            int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - i * ProfilerGroup.EventsAllocator.SegmentSize);
+            var segment = events[s];
+            int endIndexInSegment = Math.Min(segment.Events.Length - 1, endEventIndex - s * ProfilerGroup.EventsAllocator.SegmentSize);
 
-            // TODO: EndTime of the last event may not be the end bounds of the segment due to parent events going longer.
-            if (segment[endIndexInSegment].EndTime - startTicks < -shiftX)
+            if (segment.EndTime - startTicks < -shiftX)
                 continue;
 
-            if (segment[0].StartTime - startTicks > -shiftX + (long)PixelsToTicks(graphWidth))
+            if (segment.StartTime - startTicks > -shiftX + (long)PixelsToTicks(graphWidth))
                 break;
 
-            for (int j = 0; j <= endIndexInSegment; j++)
+            for (int e = 0; e <= endIndexInSegment; e++)
             {
-                ref var _event = ref segment[j];
+                ref var _event = ref segment.Events[e];
 
                 if (minifiedDrawStack.Length <= _event.Depth)
                 {
@@ -894,9 +893,9 @@ class ProfilerEventsGraphControl : Control
 
                 if (startX < -graphWidth)
                 {
-                    double s = -graphWidth;
-                    width -= s - startX;
-                    startX = s;
+                    double w = -graphWidth;
+                    width -= w - startX;
+                    startX = w;
                 }
 
                 if (width > graphWidth * 2)
