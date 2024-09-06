@@ -21,7 +21,7 @@
         <StackPanel Orientation="Horizontal" Height="26" Grid.ColumnSpan="3">
             <Label Content="Record for:"/>
 
-            <TextBox Name="recordTimeBox" Width="50" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+            <TextBox Name="recordTimeBox" Width="60" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
                      ToolTip="Maximum is 60 seconds or 3600 frames"
                      PreviewTextInput="RecordTimeBox_PreviewTextInput"
                      DataObject.Pasting="RecordTimeBox_Pasting"
@@ -39,8 +39,9 @@
                     IsEnabled="{Binding CanStartStopRecording}"
                     Click="StartStopButton_Click"/>
 
-            <Button Content="Reset Zoom" Width="100" VerticalAlignment="Stretch" Click="ResetViewButton_Click"/>
             <Label Name="frameCountLabel" Content=""/>
+
+            <Button Content="Reset Zoom" Width="100" VerticalAlignment="Stretch" Click="ResetViewButton_Click"/>
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" Grid.Column="0" Margin="0,0,4,0">
