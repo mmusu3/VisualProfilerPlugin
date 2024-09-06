@@ -17,6 +17,7 @@ static class MySession_Patches
 
         PatchPrefixSuffixPair(ctx, nameof(MySession.Load), _public: true, _static: true);
         PatchPrefixSuffixPair(ctx, "LoadWorld", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, nameof(MySession.GetWorld), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MySession.GetCheckpoint), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MySession.GetSector), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MySession.SaveDataComponents), _public: true, _static: false);
@@ -44,6 +45,7 @@ static class MySession_Patches
     {
         internal static ProfilerKey Load;
         internal static ProfilerKey LoadWorld;
+        internal static ProfilerKey GetWorld;
         internal static ProfilerKey GetCheckpoint;
         internal static ProfilerKey GetSector;
         internal static ProfilerKey SaveDataComponents;
@@ -54,6 +56,7 @@ static class MySession_Patches
         {
             Load = ProfilerKeyCache.GetOrAdd("MySession.Load");
             LoadWorld = ProfilerKeyCache.GetOrAdd("MySession.LoadWorld");
+            GetWorld = ProfilerKeyCache.GetOrAdd("MySession.GetWorld");
             GetCheckpoint = ProfilerKeyCache.GetOrAdd("MySession.GetCheckpoint");
             GetSector = ProfilerKeyCache.GetOrAdd("MySession.GetSector");
             SaveDataComponents = ProfilerKeyCache.GetOrAdd("MySession.SaveDataComponents");
@@ -72,6 +75,9 @@ static class MySession_Patches
 
     [MethodImpl(Inline)] static bool Prefix_LoadWorld(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.LoadWorld); return true; }
+
+    [MethodImpl(Inline)] static bool Prefix_GetWorld(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.GetWorld); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_GetCheckpoint(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.GetCheckpoint); return true; }

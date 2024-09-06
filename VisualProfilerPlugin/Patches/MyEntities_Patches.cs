@@ -13,7 +13,7 @@ static class MyEntities_Patches
     {
         Keys.Init();
 
-        var source = typeof(MyEntities).GetPublicStaticMethod("Load");
+        var source = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.Load));
         var prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_Load));
         var suffix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Suffix));
 
@@ -21,7 +21,7 @@ static class MyEntities_Patches
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
 
-        source = typeof(MyEntities).GetPublicStaticMethod("CreateFromObjectBuilder");
+        source = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.CreateFromObjectBuilder));
         prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_CreateFromObjectBuilder));
 
         pattern = ctx.GetPattern(source);
@@ -35,8 +35,15 @@ static class MyEntities_Patches
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
 
-        source = typeof(MyEntities).GetPublicStaticMethod("DeleteRememberedEntities");
+        source = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.DeleteRememberedEntities));
         prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_DeleteRememberedEntities));
+
+        pattern = ctx.GetPattern(source);
+        pattern.Prefixes.Add(prefix);
+        pattern.Suffixes.Add(suffix);
+
+        source = typeof(MyEntities).GetNonPublicStaticMethod("Save");
+        prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_Save));
 
         pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
@@ -49,6 +56,7 @@ static class MyEntities_Patches
         internal static ProfilerKey CreateFromObjectBuilder;
         internal static ProfilerKey LoadEntity;
         internal static ProfilerKey DeleteRememberedEntities;
+        internal static ProfilerKey Save;
 
         internal static void Init()
         {
@@ -56,6 +64,7 @@ static class MyEntities_Patches
             CreateFromObjectBuilder = ProfilerKeyCache.GetOrAdd("MyEntities.CreateFromObjectBuilder");
             LoadEntity = ProfilerKeyCache.GetOrAdd("MyEntities.LoadEntity");
             DeleteRememberedEntities = ProfilerKeyCache.GetOrAdd("MyEntities.DeleteRememberedEntities");
+            Save = ProfilerKeyCache.GetOrAdd("MyEntities.Save");
         }
     }
 
@@ -74,4 +83,7 @@ static class MyEntities_Patches
 
     [MethodImpl(Inline)] static bool Prefix_DeleteRememberedEntities(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.DeleteRememberedEntities); return true; }
+
+    [MethodImpl(Inline)] static bool Prefix_Save(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.Save); return true; }
 }
