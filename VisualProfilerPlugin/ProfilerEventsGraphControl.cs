@@ -22,7 +22,8 @@ class ProfilerEventsGraphControl : Control
     SolidColorBrush headerBrush;
     SolidColorBrush backgroundBrush;
     Pen intervalLinePen;
-    SolidColorBrush eventBrush;
+    SolidColorBrush pointEventBrush;
+    Pen pointEventPen;
     SolidColorBrush selectionBrush;
     Pen selectionPen;
     SolidColorBrush hoverInfoBackgroundBrush;
@@ -98,7 +99,7 @@ class ProfilerEventsGraphControl : Control
 
     struct PointEvent
     {
-        public Rect Area;
+        public Point Location;
     }
 
     List<PointEvent> pointEvents = [];
@@ -117,7 +118,8 @@ class ProfilerEventsGraphControl : Control
         backgroundBrush = new SolidColorBrush(new Color { R = 50, G = 50, B = 50, A = 255 });
         headerBrush = new SolidColorBrush(new Color { R = 20, G = 20, B = 20, A = 255 });
         intervalLinePen = new Pen(new SolidColorBrush(new Color { R = 80, G = 80, B = 80, A = 255 }), 1);
-        eventBrush = new SolidColorBrush(Colors.Red);
+        pointEventBrush = new SolidColorBrush(Colors.Red);
+        pointEventPen = new Pen(new SolidColorBrush(Colors.Black), 0.5);
         selectionBrush = new SolidColorBrush(NewColor(0, 0, 0, 100));
         selectionPen = new Pen(new SolidColorBrush(NewColor(150, 150, 150)), 2);
         hoverInfoBackgroundBrush = new SolidColorBrush(new Color { A = 190 });
@@ -752,9 +754,21 @@ class ProfilerEventsGraphControl : Control
             long memDelta = _event.MemoryAfter - _event.MemoryBefore;
             var memString = stringBuilder2;
 
-            if (_event.MemoryTracked && memDelta > 0)
+            if (_event.MemoryTracked)
             {
-                memString.AppendFormat("{0:n0}", memDelta).Append(" B allocated");
+                if (memDelta > 0)
+                {
+                    memString.AppendFormat("{0:n0}", memDelta).Append(" B allocated");
+
+                    float memStringWidth = MeasureString(memString.ToString(), fontFace, FontSize).X;
+
+                    tooltipArea.Width = Math.Max(tooltipArea.Width, memStringWidth);
+                    tooltipArea.Height += barHeight;
+                }
+            }
+            else if (!_event.IsSinglePoint)
+            {
+                memString.Append("N/A allocated");
 
                 float memStringWidth = MeasureString(memString.ToString(), fontFace, FontSize).X;
 
@@ -852,6 +866,7 @@ class ProfilerEventsGraphControl : Control
             var segment = events[i];
             int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - i * ProfilerGroup.EventsAllocator.SegmentSize);
 
+            // TODO: EndTime of the last event may not be the end bounds of the segment due to parent events going longer.
             if (segment[endIndexInSegment].EndTime - startTicks < -shiftX)
                 continue;
 
@@ -872,7 +887,7 @@ class ProfilerEventsGraphControl : Control
                 }
 
                 double startX = TicksToPixels(_event.StartTime - startTicks + shiftX);
-                double width = _event.IsSinglePoint ? 4 : TicksToPixels(_event.EndTime - _event.StartTime);
+                double width = TicksToPixels(_event.EndTime - _event.StartTime);
 
                 if (startX + width < 0 || startX > graphWidth)
                     continue;
@@ -900,7 +915,7 @@ class ProfilerEventsGraphControl : Control
 
                 ref var minif = ref minifiedDrawStack[_event.Depth];
 
-                if (width < minBarWidth)
+                if (!_event.IsSinglePoint && width < minBarWidth)
                 {
                     float startXRound = (float)Math.Round(startX);
                     float fill = (float)(width / minBarWidth);
@@ -946,7 +961,7 @@ class ProfilerEventsGraphControl : Control
 
                 if (_event.IsSinglePoint)
                 {
-                    pointEvents.Add(new() { Area = area });
+                    pointEvents.Add(new() { Location = area.Location });
                 }
                 else
                 {
@@ -1015,15 +1030,19 @@ class ProfilerEventsGraphControl : Control
 
         for (int i = 0; i < pointEvents.Count; i++)
         {
-            var area = pointEvents[i].Area;
+            var pos = pointEvents[i].Location;
+            var topLeft = pos;
+            topLeft.Offset(-3, 4);
 
-            var polyPoints = new Point[] {
-                area.TopRight,
-                new Point(area.Right - 1, area.Bottom),
-                new Point(area.Left + 1, area.Bottom)
-            };
+            var topRight = pos;
+            topRight.Offset(3, 4);
 
-            drawCtx.DrawGeometry(eventBrush, null, new PathGeometry([new PathFigure(area.TopLeft, [new PolyLineSegment(polyPoints, isStroked: false)], closed: true)]));
+            var bottom = pos;
+            bottom.Offset(0, barHeight - 4);
+
+            var polyPoints = new Point[] { topRight, bottom };
+
+            drawCtx.DrawGeometry(pointEventBrush, pointEventPen, new PathGeometry([new PathFigure(topLeft, [new PolyLineSegment(polyPoints, isStroked: true)], closed: true)]));
         }
 
         pointEvents.Clear();
