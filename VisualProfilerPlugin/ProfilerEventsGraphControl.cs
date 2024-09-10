@@ -800,10 +800,12 @@ class ProfilerEventsGraphControl : Control
                     break;
                 }
 
+                tooltipArea.Height += barHeight; // Extra spacing
+
                 var extraStringSize = MeasureString(extraString.ToString(), fontFace, FontSize);
 
                 tooltipArea.Width = Math.Max(tooltipArea.Width, extraStringSize.X);
-                tooltipArea.Height += barHeight + extraStringSize.Y;
+                tooltipArea.Height += extraStringSize.Y;
             }
 
             tooltipArea.Width += 12;
@@ -818,24 +820,25 @@ class ProfilerEventsGraphControl : Control
             tooltipArea.Y += 4;
 
             DrawText(drawCtx, _event.Name, fontFace, FontSize, Colors.White, tooltipArea.Location);
+            tooltipArea.Y += barHeight;
 
             if (!_event.IsSinglePoint)
             {
-                tooltipArea.Y += barHeight;
                 DrawText(drawCtx, timeString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
                 timeString.Clear();
+                tooltipArea.Y += barHeight;
             }
 
             if (memString.Length != 0)
             {
-                tooltipArea.Y += barHeight;
                 DrawText(drawCtx, memString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
                 memString.Clear();
+                tooltipArea.Y += barHeight;
             }
 
             if (extraString.Length != 0)
             {
-                tooltipArea.Y += barHeight * 2;
+                tooltipArea.Y += barHeight; // Extra spacing
                 DrawText(drawCtx, extraString.ToString(), fontFace, FontSize, Colors.White, tooltipArea.Location);
                 extraString.Clear();
             }
