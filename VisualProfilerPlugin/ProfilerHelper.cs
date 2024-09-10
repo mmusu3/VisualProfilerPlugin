@@ -192,6 +192,7 @@ static class ProfilerHelper
 
     public static RecordingAnalysisInfo AnalyzeRecording(Profiler.EventsRecording recording)
     {
+        var frameTimes = new List<long>();
         var clusters = new Dictionary<int, PhysicsClusterAnalysisInfo.Builder>();
         var grids = new Dictionary<long, CubeGridAnalysisInfo.Builder>();
         var progBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
@@ -219,6 +220,23 @@ static class ProfilerHelper
                 int endEventIndex = events.FrameEndEventIndices[frameEndOffset + f];
                 int startSegmentIndex = startEventIndex / events.SegmentSize;
                 int endSegmentIndex = endEventIndex / events.SegmentSize;
+
+                {
+                    var firstSegment = events.EventSegments[startSegmentIndex].Events;
+                    int startIndex = Math.Max(0, startEventIndex - startSegmentIndex * events.SegmentSize);
+
+                    var lastSegment = events.EventSegments[endSegmentIndex].Events;
+                    int endIndex = Math.Min(lastSegment.Length - 1, endEventIndex - endSegmentIndex * events.SegmentSize);
+
+                    long startTime = firstSegment[startIndex].StartTime;
+                    long endTime = lastSegment[endIndex].EndTime;
+                    long frameTime = endTime - startTime;
+
+                    if (frameTimes.Count <= f)
+                        frameTimes.Add(0);
+
+                    frameTimes[f] = Math.Max(frameTimes[f], frameTime);
+                }
 
                 for (int s = startSegmentIndex; s <= endSegmentIndex; s++)
                 {
@@ -258,7 +276,24 @@ static class ProfilerHelper
                     }
                 }
             }
+
         }
+
+        RecordingAnalysisInfo.FrameTimeInfo frameTimeInfo = default;
+        frameTimeInfo.Min = double.PositiveInfinity;
+
+        foreach (long frameTime in frameTimes)
+        {
+            double frameMilliseconds = ProfilerTimer.MillisecondsFromTicks(frameTime);
+
+            frameTimeInfo.Min = Math.Min(frameTimeInfo.Min, frameMilliseconds);
+            frameTimeInfo.Max = Math.Max(frameTimeInfo.Max, frameMilliseconds);
+            frameTimeInfo.Mean += frameMilliseconds;
+            frameTimeInfo.StdDev += frameMilliseconds * frameMilliseconds;
+        }
+
+        frameTimeInfo.Mean /= frameTimes.Count;
+        frameTimeInfo.StdDev = Math.Sqrt(frameTimeInfo.StdDev / frameTimes.Count - frameTimeInfo.Mean * frameTimeInfo.Mean);
 
         foreach (var item in clusters)
             item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
@@ -269,7 +304,7 @@ static class ProfilerHelper
         foreach (var item in progBlocks)
             item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
 
-        return new RecordingAnalysisInfo(
+        return new RecordingAnalysisInfo(frameTimeInfo,
             clusters.Values.Select(c => c.Finish()).ToArray(),
             grids.Values.Select(c => c.Finish()).ToArray(),
             progBlocks.Values.Select(c => c.Finish()).ToArray());
@@ -516,12 +551,20 @@ class VoxelInfoProxy
 
 class RecordingAnalysisInfo
 {
+    public struct FrameTimeInfo
+    {
+        public double Min, Max, Mean, StdDev;
+    }
+
+    public FrameTimeInfo FrameTimes;
+
     public PhysicsClusterAnalysisInfo[] PhysicsClusters;
     public CubeGridAnalysisInfo[] Grids;
     public CubeBlockAnalysisInfo[] ProgrammableBlocks;
 
-    public RecordingAnalysisInfo(PhysicsClusterAnalysisInfo[] physicsClusters, CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks)
+    internal RecordingAnalysisInfo(FrameTimeInfo frameTimes, PhysicsClusterAnalysisInfo[] physicsClusters, CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks)
     {
+        FrameTimes = frameTimes;
         PhysicsClusters = physicsClusters;
         Grids = grids;
         ProgrammableBlocks = programmableBlocks;
@@ -679,7 +722,7 @@ class CubeGridAnalysisInfo
     public long EntityId;
     public MyCubeSize GridSize;
     public string[] CustomNames;
-    public (long Id, string? Name)[] Owners;
+    public (long ID, string? Name)[] Owners;
     public int[] BlockCounts;
     public Vector3D[] Positions;
 
@@ -690,7 +733,7 @@ class CubeGridAnalysisInfo
 
     public CubeGridAnalysisInfo(
         long entityId, MyCubeSize gridSize,
-        string[] customNames, (long Id, string? Name)[] owners,
+        string[] customNames, (long ID, string? Name)[] owners,
         int[] blockCounts, Vector3D[] positions,
         double totalTime, double averageTimePerFrame,
         int includedInNumGroups, int numFramesCounted)
@@ -712,7 +755,7 @@ class CubeGridAnalysisInfo
         return $"""
                 {GridSize} Grid, ID: {EntityId}
                 Custom Name{(CustomNames.Length > 1 ? "s" : "")}: {string.Join(", ", CustomNames)}
-                Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", Id: " : null) + o.Id.ToString()})"))}
+                Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
                 Block Count{(BlockCounts.Length > 1 ? "s" : "")}: {string.Join(", ", BlockCounts)}
                 Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
                 Total Time: {TotalTime:N1}ms
@@ -767,7 +810,7 @@ class CubeBlockAnalysisInfo
     public long GridId;
     public Type BlockType;
     public string[] CustomNames;
-    public (long Id, string? Name)[] Owners;
+    public (long ID, string? Name)[] Owners;
     public Vector3D[] Positions;
 
     public double TotalTime;
@@ -777,7 +820,7 @@ class CubeBlockAnalysisInfo
 
     public CubeBlockAnalysisInfo(
         long entityId, long gridId, Type blockType,
-        string[] customNames, (long Id, string? Name)[] owners,
+        string[] customNames, (long ID, string? Name)[] owners,
         Vector3D[] positions,
         double totalTime, double averageTimePerFrame,
         int includedInNumGroups, int numFramesCounted)
@@ -800,7 +843,7 @@ class CubeBlockAnalysisInfo
                 {BlockType.Name}, ID: {EntityId}
                 Grid ID: {GridId}
                 Custom Name{(CustomNames.Length > 1 ? "s" : "")}: {string.Join(", ", CustomNames)}
-                Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", Id: " : null) + o.Id.ToString()})"))}
+                Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
                 Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms

@@ -205,6 +205,15 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         }
         else
         {
+            startStopButton.Content = "Stop Recording";
+            statisticsLabel.Content = "";
+            outliersList.Items.Clear();
+            physicsClustersList.Items.Clear();
+            gridsList.Items.Clear();
+            programmableBlocksList.Items.Clear();
+
+            eventsGraph.SetRecordedEvents(null);
+
             if (recordTimeTypeBox.SelectedIndex == 0) // Seconds
             {
                 if (float.TryParse(recordTimeBox.Text, out float seconds)
@@ -233,11 +242,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
                     return;
                 }
             }
-
-            frameCountLabel.Content = "";
-            startStopButton.Content = "Stop Recording";
-
-            eventsGraph.SetRecordedEvents(null);
         }
 
         OnPropertyChanged(nameof(CanStartStopRecording));
@@ -246,7 +250,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     void OnRecordingStopped(Profiler.EventsRecording recording)
     {
         startStopButton.Content = "Start Recording";
-        frameCountLabel.Content = $"Recorded {recording.NumFrames} frames";
 
         eventsGraph.SetRecordedEvents(recording);
 
@@ -254,6 +257,18 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         physicsClustersList.Items.Clear();
         gridsList.Items.Clear();
         programmableBlocksList.Items.Clear();
+
+        var analysis = ProfilerHelper.AnalyzeRecording(recording);
+
+        statisticsLabel.Content =
+            $"""
+            Recorded {recording.NumFrames} frames
+            Frame Times:
+                Min: {Math.Round(analysis.FrameTimes.Min, 2)}ms
+                Max: {Math.Round(analysis.FrameTimes.Max, 2)}ms
+                Mean: {Math.Round(analysis.FrameTimes.Mean, 2)}ms
+                StdDev: {Math.Round(analysis.FrameTimes.StdDev, 2)}ms
+            """;
 
         var outliers = recording.GetOutlierFrames();
 
@@ -264,8 +279,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
             outliersList.Items.Add(item);
         }
-
-        var analysis = ProfilerHelper.AnalyzeRecording(recording);
 
         var borderBrush = new SolidColorBrush { Color = Colors.Black };
 
@@ -280,7 +293,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             var item = new ListViewItem {
                 Content = clusterInfo,
                 ContextMenu = clustersContextMenu,
-                BorderThickness = new Thickness(0, 0, 0, 1),
+                Margin = new Thickness(0, 0, 0, 10),
+                BorderThickness = new Thickness(0, 1, 0, 0),
                 BorderBrush = borderBrush
             };
 
@@ -298,7 +312,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             var item = new ListViewItem {
                 Content = gridInfo,
                 ContextMenu = gridsContextMenu,
-                BorderThickness = new Thickness(0, 0, 0, 1),
+                Margin = new Thickness(0, 0, 0, 10),
+                BorderThickness = new Thickness(0, 1, 0, 0),
                 BorderBrush = borderBrush
             };
 
@@ -316,7 +331,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             var item = new ListViewItem {
                 Content = blockInfo,
                 ContextMenu = blocksContextMenu,
-                BorderThickness = new Thickness(0, 0, 0, 1),
+                Margin = new Thickness(0, 0, 0, 10),
+                BorderThickness = new Thickness(0, 1, 0, 0),
                 BorderBrush = borderBrush
             };
 
