@@ -141,7 +141,10 @@ public class GCEventInfo
 
     public override string ToString()
     {
-        return $"Collections\n{(Gen0Collections > 0 ? $"Gen0: {Gen0Collections}\n" : "")}{(Gen1Collections > 0 ? $"Gen1: {Gen1Collections}\n" : "")}{(Gen2Collections > 0 ? $"Gen2: {Gen2Collections}" : "")}";
+        return string.Join("\n", new string[] { "Collections",
+                $"{(Gen0Collections > 0 ? $"Gen0: {Gen0Collections}" : "")}",
+                $"{(Gen1Collections > 0 ? $"Gen1: {Gen1Collections}" : "")}",
+                $"{(Gen2Collections > 0 ? $"Gen2: {Gen2Collections}" : "")}" }.Where(s => s != ""));
     }
 }
 
@@ -323,7 +326,7 @@ public sealed class ProfilerTimer : IDisposable
         StartInternal(default);
     }
 
-    internal void StartInternal(ProfilerEvent.ExtraData extraValueData)
+    internal void StartInternal(ProfilerEvent.ExtraData extraData)
     {
         if (isRunning)
         {
@@ -347,7 +350,7 @@ public sealed class ProfilerTimer : IDisposable
             _event = ref eventArray[eventIndex];
             _event.Name = Name;
             _event.Depth = Depth;
-            _event.ExtraValue = extraValueData;
+            _event.ExtraValue = extraData;
         }
 
         if (ProfileMemory)
@@ -389,37 +392,46 @@ public sealed class ProfilerTimer : IDisposable
 
         prevInvokeCount++;
 
-        if (group.IsRealtimeThread || Profiler.IsRecordingEvents)
+        if (!group.IsRealtimeThread && !Profiler.IsRecordingEvents)
+            return;
+
+        ref var _event = ref Unsafe.NullRef<ProfilerEvent>();
+
+        if (eventArray != null && eventIndex != -1)
         {
-            ref var _event = ref Unsafe.NullRef<ProfilerEvent>();
-
-            if (eventArray != null && eventIndex != -1)
-            {
-                _event = ref eventArray[eventIndex];
-                _event.EndTime = Stopwatch.GetTimestamp();
-                _event.MemoryAfter = ProfileMemory ? GC.GetAllocatedBytesForCurrentThread() : 0;
-            }
-
-            group.StartEvent(out eventArray, out eventIndex);
+            long endTimestamp = Stopwatch.GetTimestamp();
 
             _event = ref eventArray[eventIndex];
-            _event.Name = Name;
-            _event.Depth = Depth;
+            _event.EndTime = endTimestamp;
+            _event.MemoryAfter = ProfileMemory ? GC.GetAllocatedBytesForCurrentThread() : 0;
 
-            if (ProfileMemory)
-            {
-                _event.Flags = ProfilerEvent.EventFlags.MemoryTracked;
-                _event.MemoryBefore = _event.MemoryAfter = GC.GetAllocatedBytesForCurrentThread();
-            }
-            else
-            {
-                _event.Flags = 0;
-                _event.MemoryBefore = _event.MemoryAfter = 0;
-            }
-
-            _event.StartTime = _event.EndTime = Stopwatch.GetTimestamp();
-            _event.ExtraValue = default;
+            EndGCCountsInfo(_event.EndTime);
         }
+
+        group.StartEvent(out eventArray, out eventIndex);
+
+        _event = ref eventArray[eventIndex];
+        _event.Name = Name;
+        _event.Depth = Depth;
+
+        if (ProfileMemory)
+        {
+            _event.Flags = ProfilerEvent.EventFlags.MemoryTracked;
+            _event.MemoryBefore = _event.MemoryAfter = GC.GetAllocatedBytesForCurrentThread();
+
+            GCCounts.Before.X = GC.CollectionCount(0);
+            GCCounts.Before.Y = GC.CollectionCount(1);
+            GCCounts.Before.Z = GC.CollectionCount(2);
+            GCCounts.CumulativeInclusiveForChildren = default;
+        }
+        else
+        {
+            _event.Flags = 0;
+            _event.MemoryBefore = _event.MemoryAfter = 0;
+        }
+
+        _event.StartTime = _event.EndTime = Stopwatch.GetTimestamp();
+        _event.ExtraValue = default;
     }
 
     void UnwindToDepth()
@@ -465,47 +477,7 @@ public sealed class ProfilerTimer : IDisposable
             InclusiveMemoryDelta += memDelta;
 
             if (Profiler.IsRecordingEvents)
-            {
-                ref var c = ref GCCounts;
-                c.After.X = GC.CollectionCount(0);
-                c.After.Y = GC.CollectionCount(1);
-                c.After.Z = GC.CollectionCount(2);
-
-                c.Inclusive = c.After - c.Before;
-                c.Exclusive = c.Inclusive - c.CumulativeInclusiveForChildren;
-                c.CumulativeExclusive += c.Exclusive;
-
-                var exclusiveAfterChildren = c.Exclusive;
-
-                if (c.FirstChildStartTime != 0)
-                {
-                    var exclusiveBeforeChildren = c.FirstChildBefore - c.Before;
-                    exclusiveAfterChildren -= exclusiveBeforeChildren;
-
-                    if (exclusiveBeforeChildren != default)
-                        group.AddEvent("GC", c.FirstChildStartTime, new(new GCEventInfo(exclusiveBeforeChildren), "{0}"));
-
-                    c.FirstChildStartTime = 0;
-                }
-
-                if (exclusiveAfterChildren != default)
-                    group.AddEvent("GC", endTimestamp, new(new GCEventInfo(exclusiveAfterChildren), "{0}"));
-
-                if (Parent != null)
-                {
-                    ref var pc = ref Parent.GCCounts;
-
-                    // Children may be run more than once, sum their inclusive counts for
-                    // calculating parent exclusive count.
-                    pc.CumulativeInclusiveForChildren += c.Inclusive;
-
-                    if (pc.FirstChildStartTime == 0)
-                    {
-                        pc.FirstChildStartTime = startTimestamp;
-                        pc.FirstChildBefore = c.Before;
-                    }
-                }
-            }
+                EndGCCountsInfo(endTimestamp);
 
 #if NET7_0_OR_GREATER
             GCTimeAfter = GC.GetTotalPauseDuration();
@@ -524,6 +496,49 @@ public sealed class ProfilerTimer : IDisposable
         }
 
         wasRun = true;
+    }
+
+    void EndGCCountsInfo(long endTimestamp)
+    {
+        ref var c = ref GCCounts;
+        c.After.X = GC.CollectionCount(0);
+        c.After.Y = GC.CollectionCount(1);
+        c.After.Z = GC.CollectionCount(2);
+
+        c.Inclusive = c.After - c.Before;
+        c.Exclusive = c.Inclusive - c.CumulativeInclusiveForChildren;
+        c.CumulativeExclusive += c.Exclusive;
+
+        var exclusiveAfterChildren = c.Exclusive;
+
+        if (c.FirstChildStartTime != 0)
+        {
+            var exclusiveBeforeChildren = c.FirstChildBefore - c.Before;
+            exclusiveAfterChildren -= exclusiveBeforeChildren;
+
+            if (exclusiveBeforeChildren != default)
+                group.AddEvent("GC", c.FirstChildStartTime, new(new GCEventInfo(exclusiveBeforeChildren), "{0}"));
+
+            c.FirstChildStartTime = 0;
+        }
+
+        if (exclusiveAfterChildren != default)
+            group.AddEvent("GC", endTimestamp, new(new GCEventInfo(exclusiveAfterChildren), "{0}"));
+
+        if (Parent != null)
+        {
+            ref var pc = ref Parent.GCCounts;
+
+            // Children may be run more than once, sum their inclusive counts for
+            // calculating parent exclusive count.
+            pc.CumulativeInclusiveForChildren += c.Inclusive;
+
+            if (pc.FirstChildStartTime == 0)
+            {
+                pc.FirstChildStartTime = startTimestamp;
+                pc.FirstChildBefore = c.Before;
+            }
+        }
     }
 
     public void AddElapsedTicks(long elapsedTicks)
@@ -627,6 +642,9 @@ public sealed class ProfilerTimer : IDisposable
         GCCounts.CumulativeExclusive = default;
         GCCounts.CumulativeInclusiveForChildren = default;
         GCCounts.FirstChildStartTime = 0;
+#if NET7_0_OR_GREATER
+        GCTimeDelta = default;
+#endif
     }
 
     public void CalculateAverageTimes(out double averageInclusiveTime, out double averageExclusiveTime)
@@ -1796,7 +1814,7 @@ public static class Profiler
             // NOTE: This can replace old entries from threads that have stopped and had
             // their ID reused. Thread ID's are only unique among running threads not over
             // all threads that have run during an application cycle.
-            profilerGroupsById[currentThread.ManagedThreadId] = tg;
+            profilerGroupsById[tg.ID] = tg;
 
         return tg;
     }
@@ -1998,13 +2016,13 @@ public static class Profiler
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void AddEvent(string name, ProfilerEvent.ExtraData extraValueData)
+    public static void AddEvent(string name, ProfilerEvent.ExtraData extraData)
     {
         if (!isRecordingEvents)
             return;
 
         // Allows better inlining of AddEvent
-        AddEventInternal(name).ExtraValue = extraValueData;
+        AddEventInternal(name).ExtraValue = extraData;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
