@@ -1,11 +1,15 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using ParallelTasks;
 using Sandbox.Game.Entities;
 using Torch.Managers.PatchManager;
 using VRage.Collections;
 using VRage.Game.Entity;
+using VRage.Library.Threading;
+using VRage.Utils;
 
 namespace VisualProfiler.Patches;
 
@@ -27,11 +31,25 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         PatchPrefixSuffixPair(ctx, "UpdateAfterSimulation10", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "UpdateAfterSimulation100", _public: false, _static: false);
         //PatchPrefixSuffixPair(ctx, "PerformParallelUpdate", _public: false, _static: false);
-        PatchPrefixSuffixPair(ctx, nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater), _public: true, _static: false);
 
         var source = typeof(MyParallelEntityUpdateOrchestrator).GetNonPublicInstanceMethod("PerformParallelUpdate");
-        var prefix = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod("Prefix_PerformParallelUpdate");
+        var prefix = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod(nameof(Prefix_PerformParallelUpdate));
+        ctx.GetPattern(source).Prefixes.Add(prefix);
 
+        var deleg = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod(nameof(ParallelUpdateHandlerBeforeSimulation))
+            .CreateDelegate(typeof(Action<IMyParallelUpdateable>));
+
+        typeof(MyParallelEntityUpdateOrchestrator).GetField("m_parallelUpdateHandlerBeforeSimulation", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(MyEntities.Orchestrator, deleg);
+
+        deleg = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod(nameof(ParallelUpdateHandlerAfterSimulation))
+            .CreateDelegate(typeof(Action<IMyParallelUpdateable>));
+
+        typeof(MyParallelEntityUpdateOrchestrator).GetField("m_parallelUpdateHandlerAfterSimulation", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(MyEntities.Orchestrator, deleg);
+
+        source = typeof(MyParallelEntityUpdateOrchestrator).GetPublicInstanceMethod(nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater));
+        prefix = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod(nameof(Prefix_ProcessInvokeLater));
         ctx.GetPattern(source).Prefixes.Add(prefix);
     }
 
@@ -192,10 +210,46 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         return false;
     }
 
-    [MethodImpl(Inline)] static bool Prefix_ProcessInvokeLater(ref ProfilerTimer __local_timer)
+    static void ParallelUpdateHandlerBeforeSimulation(IMyParallelUpdateable entity)
     {
-        // TODO: Wrap the invokes
-        __local_timer = Profiler.Start(Keys.ProcessInvokeLater);
-        return true;
+        if (entity.MarkedForClose || (entity.UpdateFlags & MyParallelUpdateFlags.EACH_FRAME_PARALLEL) == 0 || !entity.InScene)
+            return;
+
+        using (Profiler.Start(entity.GetType().Name, profileMemory: true, extraData: new(entity)))
+            entity.UpdateBeforeSimulationParallel();
+    }
+
+    static void ParallelUpdateHandlerAfterSimulation(IMyParallelUpdateable entity)
+    {
+        if (entity.MarkedForClose || (entity.UpdateFlags & MyParallelUpdateFlags.EACH_FRAME_PARALLEL) == 0 || !entity.InScene)
+            return;
+
+        using (Profiler.Start(entity.GetType().Name, profileMemory: true, extraData: new(entity)))
+            entity.UpdateAfterSimulationParallel();
+    }
+
+    [MethodImpl(Inline)]
+    static bool Prefix_ProcessInvokeLater(ISharedCriticalSection __field_m_lockInvokeLater,
+        ConcurrentQueue<(Action Callback, string DebugName)> __field_m_callbacksPendingExecution,
+        ConcurrentQueue<(Action Callback, string DebugName)> __field_m_callbacksPendingExecutionSwap)
+    {
+        if (__field_m_callbacksPendingExecution.IsEmpty)
+            return false;
+
+        Profiler.Start(Keys.ProcessInvokeLater, profileMemory: true, new(__field_m_callbacksPendingExecutionSwap.Count));
+
+        using (__field_m_lockInvokeLater.EnterUnique())
+            MyUtils.Swap(ref __field_m_callbacksPendingExecution, ref __field_m_callbacksPendingExecutionSwap);
+
+        foreach (var item in __field_m_callbacksPendingExecutionSwap)
+        {
+            using (Profiler.Start(item.DebugName ?? item.Callback.Method.Name))
+                item.Callback();
+        }
+
+        while (__field_m_callbacksPendingExecutionSwap.TryDequeue(out _)) { }
+
+        Profiler.Stop();
+        return false;
     }
 }
