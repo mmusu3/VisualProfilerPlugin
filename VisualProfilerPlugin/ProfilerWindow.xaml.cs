@@ -262,6 +262,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         statisticsLabel.Content =
             $"""
+            Recording Start Time: {recording.StartTime.ToLocalTime():hh:mm:ss tt}
             Recorded {recording.NumFrames} frames
             Frame Times:
                 Min: {Math.Round(analysis.FrameTimes.Min, 2)}ms
@@ -274,7 +275,14 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         foreach (int frameIndex in outliers)
         {
-            var item = new ListViewItem { Content = frameIndex };
+            var timeBounds = recording.GetTimeBoundsForFrame(frameIndex);
+            long time = timeBounds.EndTime - timeBounds.StartTime;
+
+            var item = new ListViewItem {
+                Content = $"{frameIndex}: {Math.Round(ProfilerTimer.MillisecondsFromTicks(time), 2)}ms",
+                Tag = frameIndex
+            };
+
             item.MouseDoubleClick += OutlierItem_MouseDoubleClick;
 
             outliersList.Items.Add(item);
@@ -343,7 +351,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     void OutlierItem_MouseDoubleClick(object sender, MouseButtonEventArgs args)
     {
         var item = (ListViewItem)sender;
-        int index = (int)item.Content;
+        int index = (int)item.Tag;
 
         eventsGraph.ZoomToFrame(index);
     }

@@ -957,11 +957,11 @@ public class ProfilerGroup
 
     #region Start / Stop Timer
 
-    public ProfilerTimer StartTimer(string name, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
+    public ProfilerTimer StartTimer(string name, bool profileMemory, ProfilerEvent.ExtraData extraData)
     {
         var timer = GetOrCreateTimer(name, profileMemory);
         ActiveTimer = timer;
-        timer.StartInternal(extraValueData);
+        timer.StartInternal(extraData);
 
         return timer;
     }
@@ -1451,7 +1451,7 @@ public static class Profiler
 
     #region Start / Stop
 
-    public static ProfilerTimer Start(int index, string name, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
+    public static ProfilerTimer Start(int index, string name, bool profileMemory, ProfilerEvent.ExtraData extraData)
     {
         Assert.NotNull(name, "Name must not be null");
 
@@ -1460,12 +1460,12 @@ public static class Profiler
 
         group.ActiveTimer = timer;
 
-        timer.StartInternal(extraValueData);
+        timer.StartInternal(extraData);
 
         return timer;
     }
 
-    public static ProfilerTimer Start(ProfilerKey key, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
+    public static ProfilerTimer Start(ProfilerKey key, bool profileMemory, ProfilerEvent.ExtraData extraData)
     {
         Assert.True(key.GlobalIndex < 0, "Invalid key");
 
@@ -1474,12 +1474,12 @@ public static class Profiler
 
         group.ActiveTimer = timer;
 
-        timer.StartInternal(extraValueData);
+        timer.StartInternal(extraData);
 
         return timer;
     }
 
-    public static ProfilerTimer Start(string name, bool profileMemory, ProfilerEvent.ExtraData extraValueData)
+    public static ProfilerTimer Start(string name, bool profileMemory, ProfilerEvent.ExtraData extraData)
     {
         Assert.NotNull(name, "Name must not be null");
 
@@ -1488,7 +1488,7 @@ public static class Profiler
 
         group.ActiveTimer = timer;
 
-        timer.StartInternal(extraValueData);
+        timer.StartInternal(extraData);
 
         return timer;
     }
