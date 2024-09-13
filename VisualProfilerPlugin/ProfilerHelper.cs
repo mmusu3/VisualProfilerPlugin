@@ -206,18 +206,14 @@ static class ProfilerHelper
                 || events.FrameEndEventIndices.Length == 0)
                 continue;
 
-            int frameEndOffset = 0;
-
-            if (events.FrameEndEventIndices[0] < events.FrameStartEventIndices[0])
-                frameEndOffset = 1;
-
             for (int f = 0; f < events.FrameStartEventIndices.Length; f++)
             {
-                if (frameEndOffset + f >= events.FrameEndEventIndices.Length)
-                    break;
-
                 int startEventIndex = events.FrameStartEventIndices[f];
-                int endEventIndex = events.FrameEndEventIndices[frameEndOffset + f];
+                int endEventIndex = events.FrameEndEventIndices[f];
+
+                if (endEventIndex < startEventIndex)
+                    continue;
+
                 int startSegmentIndex = startEventIndex / events.SegmentSize;
                 int endSegmentIndex = endEventIndex / events.SegmentSize;
 

@@ -1134,7 +1134,7 @@ public class ProfilerGroup
             int firstStart = FrameStartEventIndices[0];
             int firstEnd = FrameEndEventIndices[0];
 
-            if (GetEvent(firstEnd).EndTime < GetEvent(firstStart).StartTime)
+            if (firstEnd == -1 || GetEvent(firstEnd).EndTime < GetEvent(firstStart).StartTime)
                 numEnd--; // Start of first frame is cut off
 
             int lastStart = FrameStartEventIndices[^1];
@@ -1151,7 +1151,8 @@ public class ProfilerGroup
 
     EventsAllocator currentEvents = new();
 
-    int prevFrameEndNextEventIndex;
+    int frameStartEventIndex = -1;
+    int prevFrameEndEventIndex;
 
     Dictionary<object, object> eventObjectsCache = [];
 
@@ -1183,7 +1184,10 @@ public class ProfilerGroup
         lock (frameLock)
         {
             if (Profiler.IsRecordingEvents)
-                frameStartEventIndices.Add(currentEvents.NextIndex);
+            {
+                frameStartEventIndex = currentEvents.NextIndex;
+                frameStartEventIndices.Add(frameStartEventIndex);
+            }
         }
     }
 
@@ -1205,16 +1209,18 @@ public class ProfilerGroup
         lock (frameLock)
         {
             var events = currentEvents;
-            int startIndex = prevFrameEndNextEventIndex;
+            int startIndex = prevFrameEndEventIndex + 1;
             int endIndex = events.NextIndex - 1;
 
             if (Profiler.IsRecordingEvents)
             {
-                if (endIndex >= 0)
+                if (frameStartEventIndex != -1)
                     frameEndEventIndices.Add(endIndex);
 
-                prevFrameEndNextEventIndex = events.NextIndex;
+                prevFrameEndEventIndex = endIndex;
             }
+
+            frameStartEventIndex = -1;
 
             if (endIndex >= startIndex && eventObjectResolver != null && (Profiler.IsRecordingEvents || (hasOutliers && Profiler.IsRecordingOutliers)))
             {
@@ -1280,7 +1286,7 @@ public class ProfilerGroup
 
             eventObjectsCache.Clear();
 
-            prevFrameEndNextEventIndex = 0;
+            prevFrameEndEventIndex = -1;
             events.NextIndex = 0;
         }
     }
@@ -1291,7 +1297,7 @@ public class ProfilerGroup
 
         var events = currentEvents;
 
-        int startIndex = prevFrameEndNextEventIndex;
+        int startIndex = prevFrameEndEventIndex + 1;
         int endIndex = events.NextIndex - 1;
 
         if (endIndex < startIndex)
@@ -1330,7 +1336,7 @@ public class ProfilerGroup
             var recordedEvents = currentEvents;
             currentEvents = new EventsAllocator();
 
-            int startIndex = prevFrameEndNextEventIndex;
+            int startIndex = prevFrameEndEventIndex + 1;
             int endIndex = recordedEvents.NextIndex - 1;
 
             if (endIndex >= startIndex && eventObjectResolver != null)
@@ -1361,7 +1367,7 @@ public class ProfilerGroup
             if (recordedEvents.NextIndex > 0)
                 recording = new GroupEventsRecording(Name, recordedEvents, frameStartEventIndices.ToArray(), frameEndEventIndices.ToArray(), outlierFrameIndices.ToArray());
 
-            prevFrameEndNextEventIndex = 0;
+            prevFrameEndEventIndex = -1;
 
             return recording;
         }
@@ -1926,14 +1932,7 @@ public static class Profiler
                 long start = g.GetEvent(startIndex).StartTime;
                 long end = g.GetEvent(endIndex).EndTime;
 
-                if (end < start)
-                {
-                    if (frameIndex + 1 >= g.FrameEndEventIndices.Length)
-                        continue;
-
-                    endIndex = g.FrameEndEventIndices[frameIndex + 1];
-                    end = g.GetEvent(endIndex).EndTime;
-                }
+                Debug.Assert(end >= start);
 
                 if (start < startTime)
                     startTime = start;
