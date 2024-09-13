@@ -406,6 +406,12 @@ class ProfilerEventsGraphControl : Control
             zoomSelectionStarted = false;
             selectionDrawing.RenderOpen().Close(); // Clear
         }
+
+        if (hoverIndices.SegmentIndex != -1)
+        {
+            hoverIndices = (-1, -1, 0);
+            hoverDrawing.RenderOpen().Close(); // Clear
+        }
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs args)
