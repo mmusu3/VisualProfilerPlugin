@@ -20,6 +20,8 @@ namespace VisualProfiler.Patches;
 [PatchShim]
 static class MyPhysics_Patches
 {
+    internal static bool ProfileEachCluster;
+
     [ReflectedMethod(Type = typeof(MyPhysics))]
     static Func<MyPhysics, int, int, bool> IsClusterActive = null!;
 
@@ -279,11 +281,24 @@ static class MyPhysics_Patches
                 {
                     if (instructions[i + 3].Operand is MsilOperandInline<MethodBase> call && call.Value == finishMtStepMethod)
                     {
-                        yield return new MsilInstruction(OpCodes.Ldc_I4_3); // Block 3
-                        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Finish HKWorld update");
-                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2);
-                        yield return timerLocal2.AsValueStore();
-                        patchedParts++;
+                        var clusterLocal = __methodBody.LocalVariables.ElementAtOrDefault(6);
+
+                        if (clusterLocal == null || clusterLocal.LocalType != typeof(MyClusterTree.MyCluster))
+                        {
+                            Plugin.Log.Error($"Failed to patch {nameof(MyPhysics)}.StepWorldsParallel. Failed to find cluster local variable.");
+                        }
+                        else
+                        {
+                            yield return new MsilInstruction(OpCodes.Ldc_I4_3); // Block 3
+                            yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Finish HKWorld update");
+                            yield return new MsilInstruction(OpCodes.Ldc_I4_0); // profileMemory: false
+                            yield return new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex));
+                            yield return new MsilInstruction(OpCodes.Ldnull);
+                            yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor2);
+                            yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3);
+                            yield return timerLocal2.AsValueStore();
+                            patchedParts++;
+                        }
                     }
                 }
             }
@@ -374,13 +389,13 @@ static class MyPhysics_Patches
         {
             StepWorldsMeasured(__instance, timings);
         }
-        else if (MyFakes.ENABLE_HAVOK_PARALLEL_SCHEDULING && !Profiler.IsRecordingEvents) // TODO: May want to add a dedicated option
+        else if (!MyFakes.ENABLE_HAVOK_PARALLEL_SCHEDULING || (Profiler.IsRecordingEvents && ProfileEachCluster))
         {
-            StepWorldsParallel(__instance);
+            StepWorldsSequential(__instance);
         }
         else
         {
-            StepWorldsSequential(__instance);
+            StepWorldsParallel(__instance);
         }
 
         if (HkBaseSystem.IsOutOfMemory)

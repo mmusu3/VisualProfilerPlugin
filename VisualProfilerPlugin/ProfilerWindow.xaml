@@ -34,6 +34,8 @@
                 <ComboBoxItem Content="Frames"/>
             </ComboBox>
 
+            <CheckBox Content="Profile Physics Clusters" VerticalAlignment="Center" Margin="4,0,4,0" IsChecked="{Binding ProfilePhysicsClusters}"/>
+
             <Button Name="startStopButton" Width="100" VerticalAlignment="Stretch"
                     Content="Start Recording"
                     IsEnabled="{Binding CanStartStopRecording}"

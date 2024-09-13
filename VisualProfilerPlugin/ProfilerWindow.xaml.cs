@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using VisualProfiler.Patches;
 
 namespace VisualProfiler;
 
@@ -63,6 +64,12 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
             return IsRecordTimeValid();
         }
+    }
+
+    public bool ProfilePhysicsClusters
+    {
+        get => MyPhysics_Patches.ProfileEachCluster;
+        set => MyPhysics_Patches.ProfileEachCluster = value;
     }
 
     internal static void Open(Window mainWindow)
@@ -125,7 +132,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         window = null;
     }
 
-    void RecordTimeTypeBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs args)
+    void RecordTimeTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs args)
     {
         if (recordTimeTypeBox.SelectedIndex == 0) // Seconds
         {
@@ -188,7 +195,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         args.CancelCommand();
     }
 
-    void RecordTimeBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    void RecordTimeBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         OnPropertyChanged(nameof(CanStartStopRecording));
     }
@@ -284,6 +291,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             };
 
             item.MouseDoubleClick += OutlierItem_MouseDoubleClick;
+            item.KeyDown += OutlierItem_KeyDown;
 
             outliersList.Items.Add(item);
         }
@@ -354,6 +362,17 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         int index = (int)item.Tag;
 
         eventsGraph.ZoomToFrame(index);
+    }
+
+    void OutlierItem_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            var item = (ListViewItem)sender;
+            int index = (int)item.Tag;
+
+            eventsGraph.ZoomToFrame(index);
+        }
     }
 
     void ResetViewButton_Click(object sender, RoutedEventArgs args)
