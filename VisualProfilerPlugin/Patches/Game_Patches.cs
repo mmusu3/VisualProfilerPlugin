@@ -68,12 +68,14 @@ static class Game_Patches
 
         var beginFrameMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(BeginFrame));
         var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool)]);
+        var extraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
+        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
         var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(int), typeof(string)]);
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
         var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
         var endMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(EndFrame));
 
+        var updateCounterField = typeof(Game).GetField("m_updateCounter", BindingFlags.NonPublic | BindingFlags.Instance);
         var rpBeforeUpdateMethod = typeof(MyRenderProxy).GetPublicStaticMethod(nameof(MyRenderProxy.BeforeUpdate));
         var afterDrawMethod = typeof(Game).GetNonPublicInstanceMethod("AfterDraw");
         var updateMethod = typeof(Game).GetNonPublicInstanceMethod("Update");
@@ -82,10 +84,14 @@ static class Game_Patches
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
         yield return new MsilInstruction(OpCodes.Call).InlineValue(beginFrameMethod);
-
         yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.UpdateFrame.GlobalIndex);
         yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
         yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profilerMemory: true
+        yield return new MsilInstruction(OpCodes.Ldarg_0);
+        yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(updateCounterField);
+        yield return new MsilInstruction(OpCodes.Conv_I8);
+        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Sim Frame Index: {0}");
+        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(extraDataCtor);
         yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod1);
         yield return timerLocal1.AsValueStore();
 
