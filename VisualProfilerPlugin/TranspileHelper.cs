@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Reflection.Emit;
 using Torch.Managers.PatchManager.MSIL;
 
 namespace VisualProfiler;
@@ -40,5 +41,19 @@ static class TranspileHelper
         sourceInstruction.TryCatchOperations.Clear();
 
         return instruction;
+    }
+
+    public static bool MatchOpCodes(MsilInstruction[] instructions, int start, OpCode[] opcodes)
+    {
+        if (instructions.Length < start + opcodes.Length)
+            return false;
+
+        for (int i = 0; i < opcodes.Length; i++)
+        {
+            if (instructions[start + i].OpCode != opcodes[i])
+                return false;
+        }
+
+        return true;
     }
 }

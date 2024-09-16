@@ -20,56 +20,79 @@ static class ProfilerHelper
 
     static void ResolveProfilerEventObject(Dictionary<object, object> cache, ref ProfilerEvent _event)
     {
-        switch (_event.ExtraValue.Object)
+        ResolveProfilerEventObject(cache, ref _event.ExtraValue);
+    }
+
+    static void ResolveProfilerEventObject(Dictionary<object, object> cache, ref ProfilerEvent.ExtraData data)
+    {
+        switch (data.Object)
         {
         case GCEventInfo:
             break;
         case Type type:
             {
-                _event.ExtraValue.Format = "Type: {0}";
+                data.Format = "Type: {0}";
 
                 if (cache.TryGetValue(type, out var cachedObj))
                 {
-                    _event.ExtraValue.Object = (string)cachedObj;
+                    data.Object = (string)cachedObj;
                     break;
                 }
 
-                cache[type] = _event.ExtraValue.Object = type.FullName!;
+                cache[type] = data.Object = type.FullName!;
+            }
+            break;
+        case Delegate @delegate:
+            {
+                data.Format = "Declaring Type: {0}";
+
+                Type type;
+
+                // TODO: Get more info from Target
+                if (@delegate.Target != null)
+                    type = @delegate.Target.GetType();
+                else
+                    type = @delegate.Method.DeclaringType!;
+
+                if (cache.TryGetValue(type, out var cachedObj))
+                    data.Object = (string)cachedObj;
+                else
+                    cache[type] = data.Object = type.FullName!;
             }
             break;
         case MyClusterTree.MyCluster cluster:
             {
-                _event.ExtraValue.Format = "{0}";
+                data.Format = "{0}";
 
                 if (cache.TryGetValue(cluster, out var cachedObj))
                 {
-                    _event.ExtraValue.Object = (PhysicsClusterInfoProxy)cachedObj;
+                    data.Object = (PhysicsClusterInfoProxy)cachedObj;
                     break;
                 }
 
-                cache[cluster] = _event.ExtraValue.Object = new PhysicsClusterInfoProxy(cluster);
+                cache[cluster] = data.Object = new PhysicsClusterInfoProxy(cluster);
             }
             break;
         case MyCubeGrid grid:
             {
-                _event.ExtraValue.Format = "{0}";
+                data.Format = "{0}";
 
                 if (cache.TryGetValue(grid, out var cachedObj))
                 {
-                    _event.ExtraValue.Object = (CubeGridInfoProxy)cachedObj;
+                    data.Object = (CubeGridInfoProxy)cachedObj;
                     break;
                 }
 
-                cache[grid] = _event.ExtraValue.Object = new CubeGridInfoProxy(grid);
+                cache[grid] = data.Object = new CubeGridInfoProxy(grid);
             }
             break;
         case MyCubeBlock block:
             {
-                _event.ExtraValue.Format = "{0}";
+                data.Format = "{0}";
 
                 if (cache.TryGetValue(block, out var cachedObj))
                 {
-                    _event.ExtraValue.Object = (CubeBlockInfoProxy)cachedObj;
+                    data.Object = (CubeBlockInfoProxy)cachedObj;
                     break;
                 }
 
@@ -78,12 +101,12 @@ static class ProfilerHelper
                 if (!cache.TryGetValue(grid, out cachedObj) || cachedObj is not CubeGridInfoProxy cachedGridProxy)
                     cache[grid] = cachedGridProxy = new CubeGridInfoProxy(grid);
 
-                cache[block] = _event.ExtraValue.Object = new CubeBlockInfoProxy(block, cachedGridProxy);
+                cache[block] = data.Object = new CubeBlockInfoProxy(block, cachedGridProxy);
             }
             break;
         case MyExternalReplicable<MyCharacter> charRepl:
             {
-                _event.ExtraValue.Format = "{0}";
+                data.Format = "{0}";
 
                 var character = charRepl.Instance;
 
@@ -91,22 +114,22 @@ static class ProfilerHelper
                 {
                     if (cache.TryGetValue(character, out var cachedObj))
                     {
-                        _event.ExtraValue.Object = (CharacterInfoProxy)cachedObj;
+                        data.Object = (CharacterInfoProxy)cachedObj;
                         break;
                     }
 
-                    cache[character] = _event.ExtraValue.Object = new CharacterInfoProxy(character);
+                    cache[character] = data.Object = new CharacterInfoProxy(character);
                 }
                 else
                 {
-                    _event.ExtraValue.Object = null;
-                    _event.ExtraValue.Format = "Empty character replicable{0}";
+                    data.Object = null;
+                    data.Format = "Empty character replicable{0}";
                 }
             }
             break;
         case MyExternalReplicable<MyCubeGrid> gridRepl:
             {
-                _event.ExtraValue.Format = "{0}";
+                data.Format = "{0}";
 
                 var grid = gridRepl.Instance;
 
@@ -114,22 +137,22 @@ static class ProfilerHelper
                 {
                     if (cache.TryGetValue(grid, out var cachedObj))
                     {
-                        _event.ExtraValue.Object = (CubeGridInfoProxy)cachedObj;
+                        data.Object = (CubeGridInfoProxy)cachedObj;
                         break;
                     }
 
-                    cache[grid] = _event.ExtraValue.Object = new CubeGridInfoProxy(grid);
+                    cache[grid] = data.Object = new CubeGridInfoProxy(grid);
                 }
                 else
                 {
-                    _event.ExtraValue.Object = null;
-                    _event.ExtraValue.Format = "Empty cube grid replicable{0}";
+                    data.Object = null;
+                    data.Format = "Empty cube grid replicable{0}";
                 }
             }
             break;
         case MyExternalReplicable<MySyncedBlock> blockRepl:
             {
-                _event.ExtraValue.Format = "{0}";
+                data.Format = "{0}";
 
                 var block = blockRepl.Instance;
 
@@ -137,7 +160,7 @@ static class ProfilerHelper
                 {
                     if (cache.TryGetValue(block, out var cachedObj))
                     {
-                        _event.ExtraValue.Object = (CubeBlockInfoProxy)cachedObj;
+                        data.Object = (CubeBlockInfoProxy)cachedObj;
                         break;
                     }
 
@@ -146,18 +169,18 @@ static class ProfilerHelper
                     if (!cache.TryGetValue(grid, out cachedObj) || cachedObj is not CubeGridInfoProxy cachedGridProxy)
                         cache[grid] = cachedGridProxy = new CubeGridInfoProxy(grid);
 
-                    cache[block] = _event.ExtraValue.Object = new CubeBlockInfoProxy(block, cachedGridProxy);
+                    cache[block] = data.Object = new CubeBlockInfoProxy(block, cachedGridProxy);
                 }
                 else
                 {
-                    _event.ExtraValue.Object = null;
-                    _event.ExtraValue.Format = "Empty cube block replicable{0}";
+                    data.Object = null;
+                    data.Format = "Empty cube block replicable{0}";
                 }
             }
             break;
         case MyExternalReplicable<MyVoxelBase> voxelRepl:
             {
-                _event.ExtraValue.Format = "{0}";
+                data.Format = "{0}";
 
                 var voxel = voxelRepl.Instance;
 
@@ -165,27 +188,27 @@ static class ProfilerHelper
                 {
                     if (cache.TryGetValue(voxel, out var cachedObj))
                     {
-                        _event.ExtraValue.Object = (VoxelInfoProxy)cachedObj;
+                        data.Object = (VoxelInfoProxy)cachedObj;
                         break;
                     }
 
-                    cache[voxel] = _event.ExtraValue.Object = new VoxelInfoProxy(voxel);
+                    cache[voxel] = data.Object = new VoxelInfoProxy(voxel);
                 }
                 else
                 {
-                    _event.ExtraValue.Object = null;
-                    _event.ExtraValue.Object = "Empty voxel replicable{0}";
+                    data.Object = null;
+                    data.Object = "Empty voxel replicable{0}";
                 }
             }
             break;
         case IMyReplicable replicable:
             {
-                _event.ExtraValue.Object = null;
-                _event.ExtraValue.Format = replicable.GetType().Name;
+                data.Object = null;
+                data.Format = replicable.GetType().Name;
             }
             break;
         default:
-            _event.ExtraValue.Object = _event.ExtraValue.Object?.ToString();
+            data.Object = data.Object?.ToString();
             break;
         }
     }

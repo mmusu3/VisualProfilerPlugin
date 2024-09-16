@@ -1,6 +1,12 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using Sandbox.Game.Entities;
 using Torch.Managers.PatchManager;
+using Torch.Managers.PatchManager.MSIL;
 
 namespace VisualProfiler.Patches;
 
@@ -19,7 +25,9 @@ static class MyCubeGrid_Patches
         PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation10), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation100), _public: true, _static: false);
 
-        // TODO: Wrap Invoke call in Dispatch with transpiler
+        var source = typeof(MyCubeGrid).GetNonPublicInstanceMethod("Dispatch");
+        var transpiler = typeof(MyCubeGrid_Patches).GetNonPublicStaticMethod(nameof(Transpile_Dispatch));
+        ctx.GetPattern(source).Transpilers.Add(transpiler);
     }
 
     static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
@@ -41,6 +49,7 @@ static class MyCubeGrid_Patches
         internal static ProfilerKey UpdateAfterSimulation;
         internal static ProfilerKey UpdateAfterSimulation10;
         internal static ProfilerKey UpdateAfterSimulation100;
+        internal static ProfilerKey Dispatch;
 
         internal static void Init()
         {
@@ -50,6 +59,7 @@ static class MyCubeGrid_Patches
             UpdateAfterSimulation = ProfilerKeyCache.GetOrAdd("MyCubeGrid.UpdateAfterSimulation");
             UpdateAfterSimulation10 = ProfilerKeyCache.GetOrAdd("MyCubeGrid.UpdateAfterSimulation10");
             UpdateAfterSimulation100 = ProfilerKeyCache.GetOrAdd("MyCubeGrid.UpdateAfterSimulation100");
+            Dispatch = ProfilerKeyCache.GetOrAdd("MyCubeGrid.Dispatch");
         }
     }
 
@@ -74,4 +84,78 @@ static class MyCubeGrid_Patches
 
     [MethodImpl(Inline)] static bool Prefix_UpdateAfterSimulation100(ref ProfilerTimer __local_timer, MyCubeGrid __instance)
     { __local_timer = Profiler.Start(Keys.UpdateAfterSimulation100, profileMemory: true, new(__instance)); return true; }
+
+    static IEnumerable<MsilInstruction> Transpile_Dispatch(IEnumerable<MsilInstruction> instructionStream, MethodBody __methodBody, Func<Type, MsilLocal> __localCreator)
+    {
+        Plugin.Log.Debug($"Patching {nameof(MyCubeGrid)}.Dispatch.");
+
+        const int expectedParts = 1;
+        int patchedParts = 0;
+
+        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
+        var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool)]);
+        var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
+
+        var invokeMethod = typeof(MyCubeGrid).GetNonPublicInstanceMethod("Invoke");
+        var updateStruct = typeof(MyCubeGrid).GetNestedType("Update", BindingFlags.NonPublic)!;
+        var callbackField = updateStruct.GetField("Callback")!;
+        var newInvokeMethod = typeof(MyCubeGrid_Patches).GetNonPublicStaticMethod("Invoke");
+
+        var instructions = instructionStream.ToArray();
+        var pattern1 = new OpCode[] { OpCodes.Ldarg_0, OpCodes.Ldloca_S, OpCodes.Ldarg_1, OpCodes.Call };
+
+        var timerLocal = __localCreator(typeof(ProfilerTimer));
+
+        yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.Dispatch.GlobalIndex);
+        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
+        yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profilerMemory: true
+        yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod);
+        yield return timerLocal.AsValueStore();
+
+        for (int i = 0; i < instructions.Length; i++)
+        {
+            if (TranspileHelper.MatchOpCodes(instructions, i, pattern1)
+                && instructions[i + 1].Operand is MsilOperandInline<MsilLocal> local && local.Value.Index == 4
+                && instructions[i + 3].OpCode == OpCodes.Call && instructions[i + 3].Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod)
+            {
+                var updateLocal = __methodBody.LocalVariables.ElementAtOrDefault(4);
+
+                if (updateLocal == null || updateLocal.LocalType != updateStruct)
+                {
+                    Plugin.Log.Error($"Failed to patch {nameof(MyCubeGrid)}.Dispatch. Failed to find Update local variable.");
+                }
+                else
+                {
+                    yield return new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(updateLocal.LocalIndex));
+                    yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(callbackField);
+                    yield return new MsilInstruction(OpCodes.Call).InlineValue(newInvokeMethod);
+                    patchedParts++;
+                    i += pattern1.Length - 1;
+                    continue;
+                }
+            }
+            else if (instructions[i].OpCode == OpCodes.Ret)
+            {
+                break;
+            }
+
+            yield return instructions[i];
+        }
+
+        yield return timerLocal.AsValueLoad();
+        yield return new MsilInstruction(OpCodes.Call).InlineValue(disposeMethod);
+        yield return new MsilInstruction(OpCodes.Ret);
+
+        if (patchedParts != expectedParts)
+            Plugin.Log.Fatal($"Failed to patch {nameof(MyCubeGrid)}.Dispatch. {patchedParts} out of {expectedParts} code parts matched.");
+        else
+            Plugin.Log.Debug("Patch successful.");
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static void Invoke(Action callback)
+    {
+        using (Profiler.Start(callback.Method.Name, profileMemory: true, new(callback)))
+            callback();
+    }
 }
