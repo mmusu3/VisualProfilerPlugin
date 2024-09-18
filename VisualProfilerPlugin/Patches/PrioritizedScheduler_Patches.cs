@@ -33,6 +33,11 @@ static class PrioritizedScheduler_Patches
 
     static IEnumerable<MsilInstruction> Transpile_WorkerArray_ScheduleOnEachWorker(IEnumerable<MsilInstruction> instructionStream)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(PrioritizedScheduler)}.WorkerArray.ScheduleOnEachWorker.");
 
         const int expectedParts = 1;
@@ -42,7 +47,6 @@ static class PrioritizedScheduler_Patches
         var defaultOptionsField = typeof(Parallel).GetField(nameof(Parallel.DefaultOptions), BindingFlags.Static | BindingFlags.Public);
         var workersGetter = typeof(PrioritizedScheduler).GetNestedType("WorkerArray", BindingFlags.NonPublic)!.GetProperty("Workers", BindingFlags.Instance | BindingFlags.Public)!.GetMethod;
 
-        var instructions = instructionStream.ToArray();
         bool skipping = false;
 
         const int toSkip = 8;
@@ -54,12 +58,12 @@ static class PrioritizedScheduler_Patches
 
             if (ins.OpCode == OpCodes.Ldsfld && ins.Operand is MsilOperandInline<FieldInfo> ldField && ldField.Value == defaultOptionsField)
             {
-                yield return new MsilInstruction(OpCodes.Ldarg_1);
-                yield return new MsilInstruction(OpCodes.Ldarg_0);
-                yield return new MsilInstruction(OpCodes.Call).InlineValue(workersGetter);
-                yield return new MsilInstruction(OpCodes.Ldlen);
-                yield return new MsilInstruction(OpCodes.Conv_I4);
-                yield return new MsilInstruction(OpCodes.Call).InlineValue(createOptionsMethod);
+                Emit(new MsilInstruction(OpCodes.Ldarg_1));
+                Emit(new MsilInstruction(OpCodes.Ldarg_0));
+                Emit(new MsilInstruction(OpCodes.Call).InlineValue(workersGetter));
+                Emit(new MsilInstruction(OpCodes.Ldlen));
+                Emit(new MsilInstruction(OpCodes.Conv_I4));
+                Emit(new MsilInstruction(OpCodes.Call).InlineValue(createOptionsMethod));
                 skipping = true;
                 patchedParts++;
             }
@@ -71,15 +75,24 @@ static class PrioritizedScheduler_Patches
             if (skipping)
                 skipped++;
             else
-                yield return ins;
+                Emit(ins);
         }
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Error($"Failed to patch {nameof(PrioritizedScheduler)}.WorkerArray.ScheduleOnEachWorker. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else if (skipped != toSkip)
+        {
             Plugin.Log.Error($"Failed to patch {nameof(PrioritizedScheduler)}.WorkerArray.ScheduleOnEachWorker. {skipped} out of {toSkip} instructions skipped.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

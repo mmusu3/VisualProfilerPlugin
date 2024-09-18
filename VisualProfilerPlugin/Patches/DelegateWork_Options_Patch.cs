@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using ParallelTasks;
@@ -19,8 +20,13 @@ static class DelegateWork_Options_Patch
         ctx.GetPattern(source).Transpilers.Add(target);
     }
 
-    static IEnumerable<MsilInstruction> Transpile(IEnumerable<MsilInstruction> instructions)
+    static IEnumerable<MsilInstruction> Transpile(IEnumerable<MsilInstruction> instructionStream)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching DelegateWork.Options setter.");
 
         var optionsField = typeof(AbstractWork).GetField("m_options", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -32,20 +38,22 @@ static class DelegateWork_Options_Patch
         {
             if (ins.OpCode == OpCodes.Ret)
             {
-                yield return new MsilInstruction(OpCodes.Ldarg_0);
-                yield return new MsilInstruction(OpCodes.Ldarg_0);
-                yield return new MsilInstruction(OpCodes.Ldflda).InlineValue(optionsField);
-                yield return new MsilInstruction(OpCodes.Callvirt).InlineValue(fillDebugInfoMethod);
+                Emit(new MsilInstruction(OpCodes.Ldarg_0));
+                Emit(new MsilInstruction(OpCodes.Ldarg_0));
+                Emit(new MsilInstruction(OpCodes.Ldflda).InlineValue(optionsField));
+                Emit(new MsilInstruction(OpCodes.Callvirt).InlineValue(fillDebugInfoMethod));
 
                 patched = true;
             }
 
-            yield return ins;
+            Emit(ins);
         }
 
         if (patched)
             Plugin.Log.Debug("Patch successful.");
         else
             Plugin.Log.Error($"Failed to patch DelegateWork.Options setter.");
+
+        return patched ? newInstructions : instructions;
     }
 }

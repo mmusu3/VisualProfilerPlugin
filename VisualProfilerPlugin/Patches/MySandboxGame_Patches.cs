@@ -55,8 +55,13 @@ static class MySandboxGame_Patches
         return true;
     }
 
-    static IEnumerable<MsilInstruction> Transpile_LoadData(IEnumerable<MsilInstruction> instructions)
+    static IEnumerable<MsilInstruction> Transpile_LoadData(IEnumerable<MsilInstruction> instructionStream)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(MySandboxGame)}.LoadData.");
 
         bool patched = false;
@@ -68,11 +73,11 @@ static class MySandboxGame_Patches
 
         foreach (var ins in instructions)
         {
-            yield return ins;
+            Emit(ins);
 
             if (ins.OpCode == OpCodes.Call && ins.Operand is MsilOperandInline<MethodBase> callOp && callOp.Value == baseSystemInitMethod)
             {
-                yield return new MsilInstruction(OpCodes.Call).InlineValue(initProfilingMethod);
+                Emit(new MsilInstruction(OpCodes.Call).InlineValue(initProfilingMethod));
                 patched = true;
             }
         }
@@ -81,6 +86,8 @@ static class MySandboxGame_Patches
             Plugin.Log.Debug("Patch successful.");
         else
             Plugin.Log.Error($"Failed to patch {nameof(MySandboxGame)}.LoadData.");
+
+        return patched ? newInstructions : instructions;
     }
 
     static string[] taskNames = null!;
@@ -114,6 +121,11 @@ static class MySandboxGame_Patches
 
     static IEnumerable<MsilInstruction> Transpile_ProcessInvoke(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(MySandboxGame)}.ProcessInvoke.");
 
         const int expectedParts = 2;
@@ -135,19 +147,17 @@ static class MySandboxGame_Patches
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.ProcessInvoke.GlobalIndex);
-        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
-        yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profileMemory: true
-        yield return new MsilInstruction(OpCodes.Ldarg_0);
-        yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(invokeQueueField);
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(countGetter);
-        yield return new MsilInstruction(OpCodes.Conv_I8);
-        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Queue Count: {0}");
-        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor); // new ProfilerEvent.ExtraData(count, format)
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod1);
-        yield return timerLocal1.AsValueStore();
-
-        var instructions = instructionStream.ToArray();
+        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.ProcessInvoke.GlobalIndex));
+        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profileMemory: true
+        Emit(new MsilInstruction(OpCodes.Ldarg_0));
+        Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(invokeQueueField));
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(countGetter));
+        Emit(new MsilInstruction(OpCodes.Conv_I8));
+        Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Queue Count: {0}"));
+        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor)); // new ProfilerEvent.ExtraData(count, format)
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod1));
+        Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -160,10 +170,10 @@ static class MySandboxGame_Patches
                 {
                     if (i < instructions.Length - 2 && instructions[i + 2].OpCode == OpCodes.Brfalse_S)
                     {
-                        yield return new MsilInstruction(OpCodes.Ldloc_0).SwapLabels(ins);
-                        yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(invokerField);
-                        yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod2);
-                        yield return timerLocal2.AsValueStore();
+                        Emit(new MsilInstruction(OpCodes.Ldloc_0).SwapLabels(ins));
+                        Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(invokerField));
+                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
+                        Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
                 }
@@ -173,24 +183,30 @@ static class MySandboxGame_Patches
                 break;
             }
 
-            yield return ins;
+            Emit(ins);
 
             if (ins.OpCode == OpCodes.Callvirt && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod
                 && nextIns != null && nextIns.OpCode == OpCodes.Ldloc_0)
             {
-                yield return timerLocal2.AsValueLoad().SwapLabels(nextIns);
-                yield return new MsilInstruction(OpCodes.Call).InlineValue(stopMethod);
+                Emit(timerLocal2.AsValueLoad().SwapLabels(nextIns));
+                Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
                 patchedParts++;
             }
         }
 
-        yield return timerLocal1.AsValueLoad();
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(stopMethod);
-        yield return new MsilInstruction(OpCodes.Ret);
+        Emit(timerLocal1.AsValueLoad());
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
+        Emit(new MsilInstruction(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Fatal($"Failed to patch {nameof(MySandboxGame)}.ProcessInvoke. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 }

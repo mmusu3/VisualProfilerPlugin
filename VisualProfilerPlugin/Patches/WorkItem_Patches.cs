@@ -40,6 +40,11 @@ static class WorkItem_Patches
 
     static IEnumerable<MsilInstruction> Transpile_DoWork(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(WorkItem)}.{nameof(WorkItem.DoWork)}.");
 
         const int expectedParts = 2;
@@ -52,8 +57,6 @@ static class WorkItem_Patches
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
-        var instructions = instructionStream.ToArray();
-
         for (int i = 0; i < instructions.Length; i++)
         {
             var ins = instructions[i];
@@ -62,9 +65,9 @@ static class WorkItem_Patches
             {
                 if (call1.Value == stackPushMethod)
                 {
-                    yield return new MsilInstruction(OpCodes.Ldarg_0);
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(taskStartedMethod);
-                    yield return timerLocal.AsValueStore();
+                    Emit(new MsilInstruction(OpCodes.Ldarg_0));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(taskStartedMethod));
+                    Emit(timerLocal.AsValueStore());
                     patchedParts++;
                 }
             }
@@ -72,19 +75,25 @@ static class WorkItem_Patches
             {
                 if (call2.Value == stackPopMethod)
                 {
-                    yield return timerLocal.AsValueLoad().SwapTryCatchOperations(ins);
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerDisposeMethod);
+                    Emit(timerLocal.AsValueLoad().SwapTryCatchOperations(ins));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerDisposeMethod));
                     patchedParts++;
                 }
             }
 
-            yield return ins;
+            Emit(ins);
         }
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Error($"Failed to patch {nameof(WorkItem)}.{nameof(WorkItem.DoWork)}. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -124,6 +133,11 @@ static class WorkItem_Patches
 
     static IEnumerable<MsilInstruction> Transpile_Wait(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(WorkItem)}.{nameof(WorkItem.Wait)}.");
 
         const int expectedParts = 2;
@@ -135,35 +149,39 @@ static class WorkItem_Patches
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
-        var instructions = instructionStream.ToArray();
-
         for (int i = 0; i < instructions.Length; i++)
         {
             var ins = instructions[i];
 
             if (ins.OpCode == OpCodes.Endfinally)
             {
-                yield return timerLocal.AsValueLoad().SwapTryCatchOperations(ins);
-                yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                Emit(timerLocal.AsValueLoad().SwapTryCatchOperations(ins));
+                Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
                 patchedParts++;
             }
 
-            yield return ins;
+            Emit(ins);
 
             if (ins.OpCode == OpCodes.Nop && instructions[i - 1].OpCode == OpCodes.Ret)
             {
-                yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.WaitTask.GlobalIndex);
-                yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
-                yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profileMemory: true
-                yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod); // OnTaskStarted(MyProfiler.TaskType.SyncWait, "WaitTask");
-                yield return timerLocal.AsValueStore();
+                Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.WaitTask.GlobalIndex));
+                Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
+                Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profileMemory: true
+                Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod)); // OnTaskStarted(MyProfiler.TaskType.SyncWait, "WaitTask");
+                Emit(timerLocal.AsValueStore());
                 patchedParts++;
             }
         }
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Error($"Failed to patch {nameof(WorkItem)}.{nameof(WorkItem.Wait)}. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 }

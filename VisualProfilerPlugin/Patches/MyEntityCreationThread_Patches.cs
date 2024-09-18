@@ -36,6 +36,11 @@ static class MyEntityCreationThread_Patches
 
     static IEnumerable<MsilInstruction> Transpile_ThreadProc(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(MyEntityCreationThread)}.ThreadProc.");
 
         const int expectedParts = 4;
@@ -49,10 +54,9 @@ static class MyEntityCreationThread_Patches
         var createNoInitMethod = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.CreateFromObjectBuilderNoinit));
         var initEntityMethod = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.InitEntity));
 
-        var instructions = instructionStream.ToArray();
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(prefixMethod);
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(prefixMethod));
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -66,10 +70,10 @@ static class MyEntityCreationThread_Patches
             {
                 if (instructions[i + 3].Operand is MsilOperandInline<MethodBase> call && call.Value == createNoInitMethod)
                 {
-                    yield return new MsilInstruction(OpCodes.Ldc_I4_0);
-                    yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("MyEntities.CreateFromObjectBuilderNoinit");
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod);
-                    yield return timerLocal.AsValueStore();
+                    Emit(new MsilInstruction(OpCodes.Ldc_I4_0));
+                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("MyEntities.CreateFromObjectBuilderNoinit"));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod));
+                    Emit(timerLocal.AsValueStore());
                     patchedParts++;
                 }
             }
@@ -83,10 +87,10 @@ static class MyEntityCreationThread_Patches
             {
                 if (instructions[i + 5].Operand is MsilOperandInline<MethodBase> call && call.Value == initEntityMethod)
                 {
-                    yield return new MsilInstruction(OpCodes.Ldc_I4_1);
-                    yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("MyEntities.InitEntity");
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod);
-                    yield return timerLocal.AsValueStore();
+                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1));
+                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("MyEntities.InitEntity"));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod));
+                    Emit(timerLocal.AsValueStore());
                     patchedParts++;
                 }
             }
@@ -95,7 +99,7 @@ static class MyEntityCreationThread_Patches
                 break;
             }
 
-            yield return ins;
+            Emit(ins);
 
             if (i > 1
                 && ins.OpCode == OpCodes.Stfld
@@ -103,8 +107,8 @@ static class MyEntityCreationThread_Patches
             {
                 if (instructions[i - 1].Operand is MsilOperandInline<MethodBase> call && call.Value == createNoInitMethod)
                 {
-                    yield return timerLocal.AsValueLoad();
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(stopMethod);
+                    Emit(timerLocal.AsValueLoad());
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
                     patchedParts++;
                 }
             }
@@ -114,19 +118,25 @@ static class MyEntityCreationThread_Patches
             {
                 if (instructions[i - 1].Operand is MsilOperandInline<MethodBase> call && call.Value == initEntityMethod)
                 {
-                    yield return timerLocal.AsValueLoad();
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(stopMethod);
+                    Emit(timerLocal.AsValueLoad());
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
                     patchedParts++;
                 }
             }
         }
 
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(suffixMethod);
-        yield return new MsilInstruction(OpCodes.Ret);
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(suffixMethod));
+        Emit(new MsilInstruction(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Fatal($"Failed to patch {nameof(MyEntityCreationThread)}.ThreadProc. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 }

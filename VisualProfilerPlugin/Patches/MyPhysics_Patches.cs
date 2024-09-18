@@ -102,8 +102,13 @@ static class MyPhysics_Patches
         }
     }
 
-    static IEnumerable<MsilInstruction> Transpile_LoadData(IEnumerable<MsilInstruction> instructions)
+    static IEnumerable<MsilInstruction> Transpile_LoadData(IEnumerable<MsilInstruction> instructionStream)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(MyPhysics)}.{nameof(MyPhysics.LoadData)}.");
 
         var m_jobQueueField = typeof(MyPhysics).GetField("m_jobQueue", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -114,15 +119,15 @@ static class MyPhysics_Patches
 
         foreach (var ins in instructions)
         {
-            yield return ins;
+            Emit(ins);
 
             if (ins.OpCode == OpCodes.Stsfld && ins.Operand is MsilOperandInline<FieldInfo> fieldOp && fieldOp.Value == m_jobQueueField)
             {
-                yield return new MsilInstruction(OpCodes.Ldarg_0);
-                yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(m_jobQueueField);
-                yield return new MsilInstruction(OpCodes.Ldarg_0);
-                yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(m_threadPoolField);
-                yield return new MsilInstruction(OpCodes.Call).InlineValue(initProfilingMethod);
+                Emit(new MsilInstruction(OpCodes.Ldarg_0));
+                Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(m_jobQueueField));
+                Emit(new MsilInstruction(OpCodes.Ldarg_0));
+                Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(m_threadPoolField));
+                Emit(new MsilInstruction(OpCodes.Call).InlineValue(initProfilingMethod));
                 patched = true;
             }
         }
@@ -131,6 +136,8 @@ static class MyPhysics_Patches
             Plugin.Log.Debug("Patch successful.");
         else
             Plugin.Log.Error($"Failed to patch {nameof(MyPhysics)}.{nameof(MyPhysics.LoadData)}");
+
+        return patched ? newInstructions : instructions;
     }
 
     static void InitProfiling(HkJobQueue m_jobQueue, HkJobThreadPool m_threadPool)
@@ -150,6 +157,11 @@ static class MyPhysics_Patches
 
     static IEnumerable<MsilInstruction> Transpile_UnloadData(IEnumerable<MsilInstruction> instructionStream)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(MyPhysics)}.UnloadData.");
 
         bool patched = false;
@@ -157,8 +169,6 @@ static class MyPhysics_Patches
         var m_threadPoolField = typeof(MyPhysics).GetField("m_threadPool", BindingFlags.NonPublic | BindingFlags.Static)!;
         var disposeMethod = typeof(HkHandle).GetPublicInstanceMethod(nameof(HkHandle.Dispose));
         var removeThreadsMethod = typeof(MyPhysics_Patches).GetNonPublicStaticMethod(nameof(RemoveThreads));
-
-        var instructions = instructionStream.ToArray();
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -168,20 +178,22 @@ static class MyPhysics_Patches
             {
                 if (instructions[i + 1].OpCode == OpCodes.Callvirt && instructions[i + 1].Operand is MsilOperandInline<MethodBase> callOp && callOp.Value == disposeMethod)
                 {
-                    yield return new MsilInstruction(OpCodes.Ldarg_0);
-                    yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(m_threadPoolField);
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(removeThreadsMethod);
+                    Emit(new MsilInstruction(OpCodes.Ldarg_0));
+                    Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(m_threadPoolField));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(removeThreadsMethod));
                     patched = true;
                 }
             }
 
-            yield return ins;
+            Emit(ins);
         }
 
         if (patched)
             Plugin.Log.Debug("Patch successful.");
         else
             Plugin.Log.Error($"Failed to patch {nameof(MyPhysics)}.UnloadData.");
+
+        return patched ? newInstructions : instructions;
     }
 
     static void RemoveThreads(HkJobThreadPool m_threadPool)
@@ -205,6 +217,11 @@ static class MyPhysics_Patches
 
     static IEnumerable<MsilInstruction> Transpile_StepWorldsParallel(IEnumerable<MsilInstruction> instructionStream, MethodBody __methodBody, Func<Type, MsilLocal> __localCreator)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(MyPhysics)}.StepWorldsParallel.");
 
         const int expectedParts = 7;
@@ -232,19 +249,17 @@ static class MyPhysics_Patches
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.StepWorldsParallel.GlobalIndex);
-        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
-        yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profileMemory: true
-        yield return new MsilInstruction(OpCodes.Ldsfld).InlineValue(clustersField);
-        yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(clustersField2);
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(listCountGetter);
-        yield return new MsilInstruction(OpCodes.Conv_I8);
-        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Clusters: {0}");
-        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor1);
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod);
-        yield return timerLocal1.AsValueStore();
-
-        var instructions = instructionStream.ToArray();
+        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.StepWorldsParallel.GlobalIndex));
+        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profileMemory: true
+        Emit(new MsilInstruction(OpCodes.Ldsfld).InlineValue(clustersField));
+        Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(clustersField2));
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(listCountGetter));
+        Emit(new MsilInstruction(OpCodes.Conv_I8));
+        Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Clusters: {0}"));
+        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor1));
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod));
+        Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -265,14 +280,14 @@ static class MyPhysics_Patches
                         }
                         else
                         {
-                            yield return new MsilInstruction(OpCodes.Ldc_I4_0); // Block 0
-                            yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Init HKWorld update");
-                            yield return new MsilInstruction(OpCodes.Ldc_I4_0); // profileMemory: false
-                            yield return new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex));
-                            yield return new MsilInstruction(OpCodes.Ldnull);
-                            yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor2);
-                            yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3);
-                            yield return timerLocal2.AsValueStore();
+                            Emit(new MsilInstruction(OpCodes.Ldc_I4_0)); // Block 0
+                            Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Init HKWorld update"));
+                            Emit(new MsilInstruction(OpCodes.Ldc_I4_0)); // profileMemory: false
+                            Emit(new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex)));
+                            Emit(new MsilInstruction(OpCodes.Ldnull));
+                            Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor2));
+                            Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3));
+                            Emit(timerLocal2.AsValueStore());
                             patchedParts++;
                         }
                     }
@@ -289,14 +304,14 @@ static class MyPhysics_Patches
                         }
                         else
                         {
-                            yield return new MsilInstruction(OpCodes.Ldc_I4_3); // Block 3
-                            yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Finish HKWorld update");
-                            yield return new MsilInstruction(OpCodes.Ldc_I4_0); // profileMemory: false
-                            yield return new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex));
-                            yield return new MsilInstruction(OpCodes.Ldnull);
-                            yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor2);
-                            yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3);
-                            yield return timerLocal2.AsValueStore();
+                            Emit(new MsilInstruction(OpCodes.Ldc_I4_3)); // Block 3
+                            Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Finish HKWorld update"));
+                            Emit(new MsilInstruction(OpCodes.Ldc_I4_0)); // profileMemory: false
+                            Emit(new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex)));
+                            Emit(new MsilInstruction(OpCodes.Ldnull));
+                            Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor2));
+                            Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3));
+                            Emit(timerLocal2.AsValueStore());
                             patchedParts++;
                         }
                     }
@@ -307,10 +322,10 @@ static class MyPhysics_Patches
             {
                 if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call && call.Value == waitPolicySetter)
                 {
-                    yield return new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ins); // Block 1
-                    yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Process jobs");
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2);
-                    yield return timerLocal2.AsValueStore();
+                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ins)); // Block 1
+                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Process jobs"));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2));
+                    Emit(timerLocal2.AsValueStore());
                     patchedParts++;
                 }
             }
@@ -319,14 +334,14 @@ static class MyPhysics_Patches
                 break;
             }
 
-            yield return ins;
+            Emit(ins);
 
             if (ins.OpCode == OpCodes.Pop && i > 0 && instructions[i - 1].OpCode == OpCodes.Callvirt)
             {
                 if (instructions[i - 1].Operand is MsilOperandInline<MethodBase> call && call.Value == initMTStepMethod)
                 {
-                    yield return timerLocal2.AsValueLoad();
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                    Emit(timerLocal2.AsValueLoad());
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
                     patchedParts++;
                 }
             }
@@ -336,39 +351,45 @@ static class MyPhysics_Patches
                 {
                     if (call.Value == processAllJobsMethod)
                     {
-                        yield return timerLocal2.AsValueLoad();
-                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                        Emit(timerLocal2.AsValueLoad());
+                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
                         // Start next
-                        yield return new MsilInstruction(OpCodes.Ldc_I4_2); // Block 2
-                        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Wait for Havok thread pool");
-                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2);
-                        yield return timerLocal2.AsValueStore();
+                        Emit(new MsilInstruction(OpCodes.Ldc_I4_2)); // Block 2
+                        Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Wait for Havok thread pool"));
+                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2));
+                        Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
                     else if (call.Value == waitForCompletionMethod)
                     {
-                        yield return timerLocal2.AsValueLoad();
-                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                        Emit(timerLocal2.AsValueLoad());
+                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
                         patchedParts++;
                     }
                     else if (call.Value == markForWriteMethod)
                     {
-                        yield return timerLocal2.AsValueLoad();
-                        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
+                        Emit(timerLocal2.AsValueLoad());
+                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
                         patchedParts++;
                     }
                 }
             }
         }
 
-        yield return timerLocal1.AsValueLoad().SwapLabelsAndTryCatchOperations(instructions[^1]);
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
-        yield return new MsilInstruction(OpCodes.Ret);
+        Emit(timerLocal1.AsValueLoad().SwapLabelsAndTryCatchOperations(instructions[^1]));
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
+        Emit(new MsilInstruction(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Fatal($"Failed to patch {nameof(MyPhysics)}.StepWorldsParallel. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 
     [MethodImpl(Inline)] static bool Prefix_EnableOptimizations(ref ProfilerTimer __local_timer)

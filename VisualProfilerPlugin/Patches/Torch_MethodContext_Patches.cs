@@ -17,7 +17,7 @@ static class Torch_MethodContext_Patches
 
         var targetType = Type.GetType("Torch.Managers.PatchManager.Transpile.MethodContext, Torch");
         var source = targetType.GetNonPublicInstanceMethod("AddEhHandler");
-        var transpiler = typeof(Torch_MethodContext_Patches).GetNonPublicStaticMethod(nameof(Transpile));
+        var transpiler = typeof(Torch_MethodContext_Patches).GetNonPublicStaticMethod(nameof(Transpile_AddEhHandler));
 
         var pattern = PatchHelper.CreateRewritePattern(source);
         pattern.Transpilers.Add(transpiler);
@@ -27,8 +27,13 @@ static class Torch_MethodContext_Patches
         Plugin.Log.Info("Early patch completed.");
     }
 
-    static IEnumerable<MsilInstruction> Transpile(IEnumerable<MsilInstruction> instructionStream)
+    static IEnumerable<MsilInstruction> Transpile_AddEhHandler(IEnumerable<MsilInstruction> instructionStream)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching MethodContext.AddEhHandler.");
 
         var targetType = Type.GetType("Torch.Managers.PatchManager.Transpile.MethodContext, Torch");
@@ -39,28 +44,32 @@ static class Torch_MethodContext_Patches
         const int expectedParts = 1;
         int patchedParts = 0;
 
-        var instructions = instructionStream.ToArray();
-
         for (int i = 0; i < instructions.Length; i++)
         {
             var ins = instructions[i];
 
-            yield return ins;
+            Emit(ins);
 
             if (ins.OpCode == OpCodes.Call && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == findInstructionMethod)
             {
-                yield return new MsilInstruction(OpCodes.Ldarg_1);
-                yield return new MsilInstruction(OpCodes.Ldarg_0);
-                yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(instructionsField);
-                yield return new MsilInstruction(OpCodes.Call).InlineValue(eomIfNullMethod);
+                Emit(new MsilInstruction(OpCodes.Ldarg_1));
+                Emit(new MsilInstruction(OpCodes.Ldarg_0));
+                Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(instructionsField));
+                Emit(new MsilInstruction(OpCodes.Call).InlineValue(eomIfNullMethod));
                 patchedParts++;
             }
         }
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Fatal($"Failed to patch MethodContext.AddEhHandler. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 
     static MsilInstruction? GetEndOfMethodNopIfNull(MsilInstruction? instruction, int offset, List<MsilInstruction> _instructions)

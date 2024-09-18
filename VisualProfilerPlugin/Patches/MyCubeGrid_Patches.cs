@@ -87,6 +87,11 @@ static class MyCubeGrid_Patches
 
     static IEnumerable<MsilInstruction> Transpile_Dispatch(IEnumerable<MsilInstruction> instructionStream, MethodBody __methodBody, Func<Type, MsilLocal> __localCreator)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(MyCubeGrid)}.Dispatch.");
 
         const int expectedParts = 1;
@@ -101,16 +106,15 @@ static class MyCubeGrid_Patches
         var callbackField = updateStruct.GetField("Callback")!;
         var newInvokeMethod = typeof(MyCubeGrid_Patches).GetNonPublicStaticMethod("Invoke");
 
-        var instructions = instructionStream.ToArray();
         var pattern1 = new OpCode[] { OpCodes.Ldarg_0, OpCodes.Ldloca_S, OpCodes.Ldarg_1, OpCodes.Call };
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
-        yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.Dispatch.GlobalIndex);
-        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
-        yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profilerMemory: true
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod);
-        yield return timerLocal.AsValueStore();
+        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.Dispatch.GlobalIndex));
+        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profilerMemory: true
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod));
+        Emit(timerLocal.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -126,9 +130,9 @@ static class MyCubeGrid_Patches
                 }
                 else
                 {
-                    yield return new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(updateLocal.LocalIndex));
-                    yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(callbackField);
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(newInvokeMethod);
+                    Emit(new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(updateLocal.LocalIndex)));
+                    Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(callbackField));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(newInvokeMethod));
                     patchedParts++;
                     i += pattern1.Length - 1;
                     continue;
@@ -139,17 +143,23 @@ static class MyCubeGrid_Patches
                 break;
             }
 
-            yield return instructions[i];
+            Emit(instructions[i]);
         }
 
-        yield return timerLocal.AsValueLoad();
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(disposeMethod);
-        yield return new MsilInstruction(OpCodes.Ret);
+        Emit(timerLocal.AsValueLoad());
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(disposeMethod));
+        Emit(new MsilInstruction(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Fatal($"Failed to patch {nameof(MyCubeGrid)}.Dispatch. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

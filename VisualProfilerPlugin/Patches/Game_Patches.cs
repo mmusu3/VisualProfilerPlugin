@@ -61,6 +61,11 @@ static class Game_Patches
 
     static IEnumerable<MsilInstruction> Transpile_UpdateInternal(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(Game)}.UpdateInternal.");
 
         const int expectedParts = 4;
@@ -83,19 +88,17 @@ static class Game_Patches
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(beginFrameMethod);
-        yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.UpdateFrame.GlobalIndex);
-        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
-        yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profilerMemory: true
-        yield return new MsilInstruction(OpCodes.Ldarg_0);
-        yield return new MsilInstruction(OpCodes.Ldfld).InlineValue(updateCounterField);
-        yield return new MsilInstruction(OpCodes.Conv_I8);
-        yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("Sim Frame Index: {0}");
-        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(extraDataCtor);
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod1);
-        yield return timerLocal1.AsValueStore();
-
-        var instructions = instructionStream.ToArray();
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(beginFrameMethod));
+        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.UpdateFrame.GlobalIndex));
+        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profilerMemory: true
+        Emit(new MsilInstruction(OpCodes.Ldarg_0));
+        Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(updateCounterField));
+        Emit(new MsilInstruction(OpCodes.Conv_I8));
+        Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Sim Frame Index: {0}"));
+        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(extraDataCtor));
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod1));
+        Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -107,19 +110,19 @@ static class Game_Patches
 
                 if (callMethod == rpBeforeUpdateMethod)
                 {
-                    yield return new MsilInstruction(OpCodes.Ldc_I4_0).SwapTryCatchOperations(ins);
-                    yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("MyRenderProxy.BeforeUpdate");
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod2);
-                    yield return ins;
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(stopMethod);
+                    Emit(new MsilInstruction(OpCodes.Ldc_I4_0).SwapTryCatchOperations(ins));
+                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("MyRenderProxy.BeforeUpdate"));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
+                    Emit(ins);
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
                     patchedParts++;
                     continue;
                 }
                 else if (callMethod == updateMethod)
                 {
-                    yield return ins;
-                    yield return timerLocal2.AsValueLoad();
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(stopMethod);
+                    Emit(ins);
+                    Emit(timerLocal2.AsValueLoad());
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
                     patchedParts++;
                     continue;
                 }
@@ -128,20 +131,20 @@ static class Game_Patches
             {
                 if (instructions[i - 1].OpCode == OpCodes.Endfinally)
                 {
-                    yield return new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ins);
-                    yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("UpdateInternal::Update");
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod2);
-                    yield return timerLocal2.AsValueStore();
+                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ins));
+                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("UpdateInternal::Update"));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
+                    Emit(timerLocal2.AsValueStore());
                     patchedParts++;
                 }
                 else if (instructions[i + 1].Operand is MsilOperandInline<MethodBase> callOperand2 && callOperand2.Value == afterDrawMethod)
                 {
-                    yield return new MsilInstruction(OpCodes.Ldc_I4_2).SwapTryCatchOperations(ins);
-                    yield return new MsilInstruction(OpCodes.Ldstr).InlineValue("MyRenderProxy.AfterUpdate"); // MyRenderProxy.AfterUpdate() is called by MySandboxGame.AfterDraw()
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(startMethod2);
-                    yield return ins;
-                    yield return instructions[++i];
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(stopMethod);
+                    Emit(new MsilInstruction(OpCodes.Ldc_I4_2).SwapTryCatchOperations(ins));
+                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("MyRenderProxy.AfterUpdate")); // MyRenderProxy.AfterUpdate() is called by MySandboxGame.AfterDraw()
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
+                    Emit(ins);
+                    Emit(instructions[++i]);
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
                     patchedParts++;
                     continue;
                 }
@@ -151,18 +154,24 @@ static class Game_Patches
                 break;
             }
 
-            yield return ins;
+            Emit(ins);
         }
 
-        yield return timerLocal1.AsValueLoad();
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(disposeMethod);
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(endMethod);
-        yield return new MsilInstruction(OpCodes.Ret);
+        Emit(timerLocal1.AsValueLoad());
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(disposeMethod));
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(endMethod));
+        Emit(new MsilInstruction(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Fatal($"Failed to patch {nameof(Game)}.UpdateInternal. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 
     static readonly List<ProfilerGroup> profilerGroupsList = [];

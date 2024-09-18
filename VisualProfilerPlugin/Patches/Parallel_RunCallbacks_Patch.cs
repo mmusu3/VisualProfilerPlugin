@@ -18,7 +18,7 @@ static class Parallel_RunCallbacks_Patch
         Keys.Init();
 
         var source = typeof(Parallel).GetPublicStaticMethod(nameof(Parallel.RunCallbacks));
-        var transpiler = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(Transpile));
+        var transpiler = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(Transpile_RunCallbacks));
 
         ctx.GetPattern(source).Transpilers.Add(transpiler);
     }
@@ -33,8 +33,13 @@ static class Parallel_RunCallbacks_Patch
         }
     }
 
-    static IEnumerable<MsilInstruction> Transpile(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
+    static IEnumerable<MsilInstruction> Transpile_RunCallbacks(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
     {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+
+        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+
         Plugin.Log.Debug($"Patching {nameof(Parallel)}.{nameof(Parallel.RunCallbacks)}.");
 
         const int expectedParts = 4;
@@ -56,13 +61,11 @@ static class Parallel_RunCallbacks_Patch
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        yield return new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.RunCallbacks.GlobalIndex);
-        yield return new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor);
-        yield return new MsilInstruction(OpCodes.Ldc_I4_1); // profileMemory: true
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod);
-        yield return timerLocal1.AsValueStore();
-
-        var instructions = instructionStream.ToArray();
+        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.RunCallbacks.GlobalIndex));
+        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profileMemory: true
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod));
+        Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -74,9 +77,9 @@ static class Parallel_RunCallbacks_Patch
                 {
                     if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call2 && call2.Value == invokeMethod)
                     {
-                        yield return new MsilInstruction(OpCodes.Ldloc_1);
-                        yield return new MsilInstruction(OpCodes.Call).InlineValue(startCallbackMethod);
-                        yield return timerLocal2.AsValueStore();
+                        Emit(new MsilInstruction(OpCodes.Ldloc_1));
+                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startCallbackMethod));
+                        Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
                 }
@@ -84,9 +87,9 @@ static class Parallel_RunCallbacks_Patch
                 {
                     if (instructions[i + 2].OpCode == OpCodes.Ldloc_1)
                     {
-                        yield return new MsilInstruction(OpCodes.Ldloc_1);
-                        yield return new MsilInstruction(OpCodes.Call).InlineValue(startDataCallbackMethod);
-                        yield return timerLocal2.AsValueStore();
+                        Emit(new MsilInstruction(OpCodes.Ldloc_1));
+                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startDataCallbackMethod));
+                        Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
                 }
@@ -95,27 +98,33 @@ static class Parallel_RunCallbacks_Patch
             if (ins.OpCode == OpCodes.Ret)
                 break;
 
-            yield return ins;
+            Emit(ins);
 
             if (ins.OpCode == OpCodes.Callvirt && ins.Operand is MsilOperandInline<MethodBase> call3)
             {
                 if (call3.Value == setCallbackMethod || call3.Value == setDataCallbackMethod)
                 {
-                    yield return timerLocal2.AsValueLoad();
-                    yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerDisposeMethod);
+                    Emit(timerLocal2.AsValueLoad());
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerDisposeMethod));
                     patchedParts++;
                 }
             }
         }
 
-        yield return timerLocal1.AsValueLoad();
-        yield return new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod);
-        yield return new MsilInstruction(OpCodes.Ret);
+        Emit(timerLocal1.AsValueLoad());
+        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
+        Emit(new MsilInstruction(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
+        {
             Plugin.Log.Error($"Failed to patch {nameof(Parallel)}.{nameof(Parallel.RunCallbacks)}. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
         else
+        {
             Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
