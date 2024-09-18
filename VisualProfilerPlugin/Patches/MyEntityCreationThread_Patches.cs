@@ -56,17 +56,16 @@ static class MyEntityCreationThread_Patches
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
+        var pattern1 = new[] { OpCodes.Ldloca_S, OpCodes.Ldloc_0, OpCodes.Ldfld, OpCodes.Call };
+        var pattern2 = new[] { OpCodes.Ldloc_0, OpCodes.Ldfld, OpCodes.Ldloca_S, OpCodes.Ldflda, OpCodes.Ldc_I4_0, OpCodes.Call };
+
         Emit(new MsilInstruction(OpCodes.Call).InlineValue(prefixMethod));
 
         for (int i = 0; i < instructions.Length; i++)
         {
             var ins = instructions[i];
 
-            if (i < instructions.Length - 4
-                && ins.OpCode == OpCodes.Ldloca_S
-                && instructions[i + 1].OpCode == OpCodes.Ldloc_0
-                && instructions[i + 2].OpCode == OpCodes.Ldfld
-                && instructions[i + 3].OpCode == OpCodes.Call)
+            if (TranspileHelper.MatchOpCodes(instructions, i, pattern1))
             {
                 if (instructions[i + 3].Operand is MsilOperandInline<MethodBase> call && call.Value == createNoInitMethod)
                 {
@@ -77,13 +76,7 @@ static class MyEntityCreationThread_Patches
                     patchedParts++;
                 }
             }
-            else if (i < instructions.Length - 6
-                && ins.OpCode == OpCodes.Ldloc_0
-                && instructions[i + 1].OpCode == OpCodes.Ldfld
-                && instructions[i + 2].OpCode == OpCodes.Ldloca_S
-                && instructions[i + 3].OpCode == OpCodes.Ldflda
-                && instructions[i + 4].OpCode == OpCodes.Ldc_I4_0
-                && instructions[i + 5].OpCode == OpCodes.Call)
+            else if (TranspileHelper.MatchOpCodes(instructions, i, pattern2))
             {
                 if (instructions[i + 5].Operand is MsilOperandInline<MethodBase> call && call.Value == initEntityMethod)
                 {
