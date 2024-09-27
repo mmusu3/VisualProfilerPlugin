@@ -2,6 +2,8 @@
 using System.Runtime.CompilerServices;
 using Sandbox.Game.Entities;
 using Torch.Managers.PatchManager;
+using Torch.Utils;
+using VRage.Game.Entity;
 using VRage.ObjectBuilders;
 
 namespace VisualProfiler.Patches;
@@ -9,43 +11,32 @@ namespace VisualProfiler.Patches;
 [PatchShim]
 static class MyEntities_Patches
 {
+    [ReflectedGetter(Name = "_invocationList", Type = typeof(MulticastDelegate))]
+    static Func<MulticastDelegate, object> InvocationListGetter = null!;
+
+    [ReflectedGetter(Name = "_invocationCount", Type = typeof(MulticastDelegate))]
+    static Func<MulticastDelegate, IntPtr> InvocationCountGetter = null!;
+
     public static void Patch(PatchContext ctx)
     {
         Keys.Init();
 
-        var source = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.Load));
-        var prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_Load));
-        var suffix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Suffix));
+        PatchPrefixSuffixPair(ctx, nameof(MyEntities.Load),                     _public: true,  _static: true);
+        PatchPrefixSuffixPair(ctx, "LoadEntity",                                _public: false, _static: true);
+        PatchPrefixSuffixPair(ctx, nameof(MyEntities.CreateFromObjectBuilder),  _public: true,  _static: true);
+        PatchPrefixSuffixPair(ctx, nameof(MyEntities.Add),                      _public: true,  _static: true);
+        PatchPrefixSuffixPair(ctx, nameof(MyEntities.RaiseEntityAdd),           _public: true,  _static: true);
+        PatchPrefixSuffixPair(ctx, nameof(MyEntities.DeleteRememberedEntities), _public: true,  _static: true);
+        PatchPrefixSuffixPair(ctx, "Save",                                      _public: false, _static: true);
+    }
 
-        var pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
+    static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
+    {
+        var source = typeof(MyEntities).GetMethod(methodName, _public, _static);
+        var prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
+        var suffix = typeof(MyEntities_Patches).GetNonPublicStaticMethod("Suffix");
 
-        source = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.CreateFromObjectBuilder));
-        prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_CreateFromObjectBuilder));
-
-        pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
-
-        source = typeof(MyEntities).GetNonPublicStaticMethod("LoadEntity");
-        prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_LoadEntity));
-
-        pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
-
-        source = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.DeleteRememberedEntities));
-        prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_DeleteRememberedEntities));
-
-        pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
-
-        source = typeof(MyEntities).GetNonPublicStaticMethod("Save");
-        prefix = typeof(MyEntities_Patches).GetNonPublicStaticMethod(nameof(Prefix_Save));
-
-        pattern = ctx.GetPattern(source);
+        var pattern = patchContext.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
     }
@@ -55,16 +46,20 @@ static class MyEntities_Patches
         internal static ProfilerKey Load;
         internal static ProfilerKey CreateFromObjectBuilder;
         internal static ProfilerKey LoadEntity;
+        internal static ProfilerKey Add;
+        internal static ProfilerKey RaiseEntityAdd;
         internal static ProfilerKey DeleteRememberedEntities;
         internal static ProfilerKey Save;
 
         internal static void Init()
         {
-            Load = ProfilerKeyCache.GetOrAdd("MyEntities.Load");
-            CreateFromObjectBuilder = ProfilerKeyCache.GetOrAdd("MyEntities.CreateFromObjectBuilder");
-            LoadEntity = ProfilerKeyCache.GetOrAdd("MyEntities.LoadEntity");
+            Load                     = ProfilerKeyCache.GetOrAdd("MyEntities.Load");
+            CreateFromObjectBuilder  = ProfilerKeyCache.GetOrAdd("MyEntities.CreateFromObjectBuilder");
+            LoadEntity               = ProfilerKeyCache.GetOrAdd("MyEntities.LoadEntity");
+            Add                      = ProfilerKeyCache.GetOrAdd("MyEntities.Add");
+            RaiseEntityAdd           = ProfilerKeyCache.GetOrAdd("MyEntities.RaiseEntityAdd");
             DeleteRememberedEntities = ProfilerKeyCache.GetOrAdd("MyEntities.DeleteRememberedEntities");
-            Save = ProfilerKeyCache.GetOrAdd("MyEntities.Save");
+            Save                     = ProfilerKeyCache.GetOrAdd("MyEntities.Save");
         }
     }
 
@@ -80,6 +75,43 @@ static class MyEntities_Patches
 
     [MethodImpl(Inline)] static bool Prefix_LoadEntity(ref ProfilerTimer __local_timer, MyObjectBuilder_EntityBase objectBuilder)
     { __local_timer = Profiler.Start(Keys.LoadEntity, profileMemory: true, new((Type)objectBuilder.TypeId, "Type: {0}")); return true; }
+
+    [MethodImpl(Inline)] static bool Prefix_Add(ref ProfilerTimer __local_timer, MyEntity entity)
+    { __local_timer = Profiler.Start(Keys.Add, profileMemory: true, new(entity, "{0}")); return true; }
+
+    [MethodImpl(Inline)]
+    static bool Prefix_RaiseEntityAdd(ref ProfilerTimer __local_timer, MyEntity entity, Action<MyEntity> __field_OnEntityAdd)
+    {
+        __local_timer = Profiler.Start(Keys.RaiseEntityAdd, profileMemory: true, new(entity, "{0}"));
+
+        var obj = InvocationListGetter(__field_OnEntityAdd);
+        int count = (int)InvocationCountGetter(__field_OnEntityAdd);
+
+        switch (obj)
+        {
+        case object[] list:
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    var di = (Delegate)list[i];
+
+                    using (Profiler.Start(di.Method.Name, profileMemory: true, new(di.Target?.GetType() ?? di.Method.DeclaringType)))
+                        ((Action<MyEntity>)di).Invoke(entity);
+                }
+
+                break;
+            }
+        case Delegate dg:
+            {
+                using (Profiler.Start(dg.Method.Name, profileMemory: true, new(dg.Target?.GetType() ?? dg.Method.DeclaringType)))
+                    ((Action<MyEntity>)dg).Invoke(entity);
+
+                break;
+            }
+        }
+
+        return false;
+    }
 
     [MethodImpl(Inline)] static bool Prefix_DeleteRememberedEntities(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.DeleteRememberedEntities); return true; }
