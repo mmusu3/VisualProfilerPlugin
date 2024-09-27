@@ -231,6 +231,10 @@ static class ProfilerHelper
 
             for (int f = 0; f < events.FrameStartEventIndices.Length; f++)
             {
+                if (f >= events.FrameStartEventIndices.Length
+                    || f >= events.FrameEndEventIndices.Length)
+                    break;
+
                 int startEventIndex = events.FrameStartEventIndices[f];
                 int endEventIndex = events.FrameEndEventIndices[f];
 
