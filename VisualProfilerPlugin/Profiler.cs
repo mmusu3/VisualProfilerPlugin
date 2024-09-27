@@ -1076,15 +1076,17 @@ public class ProfilerGroup
         public GroupEventsRecording(string name, EventsAllocator events, int[] frameStartIndices, int[] frameEndIndices, int[] outlierFrames)
         {
             Name = name;
-            EventSegments = new ProfilerEventsSegment[events.Segments.Length];
-            EventCount = events.NextIndex;
             FrameStartEventIndices = frameStartIndices;
             FrameEndEventIndices = frameEndIndices;
             OutlierFrames = outlierFrames;
+            EventCount = events.NextIndex;
 
-            for (int s = 0; s < events.Segments.Length; s++)
+            var segments = events.Segments;
+            EventSegments = new ProfilerEventsSegment[segments.Length];
+
+            for (int s = 0; s < segments.Length; s++)
             {
-                var segmentEvents = events.Segments[s];
+                var segmentEvents = segments[s];
                 int endIndexInSegment = Math.Min(segmentEvents.Length - 1, (EventCount - 1) - s * SegmentSize);
                 long endTime = segmentEvents[endIndexInSegment].EndTime;
 
