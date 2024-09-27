@@ -43,7 +43,7 @@ static class MyEntityCreationThread_Patches
 
         Plugin.Log.Debug($"Patching {nameof(MyEntityCreationThread)}.ThreadProc.");
 
-        const int expectedParts = 4;
+        const int expectedParts = 2;
         int patchedParts = 0;
 
         var prefixMethod = typeof(MyEntityCreationThread_Patches).GetNonPublicStaticMethod(nameof(Prefix_ThreadProc));
@@ -51,7 +51,6 @@ static class MyEntityCreationThread_Patches
         var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(int), typeof(string)]);
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
 
-        var createNoInitMethod = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.CreateFromObjectBuilderNoinit));
         var initEntityMethod = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.InitEntity));
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
@@ -65,18 +64,7 @@ static class MyEntityCreationThread_Patches
         {
             var ins = instructions[i];
 
-            if (TranspileHelper.MatchOpCodes(instructions, i, pattern1))
-            {
-                if (instructions[i + 3].Operand is MsilOperandInline<MethodBase> call && call.Value == createNoInitMethod)
-                {
-                    Emit(new MsilInstruction(OpCodes.Ldc_I4_0));
-                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("MyEntities.CreateFromObjectBuilderNoinit"));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod));
-                    Emit(timerLocal.AsValueStore());
-                    patchedParts++;
-                }
-            }
-            else if (TranspileHelper.MatchOpCodes(instructions, i, pattern2))
+            if (TranspileHelper.MatchOpCodes(instructions, i, pattern2))
             {
                 if (instructions[i + 5].Operand is MsilOperandInline<MethodBase> call && call.Value == initEntityMethod)
                 {
@@ -95,17 +83,6 @@ static class MyEntityCreationThread_Patches
             Emit(ins);
 
             if (i > 1
-                && ins.OpCode == OpCodes.Stfld
-                && instructions[i - 1].OpCode == OpCodes.Call)
-            {
-                if (instructions[i - 1].Operand is MsilOperandInline<MethodBase> call && call.Value == createNoInitMethod)
-                {
-                    Emit(timerLocal.AsValueLoad());
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
-                    patchedParts++;
-                }
-            }
-            else if (i > 1
                 && ins.OpCode == OpCodes.Pop
                 && instructions[i - 1].OpCode == OpCodes.Call)
             {
