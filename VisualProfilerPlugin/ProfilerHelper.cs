@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Havok;
+using Sandbox;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Entities.Cube;
@@ -16,11 +17,15 @@ namespace VisualProfiler;
 
 static class ProfilerHelper
 {
-    internal static readonly ResolveProfilerEventObjectDelegate ProfilerEventObjectResolver = ResolveProfilerEventObject;
+    internal static readonly IProfilerEventDataObjectResolver ProfilerEventObjectResolver = new ObjectResolver();
 
-    static void ResolveProfilerEventObject(Dictionary<object, object> cache, ref ProfilerEvent _event)
+    class ObjectResolver : IProfilerEventDataObjectResolver
     {
-        ResolveProfilerEventObject(cache, ref _event.ExtraValue);
+        Dictionary<object, object> objectCache = [];
+
+        public void Resolve(ref ProfilerEvent.ExtraData data) => ResolveProfilerEventObject(objectCache, ref data);
+
+        public void ClearCache() => objectCache.Clear();
     }
 
     static void ResolveProfilerEventObject(Dictionary<object, object> cache, ref ProfilerEvent.ExtraData data)
@@ -64,118 +69,145 @@ static class ProfilerHelper
             {
                 data.Format = "{0}";
 
+                PhysicsClusterInfoProxy clusterInfo;
+
                 if (cache.TryGetValue(cluster, out var cachedObj))
                 {
-                    data.Object = (PhysicsClusterInfoProxy)cachedObj;
-                    break;
+                    clusterInfo = (PhysicsClusterInfoProxy)cachedObj;
+                }
+                else
+                {
+                    clusterInfo = new PhysicsClusterInfoProxy(cluster);
+                    cache.Add(cluster, clusterInfo);
                 }
 
-                cache[cluster] = data.Object = new PhysicsClusterInfoProxy(cluster);
+                data.Object = clusterInfo.GetSnapshot(cluster);
             }
             break;
         case MyCubeGrid grid:
             {
                 data.Format = "{0}";
 
+                CubeGridInfoProxy gridInfo;
+
                 if (cache.TryGetValue(grid, out var cachedObj))
                 {
-                    data.Object = (CubeGridInfoProxy)cachedObj;
-                    break;
+                    gridInfo = (CubeGridInfoProxy)cachedObj;
+                }
+                else
+                {
+                    gridInfo = new CubeGridInfoProxy(grid);
+                    cache.Add(grid, gridInfo);
                 }
 
-                cache[grid] = data.Object = new CubeGridInfoProxy(grid);
+                data.Object = gridInfo.GetSnapshot(grid);
             }
             break;
         case MyCubeBlock block:
             {
                 data.Format = "{0}";
 
+                CubeBlockInfoProxy blockInfo;
+
                 if (cache.TryGetValue(block, out var cachedObj))
                 {
-                    data.Object = (CubeBlockInfoProxy)cachedObj;
-                    break;
+                    blockInfo = (CubeBlockInfoProxy)cachedObj;
+                }
+                else
+                {
+                    blockInfo = new CubeBlockInfoProxy(block);
+                    cache.Add(block, blockInfo);
                 }
 
-                var grid = block.CubeGrid;
+                var gridSnapshot = GetGridSnapshot(cache, block.CubeGrid);
 
-                if (!cache.TryGetValue(grid, out cachedObj) || cachedObj is not CubeGridInfoProxy cachedGridProxy)
-                    cache[grid] = cachedGridProxy = new CubeGridInfoProxy(grid);
-
-                cache[block] = data.Object = new CubeBlockInfoProxy(block, cachedGridProxy);
+                data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
             }
             break;
         case MyExternalReplicable<MyCharacter> charRepl:
             {
-                data.Format = "{0}";
-
                 var character = charRepl.Instance;
 
-                if (character != null)
-                {
-                    if (cache.TryGetValue(character, out var cachedObj))
-                    {
-                        data.Object = (CharacterInfoProxy)cachedObj;
-                        break;
-                    }
-
-                    cache[character] = data.Object = new CharacterInfoProxy(character);
-                }
-                else
+                if (character == null)
                 {
                     data.Object = null;
                     data.Format = "Empty character replicable{0}";
+                    break;
                 }
+
+                data.Format = "{0}";
+
+                CharacterInfoProxy charInfo;
+
+                if (cache.TryGetValue(character, out var cachedObj))
+                {
+                    charInfo = (CharacterInfoProxy)cachedObj;
+                }
+                else
+                {
+                    charInfo = new CharacterInfoProxy(character);
+                    cache.Add(character, charInfo);
+                }
+
+                data.Object = charInfo.GetSnapshot(character);
             }
             break;
         case MyExternalReplicable<MyCubeGrid> gridRepl:
             {
-                data.Format = "{0}";
-
                 var grid = gridRepl.Instance;
 
-                if (grid != null)
-                {
-                    if (cache.TryGetValue(grid, out var cachedObj))
-                    {
-                        data.Object = (CubeGridInfoProxy)cachedObj;
-                        break;
-                    }
-
-                    cache[grid] = data.Object = new CubeGridInfoProxy(grid);
-                }
-                else
+                if (grid == null)
                 {
                     data.Object = null;
                     data.Format = "Empty cube grid replicable{0}";
+                    break;
                 }
+
+                data.Format = "{0}";
+
+                CubeGridInfoProxy gridInfo;
+
+                if (cache.TryGetValue(grid, out var cachedObj))
+                {
+                    gridInfo = (CubeGridInfoProxy)cachedObj;
+                }
+                else
+                {
+                    gridInfo = new CubeGridInfoProxy(grid);
+                    cache.Add(grid, gridInfo);
+                }
+
+                data.Object = gridInfo.GetSnapshot(grid);
             }
             break;
         case MyExternalReplicable<MySyncedBlock> blockRepl:
             {
-                data.Format = "{0}";
-
                 var block = blockRepl.Instance;
 
-                if (block != null)
-                {
-                    if (cache.TryGetValue(block, out var cachedObj))
-                    {
-                        data.Object = (CubeBlockInfoProxy)cachedObj;
-                        break;
-                    }
-
-                    var grid = block.CubeGrid;
-
-                    if (!cache.TryGetValue(grid, out cachedObj) || cachedObj is not CubeGridInfoProxy cachedGridProxy)
-                        cache[grid] = cachedGridProxy = new CubeGridInfoProxy(grid);
-
-                    cache[block] = data.Object = new CubeBlockInfoProxy(block, cachedGridProxy);
-                }
-                else
+                if (block == null)
                 {
                     data.Object = null;
                     data.Format = "Empty cube block replicable{0}";
+                    break;
                 }
+
+                data.Format = "{0}";
+
+                CubeBlockInfoProxy blockInfo;
+
+                if (cache.TryGetValue(block, out var cachedObj))
+                {
+                    blockInfo = (CubeBlockInfoProxy)cachedObj;
+                }
+                else
+                {
+                    blockInfo = new CubeBlockInfoProxy(block);
+                    cache.Add(block, blockInfo);
+                }
+
+                var gridSnapshot = GetGridSnapshot(cache, block.CubeGrid);
+
+                data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
             }
             break;
         case MyExternalReplicable<MyVoxelBase> voxelRepl:
@@ -211,6 +243,23 @@ static class ProfilerHelper
             data.Object = data.Object?.ToString();
             break;
         }
+    }
+
+    static CubeGridInfoProxy.Snapshot GetGridSnapshot(Dictionary<object, object> cache, MyCubeGrid grid)
+    {
+        CubeGridInfoProxy gridInfo;
+
+        if (cache.TryGetValue(grid, out var cachedObj))
+        {
+            gridInfo = (CubeGridInfoProxy)cachedObj;
+        }
+        else
+        {
+            gridInfo = new CubeGridInfoProxy(grid);
+            cache.Add(grid, gridInfo);
+        }
+
+        return gridInfo.GetSnapshot(grid);
     }
 
     public static RecordingAnalysisInfo AnalyzeRecording(Profiler.EventsRecording recording)
@@ -279,13 +328,13 @@ static class ProfilerHelper
 
                                 switch (_event.ExtraValue.Object)
                                 {
-                                case PhysicsClusterInfoProxy clusterInfo:
+                                case PhysicsClusterInfoProxy.Snapshot clusterInfo:
                                     AnalyzePhysicsCluster(clusterInfo, in _event, groupId, f);
                                     break;
-                                case CubeGridInfoProxy gridInfo:
+                                case CubeGridInfoProxy.Snapshot gridInfo:
                                     AnalyzeGrid(gridInfo, in _event, groupId, f);
                                     break;
-                                case CubeBlockInfoProxy blockInfo:
+                                case CubeBlockInfoProxy.Snapshot blockInfo:
                                     AnalyzeBlock(blockInfo, in _event, groupId, f);
                                     break;
                                 }
@@ -332,12 +381,12 @@ static class ProfilerHelper
             grids.Values.Select(c => c.Finish()).ToArray(),
             progBlocks.Values.Select(c => c.Finish()).ToArray());
 
-        void AnalyzePhysicsCluster(PhysicsClusterInfoProxy clusterInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
+        void AnalyzePhysicsCluster(PhysicsClusterInfoProxy.Snapshot clusterInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
         {
-            if (clusters.TryGetValue(clusterInfo.ID, out var anInf))
+            if (clusters.TryGetValue(clusterInfo.Cluster.ID, out var anInf))
                 anInf.Add(clusterInfo);
             else
-                clusters.Add(clusterInfo.ID, anInf = new(clusterInfo));
+                clusters.Add(clusterInfo.Cluster.ID, anInf = new(clusterInfo));
 
             // TODO: Filter parent events to prevent time overlap
             switch (_event.Name)
@@ -351,12 +400,12 @@ static class ProfilerHelper
             anInf.FramesCounted.Add(frameIndex);
         }
 
-        void AnalyzeGrid(CubeGridInfoProxy gridInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
+        void AnalyzeGrid(CubeGridInfoProxy.Snapshot gridInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
         {
-            if (grids.TryGetValue(gridInfo.EntityId, out var anInf))
+            if (grids.TryGetValue(gridInfo.Grid.EntityId, out var anInf))
                 anInf.Add(gridInfo);
             else
-                grids.Add(gridInfo.EntityId, anInf = new(gridInfo));
+                grids.Add(gridInfo.Grid.EntityId, anInf = new(gridInfo));
 
             // TODO: Filter parent events to prevent time overlap
             switch (_event.Name)
@@ -370,15 +419,15 @@ static class ProfilerHelper
             anInf.FramesCounted.Add(frameIndex);
         }
 
-        void AnalyzeBlock(CubeBlockInfoProxy blockInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
+        void AnalyzeBlock(CubeBlockInfoProxy.Snapshot blockInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
         {
-            if (blockInfo.BlockType != typeof(Sandbox.Game.Entities.Blocks.MyProgrammableBlock))
+            if (blockInfo.Block.BlockType.Type != typeof(Sandbox.Game.Entities.Blocks.MyProgrammableBlock))
                 return;
 
-            if (progBlocks.TryGetValue(blockInfo.EntityId, out var anInf))
+            if (progBlocks.TryGetValue(blockInfo.Block.EntityId, out var anInf))
                 anInf.Add(blockInfo);
             else
-                progBlocks.Add(blockInfo.EntityId, anInf = new(blockInfo));
+                progBlocks.Add(blockInfo.Block.EntityId, anInf = new(blockInfo));
 
             // TODO: Filter parent events to prevent time overlap
             switch (_event.Name)
@@ -397,40 +446,83 @@ static class ProfilerHelper
 class PhysicsClusterInfoProxy
 {
     public int ID;
-    public BoundingBoxD AABB;
-    public bool HasWorld;
-    public int RigidBodyCount;
-    public int ActiveRigidBodyCount;
-    public int CharacterCount;
+    public List<Snapshot> Snapshots = [];
 
-    public PhysicsClusterInfoProxy(MyClusterTree.MyCluster cluster)
+    public class Snapshot
     {
-        var hkWorld = cluster.UserData as HkWorld;
+        public PhysicsClusterInfoProxy Cluster;
+        public BoundingBoxD AABB;
+        public bool HasWorld;
+        public int RigidBodyCount;
+        public int ActiveRigidBodyCount;
+        public int CharacterCount;
 
-        ID = cluster.ClusterId;
-        AABB = cluster.AABB;
-
-        if (hkWorld != null)
+        public Snapshot(PhysicsClusterInfoProxy clusterInfo, MyClusterTree.MyCluster cluster)
         {
-            HasWorld = true;
-            RigidBodyCount = hkWorld.RigidBodies.Count;
-            ActiveRigidBodyCount = hkWorld.ActiveRigidBodies.Count;
-            CharacterCount = hkWorld.CharacterRigidBodies.Count;
+            Cluster = clusterInfo;
+            AABB = cluster.AABB;
+
+            if (cluster.UserData is HkWorld hkWorld)
+            {
+                HasWorld = true;
+                RigidBodyCount = hkWorld.RigidBodies.Count;
+                ActiveRigidBodyCount = hkWorld.ActiveRigidBodies.Count;
+                CharacterCount = hkWorld.CharacterRigidBodies.Count;
+            }
         }
-    }
 
-    public override string ToString()
-    {
-        if (!HasWorld)
-            return "Physics Cluster without HKWorld";
+        public bool Equals(MyClusterTree.MyCluster cluster)
+        {
+            if (AABB != cluster.AABB)
+                return false;
 
-        return $"""
-                Physics Cluster, ID: {ID}
+            if (cluster.UserData is HkWorld hkWorld)
+            {
+                if (!HasWorld)
+                    return false;
+
+                return RigidBodyCount == hkWorld.RigidBodies.Count
+                    && ActiveRigidBodyCount == hkWorld.ActiveRigidBodies.Count
+                    && CharacterCount == hkWorld.CharacterRigidBodies.Count;
+            }
+            else
+            {
+                return !HasWorld;
+            }
+        }
+
+        public override string ToString()
+        {
+            if (!HasWorld)
+                return "Physics Cluster without HKWorld";
+
+            return $"""
+                Physics Cluster, ID: {Cluster.ID}
                    Center: {Vector3D.Round(AABB.Center, 0)}
                    Size: {Vector3D.Round(AABB.Size, 0)}
                    Rigid Bodies: {RigidBodyCount} (Active: {ActiveRigidBodyCount})
                    Characters: {CharacterCount}
                 """;
+        }
+    }
+
+    public PhysicsClusterInfoProxy(MyClusterTree.MyCluster cluster)
+    {
+        ID = cluster.ClusterId;
+    }
+
+    public Snapshot GetSnapshot(MyClusterTree.MyCluster cluster)
+    {
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1] : null;
+
+        if (lastSnapshot != null && lastSnapshot.Equals(cluster))
+            return lastSnapshot;
+
+        var snapshot = new Snapshot(this, cluster);
+
+        Snapshots.Add(snapshot);
+
+        return snapshot;
     }
 }
 
@@ -438,82 +530,155 @@ class CubeGridInfoProxy
 {
     public long EntityId;
     public MyCubeSize GridSize;
-    public string CustomName;
-    public long OwnerId;
-    public string? OwnerName;
-    public int BlockCount;
-    public Vector3D Position;
+    public List<Snapshot> Snapshots = [];
 
-    public CubeGridInfoProxy(MyCubeGrid grid)
+    public class Snapshot
     {
-        long ownerId = 0;
+        public CubeGridInfoProxy Grid;
+        public ulong FrameIndex;
+        public string CustomName;
+        public long OwnerId;
+        public string? OwnerName;
+        public int BlockCount;
+        public Vector3D Position;
+        // TODO: Add Speed
 
-        if (grid.BigOwners.Count > 0)
-            ownerId = grid.BigOwners[0];
+        public Snapshot(CubeGridInfoProxy gridInfo, MyCubeGrid grid)
+        {
+            Grid = gridInfo;
+            FrameIndex = MySandboxGame.Static.SimulationFrameCounter;
 
-        var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
-        //var ownerFaction = MySession.Static.Factions.GetPlayerFaction(ownerId);
+            long ownerId = grid.BigOwners.Count > 0 ? grid.BigOwners[0] : 0;
+            var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
 
-        EntityId = grid.EntityId;
-        GridSize = grid.GridSizeEnum;
-        CustomName = grid.DisplayName;
-        OwnerId = ownerId;
-        OwnerName = ownerIdentity?.DisplayName;
-        BlockCount = grid.BlocksCount;
-        Position = grid.PositionComp.GetPosition();
-    }
+            CustomName = grid.DisplayName;
+            OwnerId = ownerId;
+            OwnerName = ownerIdentity?.DisplayName;
+            BlockCount = grid.BlocksCount;
+            Position = grid.PositionComp.GetPosition();
+        }
 
-    public override string ToString()
-    {
-        var idPart = OwnerName != null ? $", Id: " : null;
+        public bool Equals(MyCubeGrid grid)
+        {
+            long ownerId = grid.BigOwners.Count > 0 ? grid.BigOwners[0] : 0;
+            var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
 
-        return $"""
-                {GridSize} Grid, ID: {EntityId}
+            return CustomName == grid.DisplayName
+                && OwnerId == ownerId
+                && OwnerName == ownerIdentity?.DisplayName
+                && BlockCount == grid.BlocksCount
+                && Vector3D.Round(Position, 1) == Vector3D.Round(grid.PositionComp.GetPosition(), 1);
+        }
+
+        public override string ToString()
+        {
+            var idPart = OwnerName != null ? $", ID: " : null;
+
+            return $"""
+                {Grid.GridSize} Grid, ID: {Grid.EntityId}
                    Custom Name: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Blocks: {BlockCount}
                    Position: {Vector3D.Round(Position, 0)}
                 """;
+        }
+    }
+
+    public CubeGridInfoProxy(MyCubeGrid grid)
+    {
+        EntityId = grid.EntityId;
+        GridSize = grid.GridSizeEnum;
+    }
+
+    public Snapshot GetSnapshot(MyCubeGrid grid)
+    {
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1] : null;
+
+        if (lastSnapshot != null && lastSnapshot.Equals(grid))
+            return lastSnapshot;
+
+        var snapshot = new Snapshot(this, grid);
+
+        Snapshots.Add(snapshot);
+
+        return snapshot;
     }
 }
 
 class CubeBlockInfoProxy
 {
     public long EntityId;
-    public CubeGridInfoProxy Grid;
-    public string? CustomName;
-    public long OwnerId;
-    public string? OwnerName;
     public Type BlockType;
-    public Vector3D Position;
+    public List<Snapshot> Snapshots = [];
 
-    public CubeBlockInfoProxy(MyCubeBlock block, CubeGridInfoProxy gridInfo)
+    public class Snapshot
     {
-        long ownerId = block.OwnerId;
-        var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
-        //var ownerFaction = MySession.Static.Factions.GetPlayerFaction(ownerId);
+        public CubeGridInfoProxy.Snapshot Grid;
+        public CubeBlockInfoProxy Block;
+        public ulong FrameIndex;
+        public string? CustomName;
+        public long OwnerId;
+        public string? OwnerName;
+        public Vector3D Position;
 
-        EntityId = block.EntityId;
-        Grid = gridInfo;
-        CustomName = (block as MyTerminalBlock)?.CustomName.ToString();
-        OwnerId = ownerId;
-        OwnerName = ownerIdentity?.DisplayName;
-        BlockType = block.GetType();
-        Position = block.PositionComp.GetPosition();
-    }
+        public Snapshot(CubeGridInfoProxy.Snapshot gridInfo, CubeBlockInfoProxy blockInfo, MyCubeBlock block)
+        {
+            Grid = gridInfo;
+            Block = blockInfo;
+            FrameIndex = MySandboxGame.Static.SimulationFrameCounter;
 
-    public override string ToString()
-    {
-        var idPart = OwnerName != null ? $", Id: " : null;
+            long ownerId = block.OwnerId;
+            var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
 
-        return $"""
-                Block, ID: {EntityId}
+            CustomName = (block as MyTerminalBlock)?.CustomName.ToString();
+            OwnerId = ownerId;
+            OwnerName = ownerIdentity?.DisplayName;
+            Position = block.PositionComp.GetPosition();
+        }
+
+        public bool Equals(MyCubeBlock block)
+        {
+            long ownerId = block.OwnerId;
+            var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
+
+            return CustomName == (block as MyTerminalBlock)?.CustomName.ToString()
+                && OwnerId == ownerId
+                && OwnerName == ownerIdentity?.DisplayName
+                && Vector3D.Round(Position, 1) == Vector3D.Round(block.PositionComp.GetPosition(), 1);
+        }
+
+        public override string ToString()
+        {
+            var idPart = OwnerName != null ? $", ID: " : null;
+
+            return $"""
+                {Block.BlockType.Name}, ID: {Block.EntityId}
                    Custom Name: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
-                   Type: {BlockType.Name}
                    Position: {Vector3D.Round(Position, 1)}
                 {Grid}
                 """;
+        }
+    }
+
+    public CubeBlockInfoProxy(MyCubeBlock block)
+    {
+        EntityId = block.EntityId;
+        BlockType = block.GetType();
+    }
+
+    public Snapshot GetSnapshot(CubeGridInfoProxy.Snapshot gridInfo, MyCubeBlock block)
+    {
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1] : null;
+
+        if (lastSnapshot != null && lastSnapshot.Equals(block))
+            return lastSnapshot;
+
+        var snapshot = new Snapshot(gridInfo, this, block);
+
+        Snapshots.Add(snapshot);
+
+        return snapshot;
     }
 }
 
@@ -523,7 +688,30 @@ class CharacterInfoProxy
     public long IdentityId;
     public ulong PlatformId;
     public string Name;
-    public Vector3D Position;
+    public List<Snapshot> Snapshots = [];
+
+    public class Snapshot
+    {
+        public CharacterInfoProxy Character;
+        public Vector3D Position;
+
+        public Snapshot(CharacterInfoProxy characterInfo, MyCharacter character)
+        {
+            Character = characterInfo;
+            Position = character.PositionComp.GetPosition();
+        }
+
+        public override string ToString()
+        {
+            return $"""
+                Character, ID: {Character.EntityId}
+                   Identity ID: {Character.IdentityId}
+                   Platform ID: {Character.PlatformId}
+                   Name: {Character.Name}
+                   Position: {Vector3D.Round(Position, 1)}
+                """;
+        }
+    }
 
     public CharacterInfoProxy(MyCharacter character)
     {
@@ -533,18 +721,20 @@ class CharacterInfoProxy
         IdentityId = identity?.IdentityId ?? 0;
         PlatformId = character.ControlSteamId;
         Name = identity?.DisplayName ?? "";
-        Position = character.PositionComp.GetPosition();
     }
 
-    public override string ToString()
+    public Snapshot GetSnapshot(MyCharacter character)
     {
-        return $"""
-                Character, ID: {EntityId}
-                   Identity ID: {IdentityId}
-                   Platform ID: {PlatformId}
-                   Name: {Name}
-                   Position: {Vector3D.Round(Position, 1)}
-                """;
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1] : null;
+
+        if (lastSnapshot != null && lastSnapshot.Equals(character))
+            return lastSnapshot;
+
+        var snapshot = new Snapshot(this, character);
+
+        Snapshots.Add(snapshot);
+
+        return snapshot;
     }
 }
 
@@ -585,7 +775,8 @@ class RecordingAnalysisInfo
     public CubeGridAnalysisInfo[] Grids;
     public CubeBlockAnalysisInfo[] ProgrammableBlocks;
 
-    internal RecordingAnalysisInfo(FrameTimeInfo frameTimes, PhysicsClusterAnalysisInfo[] physicsClusters, CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks)
+    internal RecordingAnalysisInfo(FrameTimeInfo frameTimes, PhysicsClusterAnalysisInfo[] physicsClusters,
+        CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks)
     {
         FrameTimes = frameTimes;
         PhysicsClusters = physicsClusters;
@@ -612,9 +803,9 @@ class PhysicsClusterAnalysisInfo
         public HashSet<int> IncludedInGroups = [];
         public HashSet<int> FramesCounted = [];
 
-        public Builder(PhysicsClusterInfoProxy info)
+        public Builder(PhysicsClusterInfoProxy.Snapshot info)
         {
-            ID = info.ID;
+            ID = info.Cluster.ID;
             MinObjects = info.RigidBodyCount;
             MaxObjects = info.RigidBodyCount;
             MinActiveObjects = info.ActiveRigidBodyCount;
@@ -625,7 +816,7 @@ class PhysicsClusterAnalysisInfo
             AABBs.Add(info.AABB);
         }
 
-        public void Add(PhysicsClusterInfoProxy info)
+        public void Add(PhysicsClusterInfoProxy.Snapshot info)
         {
             AABBs.Add(info.AABB);
 
@@ -688,18 +879,31 @@ class PhysicsClusterAnalysisInfo
     {
         return $"""
                 Physics Cluster, ID: {ID}
-                AABB{(AABBs.Length > 1 ? "s" : "")}: {string.Join(", ", AABBs.Select(b => Round(b)).Distinct().Select(b => $"({ToString(b)})"))}
-                Num Objects{(MinObjects == MaxObjects ? $": {MaxObjects}" : $", Min: {MinObjects}, Max: {MaxObjects}")}
-                Num Active Objects{(MinActiveObjects == MaxActiveObjects ? $": {MaxActiveObjects}" : $", Min: {MinActiveObjects}, Max: {MaxActiveObjects}")}
-                Num Characters{(MinCharacters == MaxCharacters ? $": {MaxCharacters}" : $", Min: {MinCharacters}, Max: {MaxCharacters}")}
+                    {(AABBs.Length == 1
+                        ? ToString(Round(AABBs[0]))
+                        : $"AABBs: {string.Join(", ", AABBs.Select(Round).Distinct().Select(ToString2))}")}
+                    Num Objects{(MinObjects == MaxObjects ? $": {MaxObjects}" : $", Min: {MinObjects}, Max: {MaxObjects}")}
+                    Num Active Objects{(MinActiveObjects == MaxActiveObjects ? $": {MaxActiveObjects}" : $", Min: {MinActiveObjects}, Max: {MaxActiveObjects}")}
+                    Num Characters{(MinCharacters == MaxCharacters ? $": {MaxCharacters}" : $", Min: {MinCharacters}, Max: {MaxCharacters}")}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms
                 Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
                 """;
 
-        static BoundingBoxD Round(in BoundingBoxD box) => new BoundingBoxD(Vector3D.Round(box.Min, 0), Vector3D.Round(box.Max, 0));
+        static BoundingBoxD Round(BoundingBoxD box) => new BoundingBoxD(Vector3D.Round(box.Min, 0), Vector3D.Round(box.Max, 0));
 
-        static string ToString(in BoundingBoxD box) => $"Center:{{{box.Center}}}, Size:{{{box.Size}}}";
+        static string ToString(BoundingBoxD box)
+        {
+            return $$"""
+                    Center:{{{box.Center}}}
+                        Size:{{{box.Size}}}
+                    """;
+        }
+
+        static string ToString2(BoundingBoxD box)
+        {
+            return $"(Center:{{{box.Center}}}, Size:{{{box.Size}}})";
+        }
     }
 }
 
@@ -719,15 +923,15 @@ class CubeGridAnalysisInfo
         public double TotalTime;
         public double AverageTimePerFrame;
 
-        public Builder(CubeGridInfoProxy info)
+        public Builder(CubeGridInfoProxy.Snapshot info)
         {
-            EntityId = info.EntityId;
-            GridSize = info.GridSize;
+            EntityId = info.Grid.EntityId;
+            GridSize = info.Grid.GridSize;
 
             Add(info);
         }
 
-        public void Add(CubeGridInfoProxy info)
+        public void Add(CubeGridInfoProxy.Snapshot info)
         {
             CustomNames.Add(info.CustomName);
             Owners[info.OwnerId] = info.OwnerName;
@@ -777,10 +981,10 @@ class CubeGridAnalysisInfo
     {
         return $"""
                 {GridSize} Grid, ID: {EntityId}
-                Custom Name{(CustomNames.Length > 1 ? "s" : "")}: {string.Join(", ", CustomNames)}
-                Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
-                Block Count{(BlockCounts.Length > 1 ? "s" : "")}: {string.Join(", ", BlockCounts)}
-                Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
+                    {(CustomNames.Length == 1 ? $"Custom Name: {CustomNames[0]}" : $"Custom Names: {string.Join(", ", CustomNames)}")}
+                    Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
+                    Block Count{(BlockCounts.Length > 1 ? "s" : "")}: {string.Join(", ", BlockCounts)}
+                    Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms
                 Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
@@ -804,16 +1008,16 @@ class CubeBlockAnalysisInfo
         public double TotalTime;
         public double AverageTimePerFrame;
 
-        public Builder(CubeBlockInfoProxy info)
+        public Builder(CubeBlockInfoProxy.Snapshot info)
         {
-            EntityId = info.EntityId;
-            GridId = info.Grid.EntityId;
-            BlockType = info.BlockType;
+            EntityId = info.Block.EntityId;
+            GridId = info.Grid.Grid.EntityId;
+            BlockType = info.Block.BlockType.Type;
 
             Add(info);
         }
 
-        public void Add(CubeBlockInfoProxy info)
+        public void Add(CubeBlockInfoProxy.Snapshot info)
         {
             if (info.CustomName != null)
                 CustomNames.Add(info.CustomName);
@@ -864,10 +1068,10 @@ class CubeBlockAnalysisInfo
     {
         return $"""
                 {BlockType.Name}, ID: {EntityId}
-                Grid ID: {GridId}
-                Custom Name{(CustomNames.Length > 1 ? "s" : "")}: {string.Join(", ", CustomNames)}
-                Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
-                Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
+                    Grid ID: {GridId}
+                    {(CustomNames.Length == 1 ? $"Custom Name: {CustomNames[0]}" : $"Custom Names: {string.Join(", ", CustomNames)}")}
+                    Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
+                    Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms
                 Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
