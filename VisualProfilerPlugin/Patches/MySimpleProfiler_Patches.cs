@@ -1,4 +1,6 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Torch.Managers.PatchManager;
 using VRage;
 
@@ -23,9 +25,33 @@ static class MySimpleProfiler_Patches
         ctx.GetPattern(source).Prefixes.Add(prefix);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix_Begin(string key) => Profiler.Start(key);
+    [ThreadStatic]
+    static Stack<bool>? state;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool Prefix_End() { Profiler.Stop(); return true; }
+    static void Suffix_Begin(string key, MySimpleProfiler.ProfilingBlockType type)
+    {
+        var s = state ??= [];
+
+        if (type == MySimpleProfiler.ProfilingBlockType.MOD)
+        {
+            Profiler.Start(key);
+            s.Push(true);
+        }
+        else
+        {
+            s.Push(false);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_End()
+    {
+        var s = state;
+
+        if (s != null && s.Pop())
+            Profiler.Stop();
+
+        return true;
+    }
 }
