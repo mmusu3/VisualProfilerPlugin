@@ -1,5 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Windows;
@@ -7,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using VisualProfiler.Patches;
 
 namespace VisualProfiler;
@@ -33,6 +36,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     bool IsRecordTimeValid()
     {
+        if (recordTimeTypeBox == null)
+            return false;
+
         if (recordTimeTypeBox.SelectedIndex == 0) // Seconds
         {
             if (float.TryParse(recordTimeBox.Text, out float seconds))
@@ -71,6 +77,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         get => MyPhysics_Patches.ProfileEachCluster;
         set => MyPhysics_Patches.ProfileEachCluster = value;
     }
+
+    public bool AutoSaveRecording { get; set; }
 
     internal static void Open(Window mainWindow)
     {
@@ -221,6 +229,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
             eventsGraph.SetRecordedEvents(null);
 
+            GeneralStringCache.Clear();
+
             if (recordTimeTypeBox.SelectedIndex == 0) // Seconds
             {
                 if (float.TryParse(recordTimeBox.Text, out float seconds)
@@ -254,7 +264,80 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(CanStartStopRecording));
     }
 
-    void OnRecordingStopped(Profiler.EventsRecording recording)
+    void OnRecordingStopped(ProfilerEventsRecording recording)
+    {
+        var session = Plugin.Instance.Torch.CurrentSession?.KeenSession;
+
+        if (session != null)
+            recording.SessionName = session.Name;
+
+        if (AutoSaveRecording)
+            SaveRecording(recording);
+
+        LoadRecording(recording);
+    }
+
+    static void SaveRecording(ProfilerEventsRecording recording)
+    {
+        ProfilerHelper.PrepareRecordingForSerialization(recording);
+
+        var folderPath = Path.Combine(Plugin.Instance.StoragePath, "VisualProfiler", "Recordings");
+
+        Directory.CreateDirectory(folderPath);
+
+        var sessionName = recording.SessionName.Replace(' ', '_');
+
+        foreach (var item in Path.GetInvalidPathChars())
+            sessionName = sessionName.Replace(item, '_');
+
+        sessionName += "-" + recording.StartTime.ToString("s").Replace(':', '-');
+
+        var filePath = Path.Combine(folderPath, sessionName) + ".prec";
+
+        using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+        {
+            using (var gzipStream = new GZipStream(stream, CompressionLevel.Optimal))
+                ProtoBuf.Serializer.Serialize(gzipStream, recording);
+        }
+    }
+
+    void LoadButton_Click(object sender, RoutedEventArgs args)
+    {
+        var folderPath = Path.Combine(Plugin.Instance.StoragePath, "VisualProfiler", "Recordings");
+
+        if (!Directory.Exists(folderPath))
+            folderPath = null;
+
+        var diag = new OpenFileDialog {
+            InitialDirectory = folderPath,
+            DefaultExt = ".prec",
+            Filter = "Profiler Recordings (.prec)|*.prec"
+        };
+
+        bool? result = diag.ShowDialog();
+
+        if (result is not true)
+            return;
+
+        OpenRecording(diag.FileName);
+    }
+
+    void OpenRecording(string path)
+    {
+        ProfilerEventsRecording recording;
+
+        using (var stream = File.Open(path, FileMode.Open))
+        {
+            using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
+                recording = ProtoBuf.Serializer.Deserialize<ProfilerEventsRecording>(gzipStream);
+        }
+
+        ProfilerHelper.RestoreRecordingObjectsAfterDeserialization(recording);
+
+        LoadRecording(recording);
+    }
+
+    void LoadRecording(ProfilerEventsRecording recording)
     {
         startStopButton.Content = "Start Recording";
 
@@ -269,7 +352,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         statisticsLabel.Content =
             $"""
-            Recording Start Time: {recording.StartTime.ToLocalTime():hh:mm:ss tt}
+            Session Name: {recording.SessionName}
+            Recording Start Time: {recording.StartTime.ToLocalTime():yyyy/MM/d hh:mm:ss tt}
             Recorded {recording.NumFrames} frames
             Frame Times:
                 Min: {Math.Round(analysis.FrameTimes.Min, 2)}ms
@@ -385,13 +469,13 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (!Profiler.IsRecordingEvents)
             return;
 
-        var recording = Profiler.StopEventRecording(ProfilerHelper.ProfilerEventObjectResolver);
+        var recording = Profiler.StopEventRecording();
 
         ClearTimer();
         Dispatcher.BeginInvoke(OnRecordingStopped, recording);
     }
 
-    void RecordingFramesCompleted(Profiler.EventsRecording recording)
+    void RecordingFramesCompleted(ProfilerEventsRecording recording)
     {
         ClearTimer();
         Dispatcher.BeginInvoke(OnRecordingStopped, recording);

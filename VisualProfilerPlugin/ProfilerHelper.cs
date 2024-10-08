@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Havok;
+using ProtoBuf;
 using Sandbox;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Character;
@@ -24,6 +25,8 @@ static class ProfilerHelper
         Dictionary<object, object> objectCache = [];
 
         public void Resolve(ref ProfilerEvent.ExtraData data) => ResolveProfilerEventObject(objectCache, ref data);
+
+        public void ResolveNonCached(ref ProfilerEvent.ExtraData data) => ResolveProfilerEventObject(ref data);
 
         public void ClearCache() => objectCache.Clear();
     }
@@ -240,7 +243,7 @@ static class ProfilerHelper
             }
             break;
         default:
-            data.Object = data.Object?.ToString();
+            data.Object = GeneralStringCache.Intern(data.Object?.ToString());
             break;
         }
     }
@@ -262,7 +265,133 @@ static class ProfilerHelper
         return gridInfo.GetSnapshot(grid);
     }
 
-    public static RecordingAnalysisInfo AnalyzeRecording(Profiler.EventsRecording recording)
+    static void ResolveProfilerEventObject(ref ProfilerEvent.ExtraData data)
+    {
+        switch (data.Object)
+        {
+        case GCEventInfo:
+            break;
+        case Type type:
+            {
+                data.Format = "Type: {0}";
+                data.Object = type.FullName!;
+            }
+            break;
+        case Delegate @delegate:
+            {
+                data.Format = "Declaring Type: {0}";
+
+                Type type;
+
+                // TODO: Get more info from Target
+                if (@delegate.Target != null)
+                    type = @delegate.Target.GetType();
+                else
+                    type = @delegate.Method.DeclaringType!;
+
+                data.Object = type.FullName!;
+            }
+            break;
+        default:
+            data.Object = GeneralStringCache.Intern(data.Object?.ToString());
+            break;
+        }
+    }
+
+    internal static void PrepareRecordingForSerialization(ProfilerEventsRecording recording)
+    {
+        var objsToIds = new Dictionary<object, int>();
+
+        foreach (var item in recording.Groups)
+        {
+            foreach (ref var _event in item.Value.AllEvents)
+            {
+                if (_event.ExtraValue.Type != ProfilerEvent.ExtraValueTypeOption.Object)
+                    continue;
+
+                var obj = _event.ExtraValue.Object;
+
+                switch (obj)
+                {
+                case PhysicsClusterInfoProxy.Snapshot clusterSs:
+                    GetObjId(clusterSs.Cluster);
+                    break;
+                case CubeGridInfoProxy.Snapshot gridSs:
+                    GetObjId(gridSs.Grid);
+                    break;
+                case CubeBlockInfoProxy.Snapshot blockSs:
+                    GetObjId(blockSs.Grid.Grid);
+                    GetObjId(blockSs.Block);
+                    break;
+                case Type:
+                    continue;
+                }
+
+                int id = GetObjId(obj);
+
+                _event.ExtraValue.ObjectKey = new(id);
+            }
+        }
+
+        int GetObjId(object? obj)
+        {
+            if (obj == null)
+                return 0;
+
+            if (obj is string str)
+                return -GeneralStringCache.GetOrAdd(str).ID;
+
+            if (!objsToIds.TryGetValue(obj, out int id))
+            {
+                id = 1 + objsToIds.Count;
+                objsToIds.Add(obj, id);
+                recording.DataObjects.Add(id, new(obj));
+            }
+
+            return id;
+        }
+    }
+
+    internal static void RestoreRecordingObjectsAfterDeserialization(ProfilerEventsRecording recording)
+    {
+        GeneralStringCache.Clear();
+        GeneralStringCache.Init(recording.DataStrings);
+
+        foreach (var item in recording.Groups)
+        {
+            foreach (ref var _event in item.Value.AllEvents)
+            {
+                if (_event.NameKey != 0)
+                    _event.NameKey = ProfilerKeyCache.GetOrAdd(recording.EventStrings[_event.NameKey]).GlobalIndex;
+
+                if (_event.ExtraValue.Type != ProfilerEvent.ExtraValueTypeOption.Object)
+                    continue;
+
+                int objId = _event.ExtraValue.ObjectKey.ID;
+
+                if (objId < 0)
+                {
+                    if (!recording.DataStrings.TryGetValue(-objId, out var str))
+                    {
+                        // Assert?
+                    }
+
+                    _event.ExtraValue.Object = str;
+                }
+                else
+                {
+                    if (!recording.DataObjects.TryGetValue(objId, out var obj))
+                    {
+                        // Assert?
+                    }
+
+                    _event.ExtraValue.Object = obj.Object;
+                }
+            }
+        }
+    }
+
+    public static RecordingAnalysisInfo AnalyzeRecording(ProfilerEventsRecording recording)
     {
         var frameTimes = new List<long>();
         var clusters = new Dictionary<int, PhysicsClusterAnalysisInfo.Builder>();
@@ -443,19 +572,152 @@ static class ProfilerHelper
     }
 }
 
+[ProtoContract]
+struct StringId(int id)
+{
+    [ProtoMember(1)] public int ID = id;
+}
+
+static class GeneralStringCache
+{
+    static readonly Dictionary<string, int> stringsToIds = [];
+    static readonly Dictionary<int, string> idsToStrings = [];
+    static int idGenerator = 1;
+
+    public static void Init(Dictionary<int, string> values)
+    {
+        int max = 0;
+
+        foreach (var (key, value) in values)
+        {
+            idsToStrings.Add(key, value);
+            stringsToIds.Add(value, key);
+
+            if (key > max)
+                max = key;
+        }
+
+        idGenerator = max + 1;
+    }
+
+    public static StringId GetOrAdd(string? value)
+    {
+        if (value == null)
+            return default;
+
+        int id;
+
+        if (!stringsToIds.TryGetValue(value, out id))
+        {
+            id = idGenerator++;
+            stringsToIds.Add(value, id);
+            idsToStrings.Add(id, value);
+        }
+
+        return new StringId(id);
+    }
+
+    public static bool TryGet(string value, out StringId id)
+    {
+        int index;
+
+        if (!stringsToIds.TryGetValue(value, out index))
+        {
+            id = default;
+            return false;
+        }
+
+        id = new StringId(index);
+        return true;
+    }
+
+    public static string? Get(StringId id)
+    {
+        if (id.ID == 0)
+            return null;
+
+        return idsToStrings[id.ID];
+    }
+
+    public static string? Intern(string? value)
+    {
+        if (value == null)
+            return null;
+
+        if (stringsToIds.TryGetValue(value, out int id))
+            return idsToStrings[id];
+
+        id = idGenerator++;
+        stringsToIds.Add(value, id);
+        idsToStrings.Add(id, value);
+
+        return value;
+    }
+
+    public static Dictionary<int, string> GetStrings() => new(idsToStrings);
+
+    public static void Clear()
+    {
+        stringsToIds.Clear();
+        idsToStrings.Clear();
+        idGenerator = 1;
+    }
+}
+
+[ProtoContract]
+struct TypeProxy
+{
+    [ProtoIgnore]
+    public Type Type => type ??= Type.GetType(GeneralStringCache.Get(TypeName)!)!;
+    Type type;
+
+    [ProtoMember(1)]
+    public StringId TypeName;
+
+    public TypeProxy(Type type)
+    {
+        this.type = type;
+        TypeName = GeneralStringCache.GetOrAdd(Type?.AssemblyQualifiedName ?? "");
+    }
+
+    public TypeProxy() => type = null!;
+
+    public override string ToString() => Type?.ToString()!;
+}
+
+[ProtoContract]
+public struct ObjectId(int id)
+{
+    [ProtoMember(1)] public int ID = id;
+}
+
+[ProtoContract]
+public struct RefObjWrapper(object obj)
+{
+    [ProtoMember(1, DynamicType = true, AsReference = true)] public object Object = obj;
+}
+
+[ProtoContract]
+public struct RefObjWrapper<T>(T obj) where T : class
+{
+    [ProtoMember(1, AsReference = true)] public T Object = obj;
+}
+
+[ProtoContract]
 class PhysicsClusterInfoProxy
 {
-    public int ID;
-    public List<Snapshot> Snapshots = [];
+    [ProtoMember(1)] public int ID;
+    [ProtoMember(2)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
 
+    [ProtoContract]
     public class Snapshot
     {
-        public PhysicsClusterInfoProxy Cluster;
-        public BoundingBoxD AABB;
-        public bool HasWorld;
-        public int RigidBodyCount;
-        public int ActiveRigidBodyCount;
-        public int CharacterCount;
+        [ProtoMember(1, AsReference = true)] public PhysicsClusterInfoProxy Cluster;
+        [ProtoMember(2)] public BoundingBoxD AABB;
+        [ProtoMember(3)] public bool HasWorld;
+        [ProtoMember(4)] public int RigidBodyCount;
+        [ProtoMember(5)] public int ActiveRigidBodyCount;
+        [ProtoMember(6)] public int CharacterCount;
 
         public Snapshot(PhysicsClusterInfoProxy clusterInfo, MyClusterTree.MyCluster cluster)
         {
@@ -469,6 +731,11 @@ class PhysicsClusterInfoProxy
                 ActiveRigidBodyCount = hkWorld.ActiveRigidBodies.Count;
                 CharacterCount = hkWorld.CharacterRigidBodies.Count;
             }
+        }
+
+        public Snapshot()
+        {
+            Cluster = null!;
         }
 
         public bool Equals(MyClusterTree.MyCluster cluster)
@@ -511,36 +778,66 @@ class PhysicsClusterInfoProxy
         ID = cluster.ClusterId;
     }
 
+    public PhysicsClusterInfoProxy() { }
+
     public Snapshot GetSnapshot(MyClusterTree.MyCluster cluster)
     {
-        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1] : null;
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1].Object : null;
 
         if (lastSnapshot != null && lastSnapshot.Equals(cluster))
             return lastSnapshot;
 
         var snapshot = new Snapshot(this, cluster);
 
-        Snapshots.Add(snapshot);
+        Snapshots.Add(new(snapshot));
 
         return snapshot;
     }
 }
 
+[ProtoContract]
 class CubeGridInfoProxy
 {
-    public long EntityId;
-    public MyCubeSize GridSize;
-    public List<Snapshot> Snapshots = [];
+    [ProtoMember(1)] public long EntityId;
+    [ProtoMember(2)] public MyCubeSize GridSize;
+    [ProtoMember(3)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
 
+    [ProtoContract]
     public class Snapshot
     {
-        public CubeGridInfoProxy Grid;
-        public ulong FrameIndex;
-        public string CustomName;
-        public long OwnerId;
-        public string? OwnerName;
-        public int BlockCount;
-        public Vector3D Position;
+        [ProtoMember(1, AsReference = true)] public CubeGridInfoProxy Grid;
+        [ProtoMember(2)] public ulong FrameIndex;
+        [ProtoMember(3)] public string CustomName;
+        [ProtoMember(4)] public long OwnerId;
+
+        [ProtoMember(5)]
+        public StringId OwnerNameId
+        {
+            get => ownerNameId;
+            set => ownerNameId = value;
+        }
+        StringId ownerNameId;
+
+        [ProtoIgnore]
+        public string? OwnerName
+        {
+            get
+            {
+                if (ownerName == null && ownerNameId.ID > 0)
+                    ownerName = GeneralStringCache.Get(ownerNameId);
+
+                return ownerName;
+            }
+            set
+            {
+                ownerName = value;
+                ownerNameId = GeneralStringCache.GetOrAdd(value);
+            }
+        }
+        string? ownerName;
+
+        [ProtoMember(6)] public int BlockCount;
+        [ProtoMember(7)] public Vector3D Position;
         // TODO: Add Speed
 
         public Snapshot(CubeGridInfoProxy gridInfo, MyCubeGrid grid)
@@ -556,6 +853,12 @@ class CubeGridInfoProxy
             OwnerName = ownerIdentity?.DisplayName;
             BlockCount = grid.BlocksCount;
             Position = grid.PositionComp.GetPosition();
+        }
+
+        public Snapshot()
+        {
+            Grid = null!;
+            CustomName = "";
         }
 
         public bool Equals(MyCubeGrid grid)
@@ -590,36 +893,68 @@ class CubeGridInfoProxy
         GridSize = grid.GridSizeEnum;
     }
 
+    public CubeGridInfoProxy()
+    {
+    }
+
     public Snapshot GetSnapshot(MyCubeGrid grid)
     {
-        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1] : null;
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1].Object : null;
 
         if (lastSnapshot != null && lastSnapshot.Equals(grid))
             return lastSnapshot;
 
         var snapshot = new Snapshot(this, grid);
 
-        Snapshots.Add(snapshot);
+        Snapshots.Add(new(snapshot));
 
         return snapshot;
     }
 }
 
+[ProtoContract]
 class CubeBlockInfoProxy
 {
-    public long EntityId;
-    public Type BlockType;
-    public List<Snapshot> Snapshots = [];
+    [ProtoMember(1)] public long EntityId;
+    [ProtoMember(2)] public TypeProxy BlockType;
+    [ProtoMember(3)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
 
+    [ProtoContract]
     public class Snapshot
     {
-        public CubeGridInfoProxy.Snapshot Grid;
-        public CubeBlockInfoProxy Block;
-        public ulong FrameIndex;
-        public string? CustomName;
-        public long OwnerId;
-        public string? OwnerName;
-        public Vector3D Position;
+        [ProtoMember(1, AsReference = true)] public CubeGridInfoProxy.Snapshot Grid;
+        [ProtoMember(2, AsReference = true)] public CubeBlockInfoProxy Block;
+        [ProtoMember(3)] public ulong FrameIndex;
+        [ProtoMember(4)] public string? CustomName;
+        [ProtoMember(5)] public long OwnerId;
+
+        [ProtoMember(6)]
+        public StringId OwnerNameId
+        {
+            get => ownerNameId;
+            set => ownerNameId = value;
+        }
+        StringId ownerNameId;
+
+        [ProtoIgnore]
+        public string? OwnerName
+        {
+            get
+            {
+                if (ownerName == null && ownerNameId.ID > 0)
+                    ownerName = GeneralStringCache.Get(ownerNameId);
+
+                return ownerName;
+            }
+            set
+            {
+                ownerName = value;
+                ownerNameId = GeneralStringCache.GetOrAdd(value);
+            }
+        }
+        string? ownerName;
+
+        [ProtoMember(7)] public Vector3D Position;
 
         public Snapshot(CubeGridInfoProxy.Snapshot gridInfo, CubeBlockInfoProxy blockInfo, MyCubeBlock block)
         {
@@ -634,6 +969,12 @@ class CubeBlockInfoProxy
             OwnerId = ownerId;
             OwnerName = ownerIdentity?.DisplayName;
             Position = block.PositionComp.GetPosition();
+        }
+
+        public Snapshot()
+        {
+            Grid = null!;
+            Block = null!;
         }
 
         public bool Equals(MyCubeBlock block)
@@ -652,7 +993,7 @@ class CubeBlockInfoProxy
             var idPart = OwnerName != null ? $", ID: " : null;
 
             return $"""
-                {Block.BlockType.Name}, ID: {Block.EntityId}
+                {Block.BlockType.Type.Name}, ID: {Block.EntityId}
                    Custom Name: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Position: {Vector3D.Round(Position, 1)}
@@ -664,41 +1005,51 @@ class CubeBlockInfoProxy
     public CubeBlockInfoProxy(MyCubeBlock block)
     {
         EntityId = block.EntityId;
-        BlockType = block.GetType();
+        BlockType = new TypeProxy(block.GetType());
+    }
+
+    public CubeBlockInfoProxy()
+    {
     }
 
     public Snapshot GetSnapshot(CubeGridInfoProxy.Snapshot gridInfo, MyCubeBlock block)
     {
-        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1] : null;
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1].Object : null;
 
         if (lastSnapshot != null && lastSnapshot.Equals(block))
             return lastSnapshot;
 
         var snapshot = new Snapshot(gridInfo, this, block);
 
-        Snapshots.Add(snapshot);
+        Snapshots.Add(new(snapshot));
 
         return snapshot;
     }
 }
 
+[ProtoContract]
 class CharacterInfoProxy
 {
-    public long EntityId;
-    public long IdentityId;
-    public ulong PlatformId;
-    public string Name;
-    public List<Snapshot> Snapshots = [];
+    [ProtoMember(1)] public long EntityId;
+    [ProtoMember(2)] public long IdentityId;
+    [ProtoMember(3)] public ulong PlatformId;
+    [ProtoMember(4)] public string Name;
+    [ProtoMember(5)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
 
     public class Snapshot
     {
-        public CharacterInfoProxy Character;
-        public Vector3D Position;
+        [ProtoMember(1)] public CharacterInfoProxy Character;
+        [ProtoMember(2)] public Vector3D Position;
 
         public Snapshot(CharacterInfoProxy characterInfo, MyCharacter character)
         {
             Character = characterInfo;
             Position = character.PositionComp.GetPosition();
+        }
+
+        public Snapshot()
+        {
+            Character = null!;
         }
 
         public override string ToString()
@@ -723,32 +1074,43 @@ class CharacterInfoProxy
         Name = identity?.DisplayName ?? "";
     }
 
+    public CharacterInfoProxy()
+    {
+        Name = "";
+    }
+
     public Snapshot GetSnapshot(MyCharacter character)
     {
-        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1] : null;
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1].Object : null;
 
         if (lastSnapshot != null && lastSnapshot.Equals(character))
             return lastSnapshot;
 
         var snapshot = new Snapshot(this, character);
 
-        Snapshots.Add(snapshot);
+        Snapshots.Add(new(snapshot));
 
         return snapshot;
     }
 }
 
+[ProtoContract]
 class VoxelInfoProxy
 {
-    public long EntityId;
-    public string Name;
-    public BoundingBoxD AABB;
+    [ProtoMember(1)] public long EntityId;
+    [ProtoMember(2)] public string Name;
+    [ProtoMember(3)] public BoundingBoxD AABB;
 
     public VoxelInfoProxy(MyVoxelBase voxel)
     {
         EntityId = voxel.EntityId;
         Name = voxel.Name;
         AABB = voxel.PositionComp.WorldAABB;
+    }
+
+    public VoxelInfoProxy()
+    {
+        Name = "";
     }
 
     public override string ToString()

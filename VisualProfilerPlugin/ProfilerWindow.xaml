@@ -19,6 +19,15 @@
         </Grid.ColumnDefinitions>
 
         <StackPanel Orientation="Horizontal" Height="26" Grid.ColumnSpan="3">
+            <Button Name="loadButton" VerticalAlignment="Stretch"
+                    Content="Load From File"
+                    Click="LoadButton_Click" Padding="6,0,6,0"/>
+
+            <Button Name="startStopButton" VerticalAlignment="Stretch"
+                    Content="Start New Recording"
+                    IsEnabled="{Binding CanStartStopRecording}"
+                    Click="StartStopButton_Click" Padding="6,0,6,0"/>
+
             <Label Content="Record for:"/>
 
             <TextBox Name="recordTimeBox" Width="60" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
@@ -35,11 +44,7 @@
             </ComboBox>
 
             <CheckBox Content="Profile Physics Clusters" VerticalAlignment="Center" Margin="4,0,4,0" IsChecked="{Binding ProfilePhysicsClusters}"/>
-
-            <Button Name="startStopButton" Width="100" VerticalAlignment="Stretch"
-                    Content="Start Recording"
-                    IsEnabled="{Binding CanStartStopRecording}"
-                    Click="StartStopButton_Click"/>
+            <CheckBox Content="AutoSave recording to file" VerticalAlignment="Center" Margin="4,0,4,0" IsChecked="{Binding AutoSaveRecording}"/>
 
             <Button Content="Reset Zoom" Width="100" VerticalAlignment="Stretch" Click="ResetViewButton_Click" Margin="20,0,0,0"/>
         </StackPanel>

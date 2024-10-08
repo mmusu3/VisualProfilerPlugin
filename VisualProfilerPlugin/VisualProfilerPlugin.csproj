@@ -71,6 +71,14 @@
       <HintPath>$(DedicatedServer64)\Sandbox.Game.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="ProtoBuf.Net.Core">
+      <HintPath>$(DedicatedServer64)\ProtoBuf.Net.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ProtoBuf.Net">
+      <HintPath>$(DedicatedServer64)\ProtoBuf.Net.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

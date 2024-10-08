@@ -11,9 +11,10 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 {
     internal static readonly Logger Log = LogManager.GetLogger("VisualProfiler");
 
+    public static Plugin Instance => instance;
     static Plugin instance = null!;
 
-    Persistent<ConfigViewModel> configVM = null!;
+    //Persistent<ConfigViewModel> configVM = null!;
 
     public override void Init(ITorchBase torch)
     {
@@ -23,8 +24,10 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
         Log.Info("Loading config");
 
-        var configPath = Path.Combine(StoragePath, "VisualProfiler.cfg");
-        configVM = Persistent<ConfigViewModel>.Load(configPath);
+        //var configPath = Path.Combine(StoragePath, "VisualProfiler", "config.xml");
+        //configVM = Persistent<ConfigViewModel>.Load(configPath);
+
+        Profiler.SetEventObjectResolver(ProfilerHelper.ProfilerEventObjectResolver);
 
 #if NETFRAMEWORK
         Patches.Torch_MethodContext_Patches.Patch();
@@ -32,7 +35,7 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         Patches.Worker_WorkerLoop_Patch.Patch();
     }
 
-    public UserControl GetControl() => new ConfigView(configVM.Data);
+    public UserControl GetControl() => new ConfigView(new()/*configVM.Data*/);
 }
 
 public class ConfigViewModel : ViewModel

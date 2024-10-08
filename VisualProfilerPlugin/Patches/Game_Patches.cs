@@ -192,13 +192,13 @@ static class Game_Patches
 
     static void EndFrame()
     {
-        Profiler.EndFrameForCurrentThread(ProfilerHelper.ProfilerEventObjectResolver);
+        Profiler.EndFrameForCurrentThread();
         Profiler.GetProfilerGroups(profilerGroupsList);
 
         foreach (var item in profilerGroupsList)
         {
             if (item.SortingGroup == "Parallel_Highest" || item.SortingGroup == "Havok")
-                item.EndFrame(ProfilerHelper.ProfilerEventObjectResolver);
+                item.EndFrame();
         }
 
         profilerGroupsList.Clear();

@@ -6,10 +6,12 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using ProtoBuf;
 using VRageMath;
 
 namespace VisualProfiler;
 
+[ProtoContract]
 public struct ProfilerEvent
 {
     [Flags]
@@ -29,22 +31,27 @@ public struct ProfilerEvent
         Float = 4
     }
 
+    [ProtoContract]
     public struct ExtraValueUnion
     {
+        [ProtoMember(1)]
         public long DataField;
 
+        [ProtoIgnore]
         public long LongValue
         {
             readonly get => DataField;
             set => DataField = value;
         }
 
+        [ProtoIgnore]
         public double DoubleValue
         {
             get => Unsafe.As<long, double>(ref DataField);
             set => Unsafe.As<long, double>(ref DataField) = value;
         }
 
+        [ProtoIgnore]
         public float FloatValue
         {
             get => Unsafe.As<long, float>(ref DataField);
@@ -74,12 +81,22 @@ public struct ProfilerEvent
         }
     }
 
+    [ProtoContract]
     public struct ExtraData
     {
-        public ExtraValueTypeOption Type;
-        public ExtraValueUnion Value;
-        public object? Object;
-        public string? Format;
+        [ProtoMember(1)] public ExtraValueTypeOption Type;
+        [ProtoMember(2)] public ExtraValueUnion Value;
+
+        [ProtoIgnore] public object? Object;
+
+        [ProtoMember(3)]
+        public ObjectId ObjectKey
+        {
+            readonly get => new ObjectId((int)Value.LongValue);
+            set => Value.LongValue = value.ID;
+        }
+
+        [ProtoMember(4)] public string? Format;
 
         public ExtraData(object? obj, string? format = null)
         {
@@ -113,14 +130,14 @@ public struct ProfilerEvent
 
     public readonly string Name => ProfilerKeyCache.GetName(new(NameKey));
 
-    public int NameKey;
-    public EventFlags Flags;
-    public long StartTime;
-    public long EndTime;
-    public long MemoryBefore;
-    public long MemoryAfter;
-    public int Depth;
-    public ExtraData ExtraValue; // TOOD: Perhaps allocate from separate array
+    [ProtoMember(1)] public int NameKey;
+    [ProtoMember(2)] public EventFlags Flags;
+    [ProtoMember(3)] public long StartTime;
+    [ProtoMember(4)] public long EndTime;
+    [ProtoMember(5)] public long MemoryBefore;
+    [ProtoMember(6)] public long MemoryAfter;
+    [ProtoMember(7)] public int Depth;
+    [ProtoMember(8)] public ExtraData ExtraValue; // TOOD: Perhaps allocate from separate array
 
     // TODO: Event chains for async task tracking
     // public int Next;
@@ -132,18 +149,49 @@ public struct ProfilerEvent
     public readonly double ElapsedMilliseconds => ProfilerTimer.MillisecondsFromTicks(EndTime - StartTime);
 }
 
+[ProtoContract]
 public struct ProfilerEventsSegment
 {
-    public ProfilerEvent[] Events;
-    public long StartTime;
-    public long EndTime;
+    [ProtoMember(1)] public ProfilerEvent[] Events;
+    [ProtoMember(2)] public long StartTime;
+    [ProtoMember(3)] public long EndTime;
 }
 
+public struct ProfilerEventEnumerator
+{
+    ProfilerEventsSegment[] segments;
+    int totalCount;
+    int currentIndex;
+
+    public ProfilerEventEnumerator(ProfilerEventsSegment[] segments, int totalCount)
+    {
+        this.segments = segments;
+        this.totalCount = totalCount;
+        currentIndex = -1;
+    }
+
+    public readonly ProfilerEventEnumerator GetEnumerator() => this;
+
+    const int SegmentSize = ProfilerGroup.EventsAllocator.SegmentSize;
+
+    public readonly ref ProfilerEvent Current => ref segments[currentIndex / SegmentSize].Events[currentIndex % SegmentSize];
+
+    public bool MoveNext()
+    {
+        if (currentIndex >= totalCount)
+            return false;
+
+        currentIndex++;
+        return true;
+    }
+}
+
+[ProtoContract]
 public class GCEventInfo
 {
-    public int Gen0Collections;
-    public int Gen1Collections;
-    public int Gen2Collections;
+    [ProtoMember(1)] public int Gen0Collections;
+    [ProtoMember(2)] public int Gen1Collections;
+    [ProtoMember(3)] public int Gen2Collections;
 
     public GCEventInfo(Vector3I collections)
     {
@@ -151,6 +199,8 @@ public class GCEventInfo
         Gen1Collections = collections.Y;
         Gen2Collections = collections.Z;
     }
+
+    public GCEventInfo() { }
 
     public override string ToString()
     {
@@ -366,6 +416,9 @@ public sealed class ProfilerTimer : IDisposable
             _event.NameKey = Key.GlobalIndex;
             _event.Depth = Depth;
             _event.ExtraValue = extraData;
+
+            if (extraData.Type == ProfilerEvent.ExtraValueTypeOption.Object && !group.IsRealtimeThread)
+                Profiler.EventObjectResolver?.ResolveNonCached(ref _event.ExtraValue);
         }
 
         if (ProfileMemory)
@@ -700,25 +753,12 @@ public sealed class ProfilerTimer : IDisposable
     internal ProfilerTimer CreateSubTimer(ProfilerKey key, bool profileMemory)
     {
         var name = ProfilerKeyCache.GetName(key);
-        var timer = new ProfilerTimer(name, key, profileMemory, group, this);
 
-        int index;
-
-        if (!subTimersMap.TryGetValue(key.GlobalIndex, out index))
-            index = subTimers.Length;
-
-        if (index >= subTimers.Length)
-            Array.Resize(ref subTimers, index + 1);
-
-        subTimers[index] = timer;
-        subTimersMap.Add(key.GlobalIndex, index);
-
-        return timer;
+        return CreateSubTimer(name, key, profileMemory);
     }
 
-    internal ProfilerTimer CreateSubTimer(string name, bool profileMemory)
+    internal ProfilerTimer CreateSubTimer(string name, ProfilerKey key, bool profileMemory)
     {
-        var key = ProfilerKeyCache.GetOrAdd(name, group);
         var timer = new ProfilerTimer(name, key, profileMemory, group, this);
 
         int index;
@@ -747,7 +787,10 @@ public sealed class ProfilerTimer : IDisposable
 
     public ProfilerTimer GetOrCreateSubTimer(string name, bool profileMemory)
     {
-        var timer = FindSubTimer(name) ?? CreateSubTimer(name, profileMemory);
+        var key = ProfilerKeyCache.GetOrAdd(name, group, out bool existing);
+        var timer = existing ? FindSubTimer(name) : null;
+
+        timer ??= CreateSubTimer(name, key, profileMemory);
 
         return timer;
     }
@@ -823,20 +866,17 @@ public class ProfilerGroup
 
     #region Get / Create Timers
 
-    public ProfilerTimer? GetRootTimer(string name)
-    {
-        for (int i = 0; i < rootTimers.Length; i++)
-        {
-            if (rootTimers[i]?.Name == name)
-                return rootTimers[i];
-        }
-
-        return null;
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ProfilerTimer? GetTimer(string name)
-        => ActiveTimer != null ? ActiveTimer.FindSubTimer(name) : GetRootTimer(name);
+    {
+        if (!ProfilerKeyCache.TryGet(name, out var key, this))
+            return null;
+
+        if (ActiveTimer != null)
+            return ActiveTimer.FindSubTimer(key);
+
+        return GetRootTimer(key);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ProfilerTimer GetOrCreateTimer(string name, bool profileMemory)
@@ -844,13 +884,15 @@ public class ProfilerGroup
 
     internal ProfilerTimer GetOrCreateTimer(string name, bool profileMemory, ProfilerTimer? parentTimer)
     {
+        var key = ProfilerKeyCache.GetOrAdd(name, this, out bool existing);
+
         if (parentTimer != null)
         {
-            var timer = parentTimer.FindSubTimer(name);
+            var timer = existing ? parentTimer.FindSubTimer(key) : null;
 
             if (timer == null)
             {
-                timer = parentTimer.CreateSubTimer(name, profileMemory);
+                timer = parentTimer.CreateSubTimer(name, key, profileMemory);
                 timers.Add(timer);
             }
 
@@ -858,14 +900,13 @@ public class ProfilerGroup
         }
         else
         {
-            return GetRootTimer(name) ?? CreateRootTimer(name, profileMemory);
+            return GetRootTimer(key) ?? CreateRootTimer(name, key, profileMemory);
         }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    ProfilerTimer CreateRootTimer(string name, bool profileMemory)
+    ProfilerTimer CreateRootTimer(string name, ProfilerKey key, bool profileMemory)
     {
-        var key = ProfilerKeyCache.GetOrAdd(name, this);
         var timer = new ProfilerTimer(name, key, profileMemory, this, null);
         int index = rootTimers.Length;
 
@@ -1079,14 +1120,17 @@ public class ProfilerGroup
         }
     }
 
+    [ProtoContract]
     public class GroupEventsRecording
     {
-        public string Name;
-        public ProfilerEventsSegment[] EventSegments;
-        public int EventCount;
-        public int[] FrameStartEventIndices;
-        public int[] FrameEndEventIndices;
-        public int[] OutlierFrames;
+        [ProtoMember(1)] public string Name;
+        [ProtoMember(2)] public ProfilerEventsSegment[] EventSegments;
+        [ProtoMember(3)] public int EventCount;
+        [ProtoMember(4)] public int[] FrameStartEventIndices;
+        [ProtoMember(5)] public int[] FrameEndEventIndices;
+        [ProtoMember(6)] public int[] OutlierFrames;
+
+        public ProfilerEventEnumerator AllEvents => new ProfilerEventEnumerator(EventSegments, EventCount);
 
         public GroupEventsRecording(string name, EventsAllocator events, int[] frameStartIndices, int[] frameEndIndices, int[] outlierFrames)
         {
@@ -1133,6 +1177,15 @@ public class ProfilerGroup
             }
         }
 
+        public GroupEventsRecording()
+        {
+            Name = "";
+            EventSegments = [];
+            FrameStartEventIndices = [];
+            FrameEndEventIndices = [];
+            OutlierFrames = [];
+        }
+
         public int SegmentSize => EventsAllocator.SegmentSize;
 
         public ref ProfilerEvent GetEvent(int index)
@@ -1171,7 +1224,7 @@ public class ProfilerGroup
     EventsAllocator currentEvents = new();
 
     int frameStartEventIndex = -1;
-    int prevFrameEndEventIndex;
+    int prevFrameEndEventIndex = -1;
 
     List<int> frameStartEventIndices = [];
     List<int> frameEndEventIndices = [];
@@ -1208,7 +1261,7 @@ public class ProfilerGroup
         }
     }
 
-    public void EndFrame(IProfilerEventDataObjectResolver? eventObjectResolver = null)
+    public void EndFrame()
     {
         if (ActiveTimer != null) throw new InvalidOperationException($"Profiler group '{Name}' still has an active timer '{ActiveTimer.Name}'");
 
@@ -1239,27 +1292,12 @@ public class ProfilerGroup
 
             frameStartEventIndex = -1;
 
-            if (endIndex >= startIndex && eventObjectResolver != null && (Profiler.IsRecordingEvents || (hasOutliers && Profiler.IsRecordingOutliers)))
+            if (endIndex >= startIndex)
             {
-                const int ss = EventsAllocator.SegmentSize;
+                var eventObjectResolver = Profiler.EventObjectResolver;
 
-                int startSegmentIndex = startIndex / ss;
-                int endSegmentIndex = endIndex / ss;
-
-                for (int i = startSegmentIndex; i <= endSegmentIndex; i++)
-                {
-                    var segment = events.Segments[i];
-                    int startEventIndex = Math.Max(0, startIndex - i * ss);
-                    int endEventIndex = Math.Min(segment.Length - 1, endIndex - i * ss);
-
-                    for (int j = startEventIndex; j <= endEventIndex; j++)
-                    {
-                        ref var _event = ref segment[j];
-
-                        if (_event.ExtraValue.Type == ProfilerEvent.ExtraValueTypeOption.Object)
-                            eventObjectResolver.Resolve(ref _event.ExtraValue);
-                    }
-                }
+                if (eventObjectResolver != null && (Profiler.IsRecordingEvents || (hasOutliers && Profiler.IsRecordingOutliers)))
+                    ResolveObjects(events, startIndex, endIndex, eventObjectResolver);
             }
 
             if (Profiler.IsRecordingEvents)
@@ -1300,7 +1338,7 @@ public class ProfilerGroup
                 ClearEventsData();
             }
 
-            eventObjectResolver?.ClearCache();
+            Profiler.EventObjectResolver?.ClearCache();
 
             prevFrameEndEventIndex = -1;
             events.NextIndex = 0;
@@ -1343,7 +1381,7 @@ public class ProfilerGroup
         }
     }
 
-    internal GroupEventsRecording? StopEventRecording(IProfilerEventDataObjectResolver? eventObjectResolver)
+    internal GroupEventsRecording? StopEventRecording()
     {
         lock (frameLock)
         {
@@ -1355,30 +1393,15 @@ public class ProfilerGroup
             int startIndex = prevFrameEndEventIndex + 1;
             int endIndex = recordedEvents.NextIndex - 1;
 
-            if (endIndex >= startIndex && eventObjectResolver != null)
+            var eventObjectResolver = Profiler.EventObjectResolver;
+
+            if (eventObjectResolver != null)
             {
-                const int ss = EventsAllocator.SegmentSize;
+                if (endIndex >= startIndex)
+                    ResolveObjects(recordedEvents, startIndex, endIndex, eventObjectResolver);
 
-                int startSegmentIndex = startIndex / ss;
-                int endSegmentIndex = endIndex / ss;
-
-                for (int i = startSegmentIndex; i <= endSegmentIndex; i++)
-                {
-                    var segment = recordedEvents.Segments[i];
-                    int startEventIndex = Math.Max(0, startIndex - i * ss);
-                    int endEventIndex = Math.Min(segment.Length - 1, endIndex - i * ss);
-
-                    for (int j = startEventIndex; j <= endEventIndex; j++)
-                    {
-                        ref var _event = ref segment[j];
-
-                        if (_event.ExtraValue.Type == ProfilerEvent.ExtraValueTypeOption.Object)
-                            eventObjectResolver.Resolve(ref _event.ExtraValue);
-                    }
-                }
+                eventObjectResolver.ClearCache();
             }
-
-            eventObjectResolver?.ClearCache();
 
             GroupEventsRecording? recording = null;
 
@@ -1388,6 +1411,29 @@ public class ProfilerGroup
             prevFrameEndEventIndex = -1;
 
             return recording;
+        }
+    }
+
+    static void ResolveObjects(EventsAllocator recordedEvents, int startIndex, int endIndex, IProfilerEventDataObjectResolver objectResolver)
+    {
+        const int ss = EventsAllocator.SegmentSize;
+
+        int startSegmentIndex = startIndex / ss;
+        int endSegmentIndex = endIndex / ss;
+
+        for (int i = startSegmentIndex; i <= endSegmentIndex; i++)
+        {
+            var segment = recordedEvents.Segments[i];
+            int startEventIndex = Math.Max(0, startIndex - i * ss);
+            int endEventIndex = Math.Min(segment.Length - 1, endIndex - i * ss);
+
+            for (int j = startEventIndex; j <= endEventIndex; j++)
+            {
+                ref var _event = ref segment[j];
+
+                if (_event.ExtraValue.Type == ProfilerEvent.ExtraValueTypeOption.Object)
+                    objectResolver.Resolve(ref _event.ExtraValue);
+            }
         }
     }
 
@@ -1461,8 +1507,10 @@ public static class Profiler
     public static bool IsRecordingOutliers => isRecordingOutliers;
     static bool isRecordingOutliers;
 
+    internal static IProfilerEventDataObjectResolver? EventObjectResolver;
+
     static int? numFramesToRecord;
-    static Action<EventsRecording>? recordingCompletedCallback;
+    static Action<ProfilerEventsRecording>? recordingCompletedCallback;
     static DateTime recordingStartTime;
 
     static List<(long FrameIndex, List<(int GroupId, ProfilerEvent[] Events)> Groups)> recordedFrameEventsPerGroup = [];
@@ -1757,17 +1805,17 @@ public static class Profiler
         }
     }
 
-    public static void EndFrameForCurrentThread(IProfilerEventDataObjectResolver? eventObjectResolver = null)
+    public static void EndFrameForCurrentThread()
     {
-        ThreadGroup?.EndFrame(eventObjectResolver);
+        ThreadGroup?.EndFrame();
     }
 
-    public static void EndFrameForThreadID(int threadId, IProfilerEventDataObjectResolver? eventObjectResolver = null)
+    public static void EndFrameForThreadID(int threadId)
     {
         lock (profilerGroupsById)
         {
             if (profilerGroupsById.TryGetValue(threadId, out var group))
-                group.EndFrame(eventObjectResolver);
+                group.EndFrame();
         }
     }
 
@@ -1904,76 +1952,12 @@ public static class Profiler
             profilerGroupsById.Remove(threadId);
     }
 
-    public class EventsRecording
+    public static void SetEventObjectResolver(IProfilerEventDataObjectResolver? objectResolver)
     {
-        public DateTime StartTime;
-        public int NumFrames;
-        public Dictionary<int, ProfilerGroup.GroupEventsRecording> Groups;
-
-        public EventsRecording(DateTime startTime, int numFrames, (int GroupId, ProfilerGroup.GroupEventsRecording Recording)[] groups)
-        {
-            StartTime = startTime;
-            NumFrames = numFrames;
-            Groups = groups.ToDictionary(k => k.GroupId, e => e.Recording);
-        }
-
-        public int[] GetOutlierFrames()
-        {
-            var frames = new HashSet<int>();
-
-            foreach (var g in Groups)
-            {
-                foreach (var item in g.Value.OutlierFrames)
-                    frames.Add(item);
-            }
-
-            var array = frames.ToArray();
-
-            Array.Sort(array);
-
-            return array;
-        }
-
-        public (long StartTime, long EndTime) GetTimeBoundsForFrame(int frameIndex)
-        {
-            long startTime = long.MaxValue;
-            long endTime = long.MinValue;
-
-            foreach (var item in Groups)
-            {
-                var g = item.Value;
-
-                if (frameIndex >= g.FrameStartEventIndices.Length
-                    || frameIndex >= g.FrameEndEventIndices.Length)
-                    continue;
-
-                int startIndex = g.FrameStartEventIndices[frameIndex];
-                int endIndex = g.FrameEndEventIndices[frameIndex];
-
-                // Empty frame
-                if (endIndex < startIndex)
-                    continue;
-
-                long start = g.GetEvent(startIndex).StartTime;
-                long end = g.GetEvent(endIndex).EndTime;
-
-                Debug.Assert(end >= start);
-
-                if (start < startTime)
-                    startTime = start;
-
-                if (end > endTime)
-                    endTime = end;
-            }
-
-            if (startTime > endTime)
-                (startTime, endTime) = (endTime, startTime);
-
-            return (startTime, endTime);
-        }
+        EventObjectResolver = objectResolver;
     }
 
-    public static void StartEventRecording(int? numFrames = null, Action<EventsRecording>? completedCallback = null)
+    public static void StartEventRecording(int? numFrames = null, Action<ProfilerEventsRecording>? completedCallback = null)
     {
         if (isRecordingEvents) throw new InvalidOperationException("Event recording has already started.");
 
@@ -2009,7 +1993,7 @@ public static class Profiler
         recordingCompletedCallback = null;
     }
 
-    public static EventsRecording StopEventRecording(IProfilerEventDataObjectResolver? eventObjectResolver = null)
+    public static ProfilerEventsRecording StopEventRecording()
     {
         if (!isRecordingEvents) throw new InvalidOperationException("Event recording has not yet been started.");
 
@@ -2018,24 +2002,64 @@ public static class Profiler
             if (!isRecordingEvents)
                 return null!;
 
-            var groups = new List<(int, ProfilerGroup.GroupEventsRecording)>(profilerGroupsById.Count);
+            var groups = new List<ProfilerGroup>(profilerGroupsById.Count);
+            var groupsRecordings = new List<(int, ProfilerGroup.GroupEventsRecording)>(profilerGroupsById.Count);
 
             foreach (var item in profilerGroupsById)
             {
-                var events = item.Value.StopEventRecording(eventObjectResolver);
+                var events = item.Value.StopEventRecording();
 
                 if (events != null)
-                    groups.Add((item.Key, events));
+                {
+                    groups.Add(item.Value);
+                    groupsRecordings.Add((item.Key, events));
+                }
             }
 
             isRecordingEvents = false;
 
             int numRecordedFrames = 0;
 
-            for (int i = 0; i < groups.Count; i++)
-                numRecordedFrames = Math.Max(numRecordedFrames, groups[i].Item2.GetNumRecordedFrames());
+            for (int i = 0; i < groupsRecordings.Count; i++)
+                numRecordedFrames = Math.Max(numRecordedFrames, groupsRecordings[i].Item2.GetNumRecordedFrames());
 
-            return new EventsRecording(recordingStartTime, numRecordedFrames, groups.ToArray());
+            var groupRecsArray = groupsRecordings.ToArray();
+
+            Array.Sort(groups.ToArray(), groupRecsArray, GroupComparer.Instance);
+
+            return new ProfilerEventsRecording(recordingStartTime, numRecordedFrames, groupRecsArray);
+        }
+    }
+
+    class GroupComparer : IComparer<ProfilerGroup>
+    {
+        public static readonly GroupComparer Instance = new();
+
+        public int Compare(ProfilerGroup? x, ProfilerGroup? y)
+        {
+            int order = 0;
+
+            if (x!.SortingGroup != null)
+            {
+                if (y!.SortingGroup != null)
+                    order = CompareSortingGroups(x.SortingGroup, y.SortingGroup);
+                else
+                    order = -1;
+            }
+            else if (y!.SortingGroup != null)
+            {
+                order = 1;
+            }
+
+            if (order == 0)
+            {
+                order = x.OrderInSortingGroup.CompareTo(y.OrderInSortingGroup);
+
+                if (order == 0)
+                    order = string.Compare(x.Name, y.Name);
+            }
+
+            return order;
         }
     }
 
@@ -2081,6 +2105,8 @@ public interface IProfilerEventDataObjectResolver
 {
     void Resolve(ref ProfilerEvent.ExtraData data);
 
+    void ResolveNonCached(ref ProfilerEvent.ExtraData data);
+
     void ClearCache();
 }
 
@@ -2091,32 +2117,24 @@ static class ProfilerKeyCache
     static readonly Dictionary<int, string> keysToNames = [];
     static int keyGenerator = -1;
 
-    public static void Init(Dictionary<int, string> values)
+    public static ProfilerKey GetOrAdd(string name, ProfilerGroup? group = null)
     {
-        int min = 0;
-
-        foreach (var (key, value) in values)
-        {
-            keysToNames.Add(key, value);
-            namesToKeys.Add(value, key);
-
-            if (key < min)
-                min = key;
-        }
-
-        keyGenerator = min - 1;
+        return GetOrAdd(name, group, out _);
     }
 
-    public static ProfilerKey GetOrAdd(string name, ProfilerGroup? group = null)
+    public static ProfilerKey GetOrAdd(string name, ProfilerGroup? group, out bool existing)
     {
         int key;
 
         if (group != null && group.LocalKeyCache.TryGetValue(name, out key))
+        {
+            existing = true;
             return new ProfilerKey(key);
+        }
 
         lock (lockObj)
         {
-            if (!namesToKeys.TryGetValue(name, out key))
+            if (!(existing = namesToKeys.TryGetValue(name, out key)))
             {
                 key = keyGenerator--;
                 namesToKeys.Add(name, key);
@@ -2124,7 +2142,11 @@ static class ProfilerKeyCache
             }
         }
 
-        group?.LocalKeyCache.Add(name, key);
+        if (group != null)
+        {
+            group.LocalKeyCache.Add(name, key);
+            existing = false;
+        }
 
         return new ProfilerKey(key);
     }
@@ -2159,11 +2181,91 @@ static class ProfilerKeyCache
     }
 
     public static Dictionary<int, string> GetStrings() => new(keysToNames);
+}
 
-    public static void Clear()
+[ProtoContract]
+public class ProfilerEventsRecording
+{
+    [ProtoMember(1)] public string SessionName;
+    [ProtoMember(2)] public DateTime StartTime;
+    [ProtoMember(3)] public int NumFrames;
+    [ProtoMember(4)] public Dictionary<int, ProfilerGroup.GroupEventsRecording> Groups;
+    [ProtoMember(5)] public Dictionary<int, string> EventStrings;
+    [ProtoMember(6)] public Dictionary<int, string> DataStrings;
+    [ProtoMember(7)] public Dictionary<int, RefObjWrapper> DataObjects;
+
+    public ProfilerEventsRecording(DateTime startTime, int numFrames, (int GroupId, ProfilerGroup.GroupEventsRecording Recording)[] groups)
     {
-        namesToKeys.Clear();
-        keysToNames.Clear();
-        keyGenerator = -1;
+        SessionName = "";
+        StartTime = startTime;
+        NumFrames = numFrames;
+        Groups = groups.ToDictionary(k => k.GroupId, e => e.Recording);
+        EventStrings = ProfilerKeyCache.GetStrings();
+        DataStrings = GeneralStringCache.GetStrings();
+        DataObjects = [];
+    }
+
+    public ProfilerEventsRecording()
+    {
+        SessionName = "";
+        Groups = [];
+        EventStrings = [];
+        DataStrings = [];
+        DataObjects = [];
+    }
+
+    public int[] GetOutlierFrames()
+    {
+        var frames = new HashSet<int>();
+
+        foreach (var g in Groups)
+        {
+            foreach (var item in g.Value.OutlierFrames)
+                frames.Add(item);
+        }
+
+        var array = frames.ToArray();
+
+        Array.Sort(array);
+
+        return array;
+    }
+
+    public (long StartTime, long EndTime) GetTimeBoundsForFrame(int frameIndex)
+    {
+        long startTime = long.MaxValue;
+        long endTime = long.MinValue;
+
+        foreach (var item in Groups)
+        {
+            var g = item.Value;
+
+            if (frameIndex >= g.FrameStartEventIndices.Length
+                || frameIndex >= g.FrameEndEventIndices.Length)
+                continue;
+
+            int startIndex = g.FrameStartEventIndices[frameIndex];
+            int endIndex = g.FrameEndEventIndices[frameIndex];
+
+            // Empty frame
+            if (endIndex < startIndex)
+                continue;
+
+            long start = g.GetEvent(startIndex).StartTime;
+            long end = g.GetEvent(endIndex).EndTime;
+
+            Debug.Assert(end >= start);
+
+            if (start < startTime)
+                startTime = start;
+
+            if (end > endTime)
+                endTime = end;
+        }
+
+        if (startTime > endTime)
+            (startTime, endTime) = (endTime, startTime);
+
+        return (startTime, endTime);
     }
 }
