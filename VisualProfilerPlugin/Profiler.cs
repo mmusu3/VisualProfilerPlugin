@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using ProtoBuf;
 using VRageMath;
@@ -178,10 +177,12 @@ public struct ProfilerEventEnumerator
 
     public bool MoveNext()
     {
-        if (currentIndex >= totalCount)
+        int c = currentIndex + 1;
+
+        if (c >= totalCount)
             return false;
 
-        currentIndex++;
+        currentIndex = c;
         return true;
     }
 }
@@ -216,6 +217,8 @@ public readonly struct ProfilerKey
     internal readonly int GlobalIndex;
 
     internal ProfilerKey(int globalIndex) => GlobalIndex = globalIndex;
+
+    public override string ToString() => ProfilerKeyCache.GetName(this);
 }
 
 public sealed class ProfilerTimer : IDisposable

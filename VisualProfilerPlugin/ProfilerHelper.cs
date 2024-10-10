@@ -570,6 +570,131 @@ static class ProfilerHelper
             anInf.FramesCounted.Add(frameIndex);
         }
     }
+
+    class AccumTimer(ProfilerKey nameKey)
+    {
+        public ProfilerKey NameKey = nameKey;
+        public long ElapsedTime;
+        public long AllocatedMemory;
+        public bool MemoryTracked;
+        public int AccumCount;
+        public AccumTimer? Parent;
+        public Dictionary<int, AccumTimer> Children = [];
+
+        public override string ToString() => $"{NameKey}, Children: {Children.Count}";
+    }
+
+    internal static (long Time, (int GroupId, ProfilerEventsSegment Group)[] Groups) CombineFrames(ProfilerEventsRecording recording)
+    {
+        var combinedGroups = new (int, ProfilerEventsSegment)[recording.Groups.Count];
+        var combinedEvents = new List<ProfilerEvent>();
+        var timers = new Dictionary<int, AccumTimer>();
+
+        AccumTimer? activeTimer;
+
+        AccumTimer GetOrAddTimer(int key, int depthDir)
+        {
+            if (depthDir < 0)
+            {
+                activeTimer = activeTimer!.Parent;
+
+                for (int i = 0; i < -depthDir; i++)
+                    activeTimer = activeTimer?.Parent;
+            }
+            else if (depthDir == 0)
+            {
+                activeTimer = activeTimer?.Parent;
+            }
+
+            if (activeTimer != null)
+            {
+                if (!activeTimer.Children.TryGetValue(key, out var subTimer))
+                {
+                    subTimer = new(new(key)) { Parent = activeTimer };
+                    activeTimer.Children.Add(key, subTimer);
+                }
+
+                return subTimer;
+            }
+            else
+            {
+                if (!timers.TryGetValue(key, out var timer))
+                {
+                    timer = new(new(key));
+                    timers.Add(key, timer);
+                }
+
+                return timer;
+            }
+        }
+
+        long maxTime = long.MinValue;
+        int i = 0;
+
+        foreach (var (groupId, group) in recording.Groups)
+        {
+            activeTimer = null;
+
+            int prevDepth = 0;
+
+            foreach (ref var _event in group.AllEvents)
+            {
+                if (_event.IsSinglePoint)
+                    continue;
+
+                long elapsedTime = _event.EndTime - _event.StartTime;
+                long allocdMem = _event.MemoryAfter - _event.MemoryBefore;
+
+                activeTimer = GetOrAddTimer(_event.NameKey, _event.Depth - prevDepth);
+
+                activeTimer.ElapsedTime += elapsedTime;
+                activeTimer.AllocatedMemory += allocdMem;
+                activeTimer.MemoryTracked = _event.MemoryTracked;
+                activeTimer.AccumCount++;
+
+                prevDepth = _event.Depth;
+            }
+
+            long groupTime = 0;
+
+            foreach (var item in timers.Values)
+            {
+                DescendTimer(item, groupTime, 0);
+                groupTime += item.ElapsedTime;
+            }
+
+            timers.Clear();
+
+            void DescendTimer(AccumTimer timer, long startTime, int depth)
+            {
+                combinedEvents.Add(new ProfilerEvent {
+                    NameKey = timer.NameKey.GlobalIndex,
+                    Depth = depth,
+                    StartTime = startTime,
+                    EndTime = startTime + timer.ElapsedTime,
+                    MemoryAfter = timer.AllocatedMemory,
+                    Flags = timer.MemoryTracked ? ProfilerEvent.EventFlags.MemoryTracked : ProfilerEvent.EventFlags.None,
+                    ExtraValue = new(timer.AccumCount, "Call Count: {0}")
+                });
+
+                long s = startTime;
+
+                foreach (var item in timer.Children.Values)
+                {
+                    DescendTimer(item, s, depth + 1);
+                    s += item.ElapsedTime;
+                }
+            }
+
+            if (groupTime > maxTime)
+                maxTime = groupTime;
+
+            combinedGroups[i++] = (groupId, new ProfilerEventsSegment { EndTime = groupTime, Events = combinedEvents.ToArray() });
+            combinedEvents.Clear();
+        }
+
+        return (maxTime, combinedGroups);
+    }
 }
 
 [ProtoContract]

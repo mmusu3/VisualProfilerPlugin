@@ -80,6 +80,18 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     public bool AutoSaveRecording { get; set; }
 
+    public bool CombineFrames
+    {
+        get => eventsGraph?.CombineFrames ?? false;
+        set
+        {
+            if (eventsGraph != null)
+                eventsGraph.CombineFrames = value;
+
+            OnPropertyChanged(nameof(CombineFrames));
+        }
+    }
+
     internal static void Open(Window mainWindow)
     {
         var pos = new Point(mainWindow.Left, mainWindow.Top);
