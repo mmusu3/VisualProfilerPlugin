@@ -19,14 +19,17 @@
         </Grid.ColumnDefinitions>
 
         <StackPanel Orientation="Horizontal" Height="26" Grid.ColumnSpan="3">
-            <Button Name="loadButton" VerticalAlignment="Stretch"
-                    Content="Load From File"
-                    Click="LoadButton_Click" Padding="6,0,6,0"/>
+            <Button Name="saveButton" VerticalAlignment="Stretch" Padding="6,0,6,0"
+                    Content="Save Recording" IsEnabled="{Binding CanSave}"
+                    Click="SaveButton_Click"/>
 
-            <Button Name="startStopButton" VerticalAlignment="Stretch"
-                    Content="Start New Recording"
-                    IsEnabled="{Binding CanStartStopRecording}"
-                    Click="StartStopButton_Click" Padding="6,0,6,0"/>
+            <Button Name="loadButton" VerticalAlignment="Stretch" Padding="6,0,6,0"
+                    Content="Load From File"
+                    Click="LoadButton_Click"/>
+
+            <Button Name="startStopButton" VerticalAlignment="Stretch" Padding="6,0,6,0" Margin="20,0,0,0"
+                    Content="Start New Recording" IsEnabled="{Binding CanStartStopRecording}"
+                    Click="StartStopButton_Click"/>
 
             <Label Content="Record for:"/>
 
@@ -67,7 +70,7 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Vertical">
-                    <Label Content="Statistics" FontWeight="Bold"/>
+                    <Label Content="Recording Info" FontWeight="Bold"/>
                     <Rectangle Height="1" Fill="#FFABADB3"/>
                     <Label Name="statisticsLabel" Margin="0,-3,0,0"/>
                     <Rectangle Height="2" Fill="LightGray"/>

@@ -27,6 +27,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     Timer? recordingTimer;
 
+    ProfilerEventsRecording? currentRecording;
+    bool currentIsSaved;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     void OnPropertyChanged(string propertyName)
@@ -60,6 +63,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     }
 
     public bool RecordTimeInvalid => !IsRecordTimeValid();
+
+    public bool CanSave => currentRecording != null && !currentIsSaved;
 
     public bool CanStartStopRecording
     {
@@ -232,6 +237,10 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         }
         else
         {
+            currentRecording = null;
+
+            OnPropertyChanged(nameof(CanSave));
+
             startStopButton.Content = "Stop Recording";
             statisticsLabel.Content = "";
             outliersList.Items.Clear();
@@ -284,12 +293,26 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             recording.SessionName = session.Name;
 
         if (AutoSaveRecording)
-            SaveRecording(recording);
+            SaveRecording(recording, showDiag: false);
 
-        LoadRecording(recording);
+        SetCurrentRecording(recording);
+        currentIsSaved = false;
+
+        OnPropertyChanged(nameof(CanSave));
     }
 
-    static void SaveRecording(ProfilerEventsRecording recording)
+    void SaveButton_Click(object sender, RoutedEventArgs args)
+    {
+        if (currentRecording == null)
+            return;
+
+        SaveRecording(currentRecording, showDiag: true);
+        currentIsSaved = true;
+
+        OnPropertyChanged(nameof(CanSave));
+    }
+
+    static void SaveRecording(ProfilerEventsRecording recording, bool showDiag)
     {
         ProfilerHelper.PrepareRecordingForSerialization(recording);
 
@@ -304,7 +327,28 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         sessionName += "-" + recording.StartTime.ToString("s").Replace(':', '-');
 
-        var filePath = Path.Combine(folderPath, sessionName) + ".prec";
+        string filePath;
+
+        if (showDiag)
+        {
+            var diag = new SaveFileDialog {
+                InitialDirectory = folderPath,
+                FileName = sessionName,
+                DefaultExt = ".prec",
+                Filter = "Profiler Recordings (.prec)|*.prec"
+            };
+
+            bool? result = diag.ShowDialog();
+
+            if (result is not true)
+                return;
+
+            filePath = diag.FileName;
+        }
+        else
+        {
+            filePath = Path.Combine(folderPath, sessionName) + ".prec";
+        }
 
         using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write))
         {
@@ -331,26 +375,42 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (result is not true)
             return;
 
-        OpenRecording(diag.FileName);
+        LoadRecording(diag.FileName);
     }
 
-    void OpenRecording(string path)
+    void LoadRecording(string path)
     {
-        ProfilerEventsRecording recording;
+        ProfilerEventsRecording? recording = null;
 
-        using (var stream = File.Open(path, FileMode.Open))
+        try
         {
-            using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
-                recording = ProtoBuf.Serializer.Deserialize<ProfilerEventsRecording>(gzipStream);
+            using (var stream = File.Open(path, FileMode.Open))
+            {
+                using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
+                    recording = ProtoBuf.Serializer.Deserialize<ProfilerEventsRecording>(gzipStream);
+            }
         }
+        catch (Exception ex)
+        {
+            Plugin.Log.Error(ex, "Failed to load profiler recording file.");
+            // TODO: Msg box
+        }
+
+        if (recording == null)
+            return;
 
         ProfilerHelper.RestoreRecordingObjectsAfterDeserialization(recording);
 
-        LoadRecording(recording);
+        SetCurrentRecording(recording);
+        currentIsSaved = true;
+
+        OnPropertyChanged(nameof(CanSave));
     }
 
-    void LoadRecording(ProfilerEventsRecording recording)
+    void SetCurrentRecording(ProfilerEventsRecording recording)
     {
+        currentRecording = recording;
+
         startStopButton.Content = "Start Recording";
 
         eventsGraph.SetRecordedEvents(recording);
