@@ -1,9 +1,11 @@
 ﻿using System.Collections.Generic;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Sandbox;
 using Sandbox.Engine.Multiplayer;
 using Sandbox.Game.World;
 using Torch.Managers.PatchManager;
+using VRage.Game;
 using VRage.Game.Components;
 
 namespace VisualProfiler.Patches;
@@ -16,6 +18,10 @@ static class MySession_Patches
         Keys.Init();
 
         PatchPrefixSuffixPair(ctx, nameof(MySession.Load), _public: true, _static: true);
+
+        var prepareBaseSession = typeof(MySession).GetNonPublicInstanceMethod("PrepareBaseSession", [typeof(MyObjectBuilder_Checkpoint), typeof(MyObjectBuilder_Sector)]);
+
+        PatchPrefixSuffixPair(ctx, prepareBaseSession);
         PatchPrefixSuffixPair(ctx, "LoadWorld", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MySession.GetWorld), _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MySession.GetCheckpoint), _public: true, _static: false);
@@ -33,7 +39,13 @@ static class MySession_Patches
     static void PatchPrefixSuffixPair(PatchContext ctx, string methodName, bool _public, bool _static)
     {
         var source = typeof(MySession).GetMethod(methodName, _public, _static);
-        var prefix = typeof(MySession_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
+
+        PatchPrefixSuffixPair(ctx, source);
+    }
+
+    static void PatchPrefixSuffixPair(PatchContext ctx, MethodInfo source)
+    {
+        var prefix = typeof(MySession_Patches).GetNonPublicStaticMethod("Prefix_" + source.Name);
         var suffix = typeof(MySession_Patches).GetNonPublicStaticMethod(nameof(Suffix));
 
         var pattern = ctx.GetPattern(source);
@@ -44,6 +56,7 @@ static class MySession_Patches
     static class Keys
     {
         internal static ProfilerKey Load;
+        internal static ProfilerKey PrepareBaseSession;
         internal static ProfilerKey LoadWorld;
         internal static ProfilerKey GetWorld;
         internal static ProfilerKey GetCheckpoint;
@@ -55,6 +68,7 @@ static class MySession_Patches
         internal static void Init()
         {
             Load = ProfilerKeyCache.GetOrAdd("MySession.Load");
+            PrepareBaseSession = ProfilerKeyCache.GetOrAdd("MySession.PrepareBaseSession");
             LoadWorld = ProfilerKeyCache.GetOrAdd("MySession.LoadWorld");
             GetWorld = ProfilerKeyCache.GetOrAdd("MySession.GetWorld");
             GetCheckpoint = ProfilerKeyCache.GetOrAdd("MySession.GetCheckpoint");
@@ -72,6 +86,9 @@ static class MySession_Patches
 
     [MethodImpl(Inline)] static bool Prefix_Load(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.Load); return true; }
+
+    [MethodImpl(Inline)] static bool Prefix_PrepareBaseSession(ref ProfilerTimer __local_timer)
+    { __local_timer = Profiler.Start(Keys.PrepareBaseSession); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_LoadWorld(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.LoadWorld); return true; }
