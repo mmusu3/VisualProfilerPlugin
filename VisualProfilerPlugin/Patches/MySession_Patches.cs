@@ -84,8 +84,12 @@ static class MySession_Patches
     [MethodImpl(Inline)] static void Suffix(ref ProfilerTimer __local_timer)
     { __local_timer.Stop(); }
 
-    [MethodImpl(Inline)] static bool Prefix_Load(ref ProfilerTimer __local_timer)
-    { __local_timer = Profiler.Start(Keys.Load); return true; }
+    [MethodImpl(Inline)]
+    static bool Prefix_Load(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start(Keys.Load, profileMemory: true, new(ProfilerEvent.EventCategory.Load));
+        return true;
+    }
 
     [MethodImpl(Inline)] static bool Prefix_PrepareBaseSession(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.PrepareBaseSession); return true; }

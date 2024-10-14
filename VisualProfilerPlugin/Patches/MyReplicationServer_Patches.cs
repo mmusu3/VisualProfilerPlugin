@@ -75,8 +75,12 @@ static class MyReplicationServer_Patches
     [MethodImpl(Inline)] static bool Prefix_Destroy(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.Destroy); return true; }
 
-    [MethodImpl(Inline)] static bool Prefix_UpdateBefore(ref ProfilerTimer __local_timer)
-    { __local_timer = Profiler.Start(Keys.UpdateBefore); return true; }
+    [MethodImpl(Inline)]
+    static bool Prefix_UpdateBefore(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start(Keys.UpdateBefore, profileMemory: true, new(ProfilerEvent.EventCategory.Network));
+        return true;
+    }
 
     [MethodImpl(Inline)] static bool Prefix_SendUpdate(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.SendUpdate); return true; }

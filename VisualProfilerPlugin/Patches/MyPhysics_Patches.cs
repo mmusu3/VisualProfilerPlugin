@@ -81,24 +81,24 @@ static class MyPhysics_Patches
         internal static ProfilerKey SimulateInternal;
         internal static ProfilerKey ExecuteParallelRayCasts;
         internal static ProfilerKey StepWorldsParallel;
+        internal static ProfilerKey StepWorldsMeasured;
+        internal static ProfilerKey StepWorldsSequential;
         internal static ProfilerKey EnableOptimizations;
         internal static ProfilerKey DisableOptimizations;
         internal static ProfilerKey UpdateActiveRigidBodies;
         internal static ProfilerKey UpdateCharacters;
-        internal static ProfilerKey StepWorldsMeasured;
-        internal static ProfilerKey StepWorldsSequential;
 
         internal static void Init()
         {
             SimulateInternal = ProfilerKeyCache.GetOrAdd("MyPhysics.SimulateInternal");
             ExecuteParallelRayCasts = ProfilerKeyCache.GetOrAdd("MyPhysics.ExecuteParallelRayCasts");
             StepWorldsParallel = ProfilerKeyCache.GetOrAdd("StepWorldsParallel");
+            StepWorldsMeasured = ProfilerKeyCache.GetOrAdd("MyPhysics.StepWorldsMeasured");
+            StepWorldsSequential = ProfilerKeyCache.GetOrAdd("MyPhysics.StepWorldsSequential");
             EnableOptimizations = ProfilerKeyCache.GetOrAdd("MyPhysics.EnableOptimizations");
             DisableOptimizations = ProfilerKeyCache.GetOrAdd("MyPhysics.DisableOptimizations");
             UpdateActiveRigidBodies = ProfilerKeyCache.GetOrAdd("MyPhysics.UpdateActiveRigidBodies");
             UpdateCharacters = ProfilerKeyCache.GetOrAdd("MyPhysics.UpdateCharacters");
-            StepWorldsMeasured = ProfilerKeyCache.GetOrAdd("MyPhysics.StepWorldsMeasured");
-            StepWorldsSequential = ProfilerKeyCache.GetOrAdd("MyPhysics.StepWorldsSequential");
         }
     }
 
@@ -206,8 +206,12 @@ static class MyPhysics_Patches
     [MethodImpl(Inline)] static void Suffix(ref ProfilerTimer __local_timer)
     { __local_timer.Stop(); }
 
-    [MethodImpl(Inline)] static bool Prefix_SimulateInternal(ref ProfilerTimer __local_timer)
-    { __local_timer = Profiler.Start(Keys.SimulateInternal); return true; }
+    [MethodImpl(Inline)]
+    static bool Prefix_SimulateInternal(ref ProfilerTimer __local_timer)
+    {
+        __local_timer = Profiler.Start(Keys.SimulateInternal, profileMemory: true, new(ProfilerEvent.EventCategory.Physics));
+        return true;
+    }
 
     [MethodImpl(Inline)] static bool Prefix_ExecuteParallelRayCasts(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.ExecuteParallelRayCasts); return true; }

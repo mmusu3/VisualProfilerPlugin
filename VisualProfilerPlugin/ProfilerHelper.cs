@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Havok;
 using ProtoBuf;
 using Sandbox;
@@ -574,7 +575,14 @@ static class ProfilerHelper
     class AccumTimer(ProfilerKey nameKey)
     {
         public ProfilerKey NameKey = nameKey;
+        public ProfilerEvent.EventCategory Category;
+
         public long ElapsedTime;
+        public long MinElapsedTime = long.MaxValue;
+        public long MaxElapsedTime;
+        public double ElapsedTimeM;
+        public double ElapsedTimeS;
+
         public long AllocatedMemory;
         public bool MemoryTracked;
         public int AccumCount;
@@ -647,10 +655,33 @@ static class ProfilerHelper
 
                 activeTimer = GetOrAddTimer(_event.NameKey, _event.Depth - prevDepth);
 
+                var category = GetCategory(ref _event);
+
+                if (category != ProfilerEvent.EventCategory.Other)
+                    activeTimer.Category = category;
+
+                activeTimer.AccumCount++;
                 activeTimer.ElapsedTime += elapsedTime;
+                activeTimer.MinElapsedTime = Math.Min(activeTimer.MinElapsedTime, elapsedTime);
+                activeTimer.MaxElapsedTime = Math.Max(activeTimer.MaxElapsedTime, elapsedTime);
+
+                if (activeTimer.AccumCount == 1)
+                {
+                    activeTimer.ElapsedTimeM = ProfilerTimer.MillisecondsFromTicks(elapsedTime);
+                    activeTimer.ElapsedTimeS = 0;
+                }
+                else
+                {
+                    double x = ProfilerTimer.MillisecondsFromTicks(elapsedTime);
+                    double m = activeTimer.ElapsedTimeM;
+                    double s = activeTimer.ElapsedTimeS;
+
+                    activeTimer.ElapsedTimeM = m + (x - m) / activeTimer.AccumCount;
+                    activeTimer.ElapsedTimeS = s + (x - m) * (x - activeTimer.ElapsedTimeM);
+                }
+
                 activeTimer.AllocatedMemory += allocdMem;
                 activeTimer.MemoryTracked = _event.MemoryTracked;
-                activeTimer.AccumCount++;
 
                 prevDepth = _event.Depth;
             }
@@ -660,13 +691,18 @@ static class ProfilerHelper
             foreach (var item in timers.Values)
             {
                 DescendTimer(item, groupTime, 0);
-                groupTime += item.ElapsedTime;
+
+                if (item.Category != ProfilerEvent.EventCategory.Wait)
+                    groupTime += item.ElapsedTime;
             }
 
             timers.Clear();
 
             void DescendTimer(AccumTimer timer, long startTime, int depth)
             {
+                if (timer.Category == ProfilerEvent.EventCategory.Wait)
+                    return;
+
                 combinedEvents.Add(new ProfilerEvent {
                     NameKey = timer.NameKey.GlobalIndex,
                     Depth = depth,
@@ -674,7 +710,7 @@ static class ProfilerHelper
                     EndTime = startTime + timer.ElapsedTime,
                     MemoryAfter = timer.AllocatedMemory,
                     Flags = timer.MemoryTracked ? ProfilerEvent.EventFlags.MemoryTracked : ProfilerEvent.EventFlags.None,
-                    ExtraValue = new(timer.AccumCount, "Call Count: {0}")
+                    ExtraValue = new(timer.Category, new CombinedEventInfo(timer), "{0}")
                 });
 
                 long s = startTime;
@@ -694,6 +730,108 @@ static class ProfilerHelper
         }
 
         return (maxTime, combinedGroups);
+
+        static ProfilerEvent.EventCategory GetCategory(ref ProfilerEvent _event)
+        {
+            if (_event.ExtraValue.Type == ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+                return _event.ExtraValue.Value.CategoryValue;
+
+            if (_event.ExtraValue.Type == ProfilerEvent.ExtraValueTypeOption.Object)
+            {
+                switch (_event.ExtraValue.Object)
+                {
+                case CubeGridInfoProxy.Snapshot:
+                    return ProfilerEvent.EventCategory.Grids;
+                case CubeBlockInfoProxy.Snapshot:
+                    return ProfilerEvent.EventCategory.Blocks;
+                case CharacterInfoProxy.Snapshot:
+                    return ProfilerEvent.EventCategory.Characters;
+                }
+            }
+
+            return ProfilerEvent.EventCategory.Other;
+        }
+    }
+
+    public static string SummarizeRecording(ProfilerEventsRecording recording)
+    {
+        var (_, groups) = CombineFrames(recording);
+
+        var header = $"Recorded {recording.NumFrames} frames over {recording.ElapsedTime.TotalSeconds} seconds.";
+
+        if (groups.Length == 0)
+            return header;
+
+        var mainGroup = groups[0].Group;
+        var times = new (ProfilerEvent.EventCategory Category, double AvgTime, double TotalTime)[(int)ProfilerEvent.EventCategory.CategoryCount];
+
+        for (int i = 0; i < times.Length; i++)
+            times[i].Category = (ProfilerEvent.EventCategory)i;
+
+        for (int i = 0; i < mainGroup.Events.Length; i++)
+        {
+            ref var _event = ref mainGroup.Events[i];
+            ref var t = ref times[(int)_event.ExtraValue.Value.CategoryValue];
+
+            t.TotalTime += _event.ElapsedTime.TotalMilliseconds;
+            t.AvgTime += ((CombinedEventInfo)_event.ExtraValue.Object!).MillisecondsAverage;
+        }
+
+        Array.Sort(times, (a, b) => b.TotalTime.CompareTo(a.TotalTime));
+
+        var sb = new StringBuilder(header);
+        sb.AppendLine().AppendLine("Times Summary (ms Avg/Frame - Total):");
+
+        for (int i = 0; i < times.Length; i++)
+        {
+            var t = times[i];
+
+            if (t.TotalTime == 0)
+                break;
+
+            if (t.Category is ProfilerEvent.EventCategory.Wait or ProfilerEvent.EventCategory.Other)
+                continue;
+
+            var cat = t.Category.ToString();
+
+            sb.Append(cat).Append(':').Append(' ', 10 - cat.Length).Append("  ")
+                .AppendFormat("{0:N2}  -  ", t.AvgTime)
+                .AppendFormat("{0:N1}", t.TotalTime);
+
+            if (i < times.Length - 1 && (i > times.Length - 2 || times[i + 1].TotalTime != 0))
+                sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    class CombinedEventInfo
+    {
+        public int CallCount;
+        public double MillisecondsMin;
+        public double MillisecondsMax;
+        public double MillisecondsAverage;
+        public double MillisecondsVariance;
+
+        public CombinedEventInfo(AccumTimer timer)
+        {
+            CallCount = timer.AccumCount;
+            MillisecondsMin = ProfilerTimer.MillisecondsFromTicks(timer.MinElapsedTime);
+            MillisecondsMax = ProfilerTimer.MillisecondsFromTicks(timer.MaxElapsedTime);
+            MillisecondsAverage = timer.ElapsedTimeM;
+            MillisecondsVariance = timer.AccumCount > 1 ? timer.ElapsedTimeS / (timer.AccumCount - 1) : 0;
+        }
+
+        public override string ToString()
+        {
+            return $"""
+                    Call Count: {CallCount}
+                    Min ms: {MillisecondsMin:N3}
+                    Max ms: {MillisecondsMax:N3}
+                    Average ms: {MillisecondsAverage:N2}
+                    StdDev ms: {Math.Sqrt(MillisecondsVariance):N2}
+                    """;
+        }
     }
 }
 

@@ -36,7 +36,7 @@ static class MyProgrammableBlock_RunSandboxedProgramAction_Patch
     static bool Prefix_RunSandboxedProgramAction(ref ProfilerTimer __local_timer1, ref ProfilerTimer __local_timer2,
         MyProgrammableBlock __instance, Action<IMyGridProgram> action)
     {
-        __local_timer1 = Profiler.Start(Keys.RunSandboxedProgramAction, profileMemory: true, new(__instance));
+        __local_timer1 = Profiler.Start(Keys.RunSandboxedProgramAction, profileMemory: true, new(ProfilerEvent.EventCategory.Scripts, __instance));
         __local_timer2 = Profiler.Start(0, action.Method.Name);
         return true;
     }

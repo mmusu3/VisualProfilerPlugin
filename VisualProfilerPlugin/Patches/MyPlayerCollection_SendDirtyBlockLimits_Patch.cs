@@ -32,7 +32,10 @@ static class MyPlayerCollection_SendDirtyBlockLimits_Patch
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_SendDirtyBlockLimits(ref ProfilerTimer __local_timer)
-    { __local_timer = Profiler.Start(Keys.SendDirtyBlockLimits); return true; }
+    {
+        __local_timer = Profiler.Start(Keys.SendDirtyBlockLimits, profileMemory: true, new(ProfilerEvent.EventCategory.Network));
+        return true;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Suffix(ref ProfilerTimer __local_timer)

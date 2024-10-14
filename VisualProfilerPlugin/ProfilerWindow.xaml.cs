@@ -19,6 +19,8 @@ namespace VisualProfiler;
 /// </summary>
 public partial class ProfilerWindow : Window, INotifyPropertyChanged
 {
+    public static bool IsOpen => window != null;
+
     static Thread? windowThread;
     static ProfilerWindow? window;
 
@@ -293,7 +295,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             recording.SessionName = session.Name;
 
         if (AutoSaveRecording)
-            SaveRecording(recording, showDiag: false);
+            Plugin.SaveRecording(recording, showDiag: false);
 
         SetCurrentRecording(recording);
         currentIsSaved = false;
@@ -306,55 +308,10 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (currentRecording == null)
             return;
 
-        SaveRecording(currentRecording, showDiag: true);
+        Plugin.SaveRecording(currentRecording, showDiag: true);
         currentIsSaved = true;
 
         OnPropertyChanged(nameof(CanSave));
-    }
-
-    static void SaveRecording(ProfilerEventsRecording recording, bool showDiag)
-    {
-        ProfilerHelper.PrepareRecordingForSerialization(recording);
-
-        var folderPath = Path.Combine(Plugin.Instance.StoragePath, "VisualProfiler", "Recordings");
-
-        Directory.CreateDirectory(folderPath);
-
-        var sessionName = recording.SessionName.Replace(' ', '_');
-
-        foreach (var item in Path.GetInvalidPathChars())
-            sessionName = sessionName.Replace(item, '_');
-
-        sessionName += "-" + recording.StartTime.ToString("s").Replace(':', '-');
-
-        string filePath;
-
-        if (showDiag)
-        {
-            var diag = new SaveFileDialog {
-                InitialDirectory = folderPath,
-                FileName = sessionName,
-                DefaultExt = ".prec",
-                Filter = "Profiler Recordings (.prec)|*.prec"
-            };
-
-            bool? result = diag.ShowDialog();
-
-            if (result is not true)
-                return;
-
-            filePath = diag.FileName;
-        }
-        else
-        {
-            filePath = Path.Combine(folderPath, sessionName) + ".prec";
-        }
-
-        using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write))
-        {
-            using (var gzipStream = new GZipStream(stream, CompressionLevel.Optimal))
-                ProtoBuf.Serializer.Serialize(gzipStream, recording);
-        }
     }
 
     void LoadButton_Click(object sender, RoutedEventArgs args)

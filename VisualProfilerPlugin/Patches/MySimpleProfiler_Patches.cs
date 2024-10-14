@@ -35,7 +35,7 @@ static class MySimpleProfiler_Patches
 
         if (type == MySimpleProfiler.ProfilingBlockType.MOD)
         {
-            Profiler.Start(key);
+            Profiler.Start(key, profileMemory: true, new(ProfilerEvent.EventCategory.Mods));
             s.Push(true);
         }
         else

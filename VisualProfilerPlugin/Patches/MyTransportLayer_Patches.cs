@@ -47,7 +47,10 @@ static class MyTransportLayer_Patches
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_Tick(ref ProfilerTimer __local_timer)
-    { __local_timer = Profiler.Start(Keys.Tick); return true; }
+    {
+        __local_timer = Profiler.Start(Keys.Tick, profileMemory: true, new(ProfilerEvent.EventCategory.Network));
+        return true;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_HandleMessage(ref ProfilerTimer __local_timer)

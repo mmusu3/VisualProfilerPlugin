@@ -690,18 +690,13 @@ class ProfilerEventsGraphControl : Control
 
     protected override void OnRender(DrawingContext drawCtx)
     {
-        Profiler.Start(ProfilerKeys.DrawProfilerEventsGraph);
-
         base.OnRender(drawCtx);
 
         double graphWidth = ViewportWidth;
         double graphHeight = ViewportHeight;
 
         if (graphWidth == 0 || graphHeight < headerHeight)
-        {
-            Profiler.Stop();
             return;
-        }
 
         var bgdCtx = backgroundDrawing.RenderOpen();
 
@@ -715,9 +710,10 @@ class ProfilerEventsGraphControl : Control
         if (recordedEvents == null)
         {
             graphCtx.Close();
-            Profiler.Stop();
             return;
         }
+
+        Profiler.Start(ProfilerKeys.DrawProfilerEventsGraph);
 
         graphCtx.PushClip(new RectangleGeometry(new Rect(0, 0, graphWidth, graphHeight)));
 
@@ -866,6 +862,12 @@ class ProfilerEventsGraphControl : Control
                 {
                 case ProfilerEvent.ExtraValueTypeOption.Object:
                     extraString.AppendFormat(formatString, _event.ExtraValue.Object);
+                    break;
+                case ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory:
+                    extraString.AppendFormat("Category: {0}", _event.ExtraValue.Value.CategoryValue);
+
+                    if (_event.ExtraValue.Object != null)
+                        extraString.AppendLine().AppendFormat(formatString, _event.ExtraValue.Object);
                     break;
                 case ProfilerEvent.ExtraValueTypeOption.Long:
                     extraString.AppendFormat(formatString, _event.ExtraValue.Value.LongValue);

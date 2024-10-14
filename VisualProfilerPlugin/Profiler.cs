@@ -27,7 +27,27 @@ public struct ProfilerEvent
         Object = 1,
         Long = 2,
         Double = 3,
-        Float = 4
+        Float = 4,
+        ObjectAndCategory = 5
+    }
+
+    public enum EventCategory
+    {
+        Other,
+        Wait,
+        Save,
+        Load,
+        Physics,
+        Network,
+        World,
+        Grids,
+        Blocks,
+        Characters,
+        FloatingObjects,
+        Scripts,
+        Mods,
+
+        CategoryCount
     }
 
     [ProtoContract]
@@ -61,6 +81,17 @@ public struct ProfilerEvent
             }
         }
 
+        [ProtoIgnore]
+        public EventCategory CategoryValue
+        {
+            get => Unsafe.As<long, EventCategory>(ref DataField);
+            set
+            {
+                DataField = 0;
+                Unsafe.As<long, EventCategory>(ref DataField) = value;
+            }
+        }
+
         public ExtraValueUnion(long value)
         {
             DataField = 0;
@@ -77,6 +108,12 @@ public struct ProfilerEvent
         {
             DataField = 0;
             FloatValue = value;
+        }
+
+        public ExtraValueUnion(EventCategory category)
+        {
+            DataField = 0;
+            CategoryValue = category;
         }
     }
 
@@ -123,6 +160,14 @@ public struct ProfilerEvent
         {
             Type = ExtraValueTypeOption.Float;
             Value = new(value);
+            Format = format;
+        }
+
+        public ExtraData(EventCategory category, object? obj = null, string? format = null)
+        {
+            Type = ExtraValueTypeOption.ObjectAndCategory;
+            Value = new(category);
+            Object = obj;
             Format = format;
         }
     }
@@ -2196,6 +2241,33 @@ public class ProfilerEventsRecording
     [ProtoMember(5)] public Dictionary<int, string> EventStrings;
     [ProtoMember(6)] public Dictionary<int, string> DataStrings;
     [ProtoMember(7)] public Dictionary<int, RefObjWrapper> DataObjects;
+
+    public TimeSpan ElapsedTime
+    {
+        get
+        {
+            long startTime = long.MaxValue;
+            long endTime = 0;
+
+            foreach (var item in Groups.Values)
+            {
+                if (item.EventSegments.Length == 0)
+                    continue;
+
+                var s = item.EventSegments[0];
+
+                if (s.StartTime < startTime)
+                    startTime = s.StartTime;
+
+                s = item.EventSegments[^1];
+
+                if (s.EndTime > endTime)
+                    endTime = s.EndTime;
+            }
+
+            return TimeSpan.FromTicks(endTime - startTime);
+        }
+    }
 
     public ProfilerEventsRecording(DateTime startTime, int numFrames, (int GroupId, ProfilerGroup.GroupEventsRecording Recording)[] groups)
     {

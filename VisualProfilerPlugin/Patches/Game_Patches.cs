@@ -34,12 +34,12 @@ static class Game_Patches
 
     static class Keys
     {
-        internal static ProfilerKey RunSingleFrame;
+        internal static ProfilerKey WaitForNextUpdate;
         internal static ProfilerKey UpdateFrame;
 
         internal static void Init()
         {
-            RunSingleFrame = ProfilerKeyCache.GetOrAdd("Wait for next update");
+            WaitForNextUpdate = ProfilerKeyCache.GetOrAdd("Wait for next update");
             UpdateFrame = ProfilerKeyCache.GetOrAdd("UpdateFrame");
         }
     }
@@ -56,7 +56,7 @@ static class Game_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Suffix_RunSingleFrame()
     {
-        Profiler.Start(Keys.RunSingleFrame);
+        Profiler.Start(Keys.WaitForNextUpdate, profileMemory: false, new(ProfilerEvent.EventCategory.Wait));
     }
 
     static IEnumerable<MsilInstruction> Transpile_UpdateInternal(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
