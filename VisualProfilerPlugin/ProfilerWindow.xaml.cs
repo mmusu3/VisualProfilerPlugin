@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.ComponentModel;
 using System.IO;
 using System.IO.Compression;
@@ -6,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -246,9 +248,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             startStopButton.Content = "Stop Recording";
             statisticsLabel.Content = "";
             outliersList.Items.Clear();
-            physicsClustersList.Items.Clear();
-            gridsList.Items.Clear();
-            programmableBlocksList.Items.Clear();
+            physicsClustersList.ItemsSource = null;
+            gridsList.ItemsSource = null;
+            programmableBlocksList.ItemsSource = null;
 
             eventsGraph.SetRecordedEvents(null);
 
@@ -368,14 +370,14 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     {
         currentRecording = recording;
 
-        startStopButton.Content = "Start Recording";
+        startStopButton.Content = "Start New Recording";
 
         eventsGraph.SetRecordedEvents(recording);
 
         outliersList.Items.Clear();
-        physicsClustersList.Items.Clear();
-        gridsList.Items.Clear();
-        programmableBlocksList.Items.Clear();
+        physicsClustersList.ItemsSource = null;
+        gridsList.ItemsSource = null;
+        programmableBlocksList.ItemsSource = null;
 
         var analysis = ProfilerHelper.AnalyzeRecording(recording);
 
@@ -417,18 +419,10 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         var clustersContextMenu = new ContextMenu();
         clustersContextMenu.Items.Add(copyLastPosAsGPS);
 
-        foreach (var clusterInfo in analysis.PhysicsClusters.OrderByDescending(g => g.TotalTime))
-        {
-            var item = new ListViewItem {
-                Content = clusterInfo,
-                ContextMenu = clustersContextMenu,
-                Margin = new Thickness(0, 0, 0, 10),
-                BorderThickness = new Thickness(0, 1, 0, 0),
-                BorderBrush = borderBrush
-            };
-
-            physicsClustersList.Items.Add(item);
-        }
+        physicsClustersList.ContextMenu = clustersContextMenu;
+        physicsClustersList.ItemsSource = analysis.PhysicsClusters;
+        physicsClustersList.Items.SortDescriptions.Clear();
+        physicsClustersList.Items.SortDescriptions.Add(new SortDescription(nameof(PhysicsClusterAnalysisInfo.TotalTime), ListSortDirection.Descending));
 
         copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
         copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
@@ -436,18 +430,10 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         var gridsContextMenu = new ContextMenu();
         gridsContextMenu.Items.Add(copyLastPosAsGPS);
 
-        foreach (var gridInfo in analysis.Grids.OrderByDescending(g => g.TotalTime))
-        {
-            var item = new ListViewItem {
-                Content = gridInfo,
-                ContextMenu = gridsContextMenu,
-                Margin = new Thickness(0, 0, 0, 10),
-                BorderThickness = new Thickness(0, 1, 0, 0),
-                BorderBrush = borderBrush
-            };
-
-            gridsList.Items.Add(item);
-        }
+        gridsList.ContextMenu = gridsContextMenu;
+        gridsList.ItemsSource = analysis.Grids;
+        gridsList.Items.SortDescriptions.Clear();
+        gridsList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeGridAnalysisInfo.TotalTime), ListSortDirection.Descending));
 
         copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
         copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
@@ -455,19 +441,13 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         var blocksContextMenu = new ContextMenu();
         blocksContextMenu.Items.Add(copyLastPosAsGPS);
 
-        foreach (var blockInfo in analysis.ProgrammableBlocks.OrderByDescending(g => g.TotalTime))
-        {
-            var item = new ListViewItem {
-                Content = blockInfo,
-                ContextMenu = blocksContextMenu,
-                Margin = new Thickness(0, 0, 0, 10),
-                BorderThickness = new Thickness(0, 1, 0, 0),
-                BorderBrush = borderBrush
-            };
-
-            programmableBlocksList.Items.Add(item);
-        }
+        programmableBlocksList.ContextMenu = blocksContextMenu;
+        programmableBlocksList.ItemsSource = analysis.ProgrammableBlocks;
+        programmableBlocksList.Items.SortDescriptions.Clear();
+        programmableBlocksList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeBlockAnalysisInfo.TotalTime), ListSortDirection.Descending));
     }
+
+    #region List expanders
 
     void OutlierItem_MouseDoubleClick(object sender, MouseButtonEventArgs args)
     {
@@ -487,6 +467,476 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             eventsGraph.ZoomToFrame(index);
         }
     }
+
+    void OutlierFramesExpander_Expanded(object sender, RoutedEventArgs e)
+    {
+        var expander = (Expander)sender;
+
+        if (outliersList != null)
+            outlierFramesRow.Height = new GridLength(expander.ActualHeight + outliersList.ActualHeight + 4);
+    }
+
+    void OutlierFramesExpander_Collapsed(object sender, RoutedEventArgs e)
+    {
+        outlierFramesRow.Height = GridLength.Auto;
+    }
+
+    void PhysicsClustersExpander_Expanded(object sender, RoutedEventArgs e)
+    {
+        var expander = (Expander)sender;
+
+        if (physicsClustersList != null)
+            physicsClustersRow.Height = new GridLength(expander.ActualHeight + physicsClustersList.ActualHeight + 4);
+    }
+
+    void PhysicsClustersExpander_Collapsed(object sender, RoutedEventArgs e)
+    {
+        physicsClustersRow.Height = GridLength.Auto;
+    }
+
+    void CubeGridsExpander_Expanded(object sender, RoutedEventArgs e)
+    {
+        var expander = (Expander)sender;
+
+        if (gridsList != null)
+            cubeGridsRow.Height = new GridLength(expander.ActualHeight + gridsList.ActualHeight + 4);
+    }
+
+    void CubeGridsExpander_Collapsed(object sender, RoutedEventArgs e)
+    {
+        cubeGridsRow.Height = GridLength.Auto;
+    }
+
+    void ProgrammableBlocksExpander_Expanded(object sender, RoutedEventArgs e)
+    {
+        var expander = (Expander)sender;
+
+        if (programmableBlocksList != null)
+            programmableBlocksRow.Height = new GridLength(expander.ActualHeight + programmableBlocksList.ActualHeight + 4);
+    }
+
+    void ProgrammableBlocksExpander_Collapsed(object sender, RoutedEventArgs e)
+    {
+        programmableBlocksRow.Height = GridLength.Auto;
+    }
+
+    #endregion
+
+    #region Physics cluster list sorting
+
+    void PhysicsClustersListHeader_Click(object sender, RoutedEventArgs args)
+    {
+        var header = (GridViewColumnHeader)args.OriginalSource;
+
+        string propName = "";
+        var defaultDir = ListSortDirection.Ascending;
+        IComparer[]? comparers = null;
+
+        switch (header.Name)
+        {
+        case nameof(physicsClusterIdColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.ID);
+            break;
+        case nameof(physicsClusterNumObjectsColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.ObjectCountsForColumn);
+            break;
+        case nameof(physicsClusterNumActiveObjectsColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.ActiveObjectCountsForColumn);
+            break;
+        case nameof(physicsClusterNumCharactersColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.CharacterCountsForColumn);
+            comparers = CubeGridOwnerIDsComparer.Instances;
+            break;
+        case nameof(physicsClusterSizeColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.SizeForColumn);
+            break;
+        case nameof(physicsClusterPositionColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.AveragePositionForColumn);
+            break;
+        case nameof(physicsClusterTotalTimeColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.TotalTime);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(physicsClusterAverageTimeColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.AverageTimePerFrame);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(physicsClusterCountedFramesColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.NumFramesCounted);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        default:
+            break;
+        }
+
+        if (string.IsNullOrEmpty(propName))
+            return;
+
+        var listCollectionView = (ListCollectionView)CollectionViewSource.GetDefaultView(physicsClustersList.ItemsSource);
+        ListSortDirection sortDir;
+
+        if (physicsClustersListCurrentSortProp == propName)
+            sortDir = (ListSortDirection)((int)physicsClustersListCurrentSortDir ^ 1);
+        else
+            sortDir = defaultDir;
+
+        physicsClustersListCurrentSortProp = propName;
+        physicsClustersListCurrentSortDir = sortDir;
+
+        if (comparers != null)
+        {
+            listCollectionView.CustomSort = comparers[(int)sortDir]; // CustomSort setter clears SortDescriptions
+        }
+        else
+        {
+            physicsClustersList.Items.SortDescriptions.Clear();
+            physicsClustersList.Items.SortDescriptions.Add(new(propName, sortDir));
+        }
+    }
+
+    string physicsClustersListCurrentSortProp = "";
+    ListSortDirection physicsClustersListCurrentSortDir;
+
+    #endregion
+
+    #region Grid list sorting
+
+    void CubeGridsListHeader_Click(object sender, RoutedEventArgs args)
+    {
+        var header = (GridViewColumnHeader)args.OriginalSource;
+
+        string propName = "";
+        var defaultDir = ListSortDirection.Ascending;
+        IComparer[]? comparers = null;
+
+        switch (header.Name)
+        {
+        case nameof(gridSizeColumn):
+            propName = nameof(CubeGridAnalysisInfo.GridSize);
+            break;
+        case nameof(gridEntityIdColumn):
+            propName = nameof(CubeGridAnalysisInfo.EntityId);
+            break;
+        case nameof(gridCustomNamesColumn):
+            propName = nameof(CubeGridAnalysisInfo.CustomNamesForColumn);
+            break;
+        case nameof(gridOwnerIdsColumn):
+            propName = nameof(CubeGridAnalysisInfo.OwnerIDsForColumn);
+            comparers = CubeGridOwnerIDsComparer.Instances;
+            break;
+        case nameof(gridOwnerNamesColumn):
+            propName = nameof(CubeGridAnalysisInfo.OwnerNamesForColumn);
+            break;
+        case nameof(gridBlockCountsColumn):
+            propName = nameof(CubeGridAnalysisInfo.BlockCountsForColumn);
+            defaultDir = ListSortDirection.Descending;
+            comparers = CubeGridBlockCountsComparer.Instances;
+            break;
+        case nameof(gridAveragePositionColumn):
+            propName = nameof(CubeGridAnalysisInfo.AveragePositionForColumn);
+            break;
+        case nameof(gridTotalTimeColumn):
+            propName = nameof(CubeGridAnalysisInfo.TotalTime);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(gridAverageTimeColumn):
+            propName = nameof(CubeGridAnalysisInfo.AverageTimePerFrame);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(gridCountedFramesColumn):
+            propName = nameof(CubeGridAnalysisInfo.NumFramesCounted);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        default:
+            break;
+        }
+
+        if (string.IsNullOrEmpty(propName))
+            return;
+
+        var listCollectionView = (ListCollectionView)CollectionViewSource.GetDefaultView(gridsList.ItemsSource);
+        ListSortDirection sortDir;
+
+        if (cubeGridsListCurrentSortProp == propName)
+            sortDir = (ListSortDirection)((int)cubeGridsListCurrentSortDir ^ 1);
+        else
+            sortDir = defaultDir;
+
+        cubeGridsListCurrentSortProp = propName;
+        cubeGridsListCurrentSortDir = sortDir;
+
+        if (comparers != null)
+        {
+            listCollectionView.CustomSort = comparers[(int)sortDir]; // CustomSort setter clears SortDescriptions
+        }
+        else
+        {
+            gridsList.Items.SortDescriptions.Clear();
+            gridsList.Items.SortDescriptions.Add(new(propName, sortDir));
+        }
+    }
+
+    string cubeGridsListCurrentSortProp = "";
+    ListSortDirection cubeGridsListCurrentSortDir;
+
+    class CubeGridOwnerIDsComparer(ListSortDirection sortDirection) : IComparer
+    {
+        public static readonly CubeGridOwnerIDsComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridOwnerIDsComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridOwnerIDsComparer[] Instances = [Ascending, Descending];
+
+        public ListSortDirection SortDirection = sortDirection;
+
+        public int Compare(object? x, object? y)
+        {
+            var gridX = x as CubeGridAnalysisInfo;
+            var gridY = y as CubeGridAnalysisInfo;
+
+            if (gridX == null || gridY == null)
+                return 0;
+
+            var ownersX = gridX.Owners;
+            var ownersY = gridY.Owners;
+
+            if (ownersX.Length == 1)
+            {
+                if (ownersY.Length == 1)
+                {
+                    if (SortDirection == ListSortDirection.Ascending)
+                        return ownersX[0].ID.CompareTo(ownersY[0].ID);
+                    else
+                        return ownersY[0].ID.CompareTo(ownersX[0].ID);
+                }
+
+                return -1;
+            }
+            else
+            {
+                if (ownersY.Length == 1)
+                    return 1;
+
+                if (SortDirection == ListSortDirection.Ascending)
+                    return ownersX.Length.CompareTo(ownersY.Length);
+                else
+                    return ownersY.Length.CompareTo(ownersX.Length);
+            }
+        }
+    }
+
+    class CubeGridBlockCountsComparer(ListSortDirection sortDirection) : IComparer
+    {
+        public static readonly CubeGridBlockCountsComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridBlockCountsComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridBlockCountsComparer[] Instances = [Ascending, Descending];
+
+        public ListSortDirection SortDirection = sortDirection;
+
+        public int Compare(object? x, object? y)
+        {
+            var gridX = x as CubeGridAnalysisInfo;
+            var gridY = y as CubeGridAnalysisInfo;
+
+            if (gridX == null || gridY == null)
+                return 0;
+
+            var countsX = gridX.BlockCounts;
+            var countsY = gridY.BlockCounts;
+
+            if (countsX.Length == 1)
+            {
+                if (countsY.Length == 1)
+                {
+                    if (SortDirection == ListSortDirection.Ascending)
+                        return countsX[0].CompareTo(countsY[0]);
+                    else
+                        return countsY[0].CompareTo(countsX[0]);
+                }
+
+                return -1;
+            }
+            else
+            {
+                if (countsY.Length == 1)
+                    return 1;
+
+                if (SortDirection == ListSortDirection.Ascending)
+                    return countsX.Length.CompareTo(countsY.Length);
+                else
+                    return countsY.Length.CompareTo(countsX.Length);
+            }
+        }
+    }
+
+    #endregion
+
+    #region PB list sorting
+
+    void ProgBlocksListHeader_Click(object sender, RoutedEventArgs args)
+    {
+        var header = (GridViewColumnHeader)args.OriginalSource;
+
+        string propName = "";
+        var defaultDir = ListSortDirection.Ascending;
+        IComparer[]? comparers = null;
+
+        switch (header.Name)
+        {
+        case nameof(blockGridSizeColumn):
+            propName = nameof(CubeGridAnalysisInfo.GridSize);
+            break;
+        case nameof(blockEntityIdColumn):
+            propName = nameof(CubeBlockAnalysisInfo.EntityId);
+            break;
+        case nameof(blockGridIdColumn):
+            propName = nameof(CubeBlockAnalysisInfo.GridIdsForColumn);
+            comparers = CubeBlockGridIDsComparer.Instances;
+            break;
+        case nameof(blockCustomNamesColumn):
+            propName = nameof(CubeBlockAnalysisInfo.CustomNamesForColumn);
+            break;
+        case nameof(blockOwnerIdsColumn):
+            propName = nameof(CubeBlockAnalysisInfo.OwnerIDsForColumn);
+            comparers = CubeBlockOwnerIDsComparer.Instances;
+            break;
+        case nameof(blockOwnerNamesColumn):
+            propName = nameof(CubeBlockAnalysisInfo.OwnerNamesForColumn);
+            break;
+        case nameof(blockAveragePositionColumn):
+            propName = nameof(CubeBlockAnalysisInfo.AveragePositionForColumn);
+            break;
+        case nameof(blockTotalTimeColumn):
+            propName = nameof(CubeBlockAnalysisInfo.TotalTime);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(blockAverageTimeColumn):
+            propName = nameof(CubeBlockAnalysisInfo.AverageTimePerFrame);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(blockCountedFramesColumn):
+            propName = nameof(CubeBlockAnalysisInfo.NumFramesCounted);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        default:
+            break;
+        }
+
+        if (string.IsNullOrEmpty(propName))
+            return;
+
+        var listCollectionView = (ListCollectionView)CollectionViewSource.GetDefaultView(programmableBlocksList.ItemsSource);
+        ListSortDirection sortDir;
+
+        if (cubeBlocksListCurrentSortProp == propName)
+            sortDir = (ListSortDirection)((int)cubeBlocksListCurrentSortDir ^ 1);
+        else
+            sortDir = defaultDir;
+
+        cubeBlocksListCurrentSortProp = propName;
+        cubeBlocksListCurrentSortDir = sortDir;
+
+        if (comparers != null)
+        {
+            listCollectionView.CustomSort = comparers[(int)sortDir]; // CustomSort setter clears SortDescriptions
+        }
+        else
+        {
+            programmableBlocksList.Items.SortDescriptions.Clear();
+            programmableBlocksList.Items.SortDescriptions.Add(new(propName, sortDir));
+        }
+    }
+
+    string cubeBlocksListCurrentSortProp = "";
+    ListSortDirection cubeBlocksListCurrentSortDir;
+
+    class CubeBlockGridIDsComparer(ListSortDirection sortDirection) : IComparer
+    {
+        public static readonly CubeBlockGridIDsComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeBlockGridIDsComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeBlockGridIDsComparer[] Instances = [Ascending, Descending];
+
+        public ListSortDirection SortDirection = sortDirection;
+
+        public int Compare(object? x, object? y)
+        {
+            var blockX = x as CubeBlockAnalysisInfo;
+            var blockY = y as CubeBlockAnalysisInfo;
+
+            if (blockX == null || blockY == null)
+                return 0;
+
+            var gridIdsX = blockX.GridIds;
+            var gridIdsY = blockY.GridIds;
+
+            if (gridIdsX.Length == 1)
+            {
+                if (gridIdsY.Length == 1)
+                {
+                    if (SortDirection == ListSortDirection.Ascending)
+                        return gridIdsX[0].CompareTo(gridIdsY[0]);
+                    else
+                        return gridIdsY[0].CompareTo(gridIdsX[0]);
+                }
+
+                return -1;
+            }
+            else
+            {
+                if (gridIdsY.Length == 1)
+                    return 1;
+
+                if (SortDirection == ListSortDirection.Ascending)
+                    return gridIdsX.Length.CompareTo(gridIdsY.Length);
+                else
+                    return gridIdsY.Length.CompareTo(gridIdsX.Length);
+            }
+        }
+    }
+
+    class CubeBlockOwnerIDsComparer(ListSortDirection sortDirection) : IComparer
+    {
+        public static readonly CubeBlockOwnerIDsComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeBlockOwnerIDsComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeBlockOwnerIDsComparer[] Instances = [Ascending, Descending];
+
+        public ListSortDirection SortDirection = sortDirection;
+
+        public int Compare(object? x, object? y)
+        {
+            var blockX = x as CubeBlockAnalysisInfo;
+            var blockY = y as CubeBlockAnalysisInfo;
+
+            if (blockX == null || blockY == null)
+                return 0;
+
+            var ownersX = blockX.Owners;
+            var ownersY = blockY.Owners;
+
+            if (ownersX.Length == 1)
+            {
+                if (ownersY.Length == 1)
+                {
+                    if (SortDirection == ListSortDirection.Ascending)
+                        return ownersX[0].ID.CompareTo(ownersY[0].ID);
+                    else
+                        return ownersY[0].ID.CompareTo(ownersX[0].ID);
+                }
+
+                return -1;
+            }
+            else
+            {
+                if (ownersY.Length == 1)
+                    return 1;
+
+                if (SortDirection == ListSortDirection.Ascending)
+                    return ownersX.Length.CompareTo(ownersY.Length);
+                else
+                    return ownersY.Length.CompareTo(ownersX.Length);
+            }
+        }
+    }
+
+    #endregion
 
     void ResetViewButton_Click(object sender, RoutedEventArgs args)
     {
@@ -522,11 +972,22 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     void CopyLastPosAsGPS_Click(object sender, RoutedEventArgs e)
     {
-        var menuItem = e.Source as MenuItem;
-        var menu = menuItem?.Parent as ContextMenu;
-        var listItem = menu?.PlacementTarget as ListViewItem;
+        if (e.Source is not MenuItem menuItem)
+            return;
 
-        switch (listItem?.Content)
+        if (menuItem.Parent is not ContextMenu menu)
+            return;
+
+        object? selectedItem;
+
+        if (menu.PlacementTarget is ListViewItem lvi)
+            selectedItem = lvi.Content;
+        else if (menu.PlacementTarget is ListView lv)
+            selectedItem = lv.SelectedItem is ListViewItem { Content: var c } ? c : lv.SelectedItem;
+        else
+            return;
+
+        switch (selectedItem)
         {
         case PhysicsClusterAnalysisInfo clusterInfo:
             {

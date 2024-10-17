@@ -1417,12 +1417,9 @@ class PhysicsClusterAnalysisInfo
     {
         public int ID;
         public HashSet<BoundingBoxD> AABBs = [];
-        public int MinObjects;
-        public int MaxObjects;
-        public int MinActiveObjects;
-        public int MaxActiveObjects;
-        public int MinCharacters;
-        public int MaxCharacters;
+        public HashSet<int> NumObjects = [];
+        public HashSet<int> NumActiveObjects = [];
+        public HashSet<int> NumCharacters = [];
 
         public double TotalTime;
         public double AverageTimePerFrame;
@@ -1432,14 +1429,8 @@ class PhysicsClusterAnalysisInfo
         public Builder(PhysicsClusterInfoProxy.Snapshot info)
         {
             ID = info.Cluster.ID;
-            MinObjects = info.RigidBodyCount;
-            MaxObjects = info.RigidBodyCount;
-            MinActiveObjects = info.ActiveRigidBodyCount;
-            MaxActiveObjects = info.ActiveRigidBodyCount;
-            MinCharacters = info.CharacterCount;
-            MaxCharacters = info.CharacterCount;
 
-            AABBs.Add(info.AABB);
+            Add(info);
         }
 
         public void Add(PhysicsClusterInfoProxy.Snapshot info)
@@ -1448,53 +1439,114 @@ class PhysicsClusterAnalysisInfo
 
             if (info.HasWorld)
             {
-                MinObjects = Math.Min(MinObjects, info.RigidBodyCount);
-                MaxObjects = Math.Max(MaxObjects, info.RigidBodyCount);
-                MinActiveObjects = Math.Min(MinActiveObjects, info.ActiveRigidBodyCount);
-                MaxActiveObjects = Math.Max(MaxActiveObjects, info.ActiveRigidBodyCount);
-                MinCharacters = Math.Min(MinCharacters, info.CharacterCount);
-                MaxCharacters = Math.Max(MaxCharacters, info.CharacterCount);
+                NumObjects.Add(info.RigidBodyCount);
+                NumActiveObjects.Add(info.ActiveRigidBodyCount);
+                NumCharacters.Add(info.CharacterCount);
             }
         }
 
         public PhysicsClusterAnalysisInfo Finish()
         {
             return new PhysicsClusterAnalysisInfo(ID, AABBs.ToArray(),
-                MinObjects, MaxObjects, MinActiveObjects, MaxActiveObjects, MinCharacters, MaxCharacters,
+                NumObjects.ToArray(), NumActiveObjects.ToArray(), NumCharacters.ToArray(),
                 TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
     }
 
-    public int ID;
+    public int ID { get; set; }
     public BoundingBoxD[] AABBs;
-    public int MinObjects;
-    public int MaxObjects;
-    public int MinActiveObjects;
-    public int MaxActiveObjects;
-    public int MinCharacters;
-    public int MaxCharacters;
+    public int[] NumObjects;
+    public int[] NumActiveObjects;
+    public int[] NumCharacters;
 
-    public double TotalTime;
-    public double AverageTimePerFrame;
-    public int IncludedInNumGroups;
-    public int NumFramesCounted;
+    public double TotalTime { get; set; }
+    public double AverageTimePerFrame { get; set; }
+    public int IncludedInNumGroups { get; set; }
+    public int NumFramesCounted { get; set; }
+
+    public Vector3D AveragePosition
+    {
+        get
+        {
+            var avgPos = AABBs[0].Center;
+
+            for (int i = 1; i < AABBs.Length; i++)
+                avgPos += AABBs[i].Center;
+
+            return avgPos / AABBs.Length;
+        }
+    }
+
+    static string GetMinMaxCountString(int[] counts)
+    {
+        int minCount = int.MaxValue;
+        int maxCount = int.MinValue;
+
+        for (int i = 0; i < counts.Length; i++)
+        {
+            int c = counts[i];
+
+            if (c < minCount)
+                minCount = c;
+
+            if (c > maxCount)
+                maxCount = c;
+        }
+
+        return minCount == maxCount ? minCount.ToString() : $"{minCount} - {maxCount}";
+    }
+
+    public string ObjectCountsForColumn => GetMinMaxCountString(NumObjects);
+    public string ActiveObjectCountsForColumn => GetMinMaxCountString(NumActiveObjects);
+    public string CharacterCountsForColumn => GetMinMaxCountString(NumCharacters);
+
+    public string SizeForColumn
+    {
+        get
+        {
+            double minSize = double.MaxValue;
+            double maxSize = double.MinValue;
+            int minIndex = -1;
+            int maxIndex = -1;
+
+            for (int i = 0; i < AABBs.Length; i++)
+            {
+                var box = AABBs[i];
+                double size = box.Volume;
+
+                if (size < minSize)
+                {
+                    minSize = size;
+                    minIndex = i;
+                }
+
+                if (size > maxSize)
+                {
+                    maxSize = size;
+                    maxIndex = i;
+                }
+            }
+
+            var minExt = Vector3D.Round(AABBs[minIndex].Size, 0);
+            var maxExt = Vector3D.Round(AABBs[maxIndex].Size, 0);
+
+            return minExt == maxExt ? minExt.ToString() : $"{minExt} - {maxExt}";
+        }
+    }
+
+    public string AveragePositionForColumn => Vector3D.Round(AveragePosition, 0).ToString();
 
     public PhysicsClusterAnalysisInfo(
         int id, BoundingBoxD[] aabbs,
-        int minObjects, int maxObjects,
-        int minActiveObjects, int maxActiveObjects,
-        int minCharacters, int maxCharacters,
+        int[] numObjects, int[] numActiveObjects, int[] numCharacters,
         double totalTime, double averageTimePerFrame,
         int includedInNumGroups, int numFramesCounted)
     {
         ID = id;
         AABBs = aabbs;
-        MinObjects = minObjects;
-        MaxObjects = maxObjects;
-        MinActiveObjects = minActiveObjects;
-        MaxActiveObjects = maxActiveObjects;
-        MinCharacters = minCharacters;
-        MaxCharacters = maxCharacters;
+        NumObjects = numObjects;
+        NumActiveObjects = numActiveObjects;
+        NumCharacters = numCharacters;
         TotalTime = totalTime;
         AverageTimePerFrame = averageTimePerFrame;
         IncludedInNumGroups = includedInNumGroups;
@@ -1503,14 +1555,23 @@ class PhysicsClusterAnalysisInfo
 
     public override string ToString()
     {
+        int minObjects = NumObjects.Min();
+        int maxObjects = NumObjects.Max();
+
+        int minActiveObjects = NumActiveObjects.Min();
+        int maxActiveObjects = NumActiveObjects.Max();
+
+        int minCharacters = NumCharacters.Min();
+        int maxCharacters = NumCharacters.Max();
+
         return $"""
                 Physics Cluster, ID: {ID}
                     {(AABBs.Length == 1
                         ? ToString(Round(AABBs[0]))
                         : $"AABBs: {string.Join(", ", AABBs.Select(Round).Distinct().Select(ToString2))}")}
-                    Num Objects{(MinObjects == MaxObjects ? $": {MaxObjects}" : $", Min: {MinObjects}, Max: {MaxObjects}")}
-                    Num Active Objects{(MinActiveObjects == MaxActiveObjects ? $": {MaxActiveObjects}" : $", Min: {MinActiveObjects}, Max: {MaxActiveObjects}")}
-                    Num Characters{(MinCharacters == MaxCharacters ? $": {MaxCharacters}" : $", Min: {MinCharacters}, Max: {MaxCharacters}")}
+                    Num Objects{(minObjects == maxObjects ? $": {maxObjects}" : $", Min: {minObjects}, Max: {maxObjects}")}
+                    Num Active Objects{(minActiveObjects == maxActiveObjects ? $": {maxActiveObjects}" : $", Min: {minActiveObjects}, Max: {maxActiveObjects}")}
+                    Num Characters{(minCharacters == maxCharacters ? $": {maxCharacters}" : $", Min: {minCharacters}, Max: {maxCharacters}")}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms
                 Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
@@ -1572,17 +1633,36 @@ class CubeGridAnalysisInfo
         }
     }
 
-    public long EntityId;
-    public MyCubeSize GridSize;
+    public long EntityId { get; set; }
+    public MyCubeSize GridSize { get; set; } // TODO: Include IsStatic state
     public string[] CustomNames;
     public (long ID, string? Name)[] Owners;
     public int[] BlockCounts;
     public Vector3D[] Positions;
 
-    public double TotalTime;
-    public double AverageTimePerFrame;
-    public int IncludedInNumGroups;
-    public int NumFramesCounted;
+    public double TotalTime { get; set; }
+    public double AverageTimePerFrame { get; set; }
+    public int IncludedInNumGroups { get; set; }
+    public int NumFramesCounted { get; set; }
+
+    public Vector3D AveragePosition
+    {
+        get
+        {
+            var avgPos = Positions[0];
+
+            for (int i = 1; i < Positions.Length; i++)
+                avgPos += Positions[i];
+
+            return avgPos / Positions.Length;
+        }
+    }
+
+    public string CustomNamesForColumn => CustomNames.Length == 1 ? CustomNames[0] : string.Join("\n", CustomNames);
+    public string OwnerIDsForColumn => string.Join("\n", Owners.Select(o => o.ID));
+    public string OwnerNamesForColumn => string.Join("\n", Owners.Select(o => o.Name));
+    public string BlockCountsForColumn => BlockCounts.Length == 1 ? BlockCounts[0].ToString() : string.Join(",\n", BlockCounts);
+    public string AveragePositionForColumn => Vector3D.Round(AveragePosition, 0).ToString();
 
     public CubeGridAnalysisInfo(
         long entityId, MyCubeSize gridSize,
@@ -1608,9 +1688,9 @@ class CubeGridAnalysisInfo
         return $"""
                 {GridSize} Grid, ID: {EntityId}
                     {(CustomNames.Length == 1 ? $"Custom Name: {CustomNames[0]}" : $"Custom Names: {string.Join(", ", CustomNames)}")}
-                    Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
-                    Block Count{(BlockCounts.Length > 1 ? "s" : "")}: {string.Join(", ", BlockCounts)}
-                    Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
+                    Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null)}{o.ID})"))}
+                    {(BlockCounts.Length == 1 ? $"Block Count: {BlockCounts[0]}" : $"Block Counts: {string.Join(", ", BlockCounts)}")}
+                    Avg. Position{Vector3D.Round(AveragePosition, 0)}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms
                 Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
@@ -1623,7 +1703,8 @@ class CubeBlockAnalysisInfo
     public class Builder
     {
         public long EntityId;
-        public long GridId;
+        public MyCubeSize CubeSize;
+        public HashSet<long> GridIds = [];
         public Type BlockType;
         public HashSet<string> CustomNames = [];
         public Dictionary<long, string?> Owners = [];
@@ -1637,7 +1718,7 @@ class CubeBlockAnalysisInfo
         public Builder(CubeBlockInfoProxy.Snapshot info)
         {
             EntityId = info.Block.EntityId;
-            GridId = info.Grid.Grid.EntityId;
+            CubeSize = info.Grid.Grid.GridSize;
             BlockType = info.Block.BlockType.Type;
 
             Add(info);
@@ -1648,38 +1729,60 @@ class CubeBlockAnalysisInfo
             if (info.CustomName != null)
                 CustomNames.Add(info.CustomName);
 
+            GridIds.Add(info.Grid.Grid.EntityId);
             Owners[info.OwnerId] = info.OwnerName;
             Positions.Add(info.Position);
         }
 
         public CubeBlockAnalysisInfo Finish()
         {
-            return new CubeBlockAnalysisInfo(EntityId, GridId, BlockType, CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
+            return new CubeBlockAnalysisInfo(EntityId, CubeSize, GridIds.ToArray(), BlockType, CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
                 Positions.ToArray(), TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
     }
 
-    public long EntityId;
-    public long GridId;
+    public long EntityId { get; set; }
+    public MyCubeSize CubeSize { get; set; }
+    public long[] GridIds;
     public Type BlockType;
     public string[] CustomNames;
     public (long ID, string? Name)[] Owners;
     public Vector3D[] Positions;
 
-    public double TotalTime;
-    public double AverageTimePerFrame;
-    public int IncludedInNumGroups;
-    public int NumFramesCounted;
+    public double TotalTime { get; set; }
+    public double AverageTimePerFrame { get; set; }
+    public int IncludedInNumGroups { get; set; }
+    public int NumFramesCounted { get; set; }
+
+    public Vector3D AveragePosition
+    {
+        get
+        {
+            var avgPos = Positions[0];
+
+            for (int i = 1; i < Positions.Length; i++)
+                avgPos += Positions[i];
+
+            return avgPos / Positions.Length;
+        }
+    }
+
+    public string GridIdsForColumn => GridIds.Length == 1 ? GridIds[0].ToString() : string.Join("\n", GridIds);
+    public string CustomNamesForColumn => CustomNames.Length == 1 ? CustomNames[0] : string.Join("\n", CustomNames);
+    public string OwnerIDsForColumn => string.Join("\n", Owners.Select(o => o.ID));
+    public string OwnerNamesForColumn => string.Join("\n", Owners.Select(o => o.Name));
+    public string AveragePositionForColumn => Vector3D.Round(AveragePosition, 0).ToString();
 
     public CubeBlockAnalysisInfo(
-        long entityId, long gridId, Type blockType,
+        long entityId, MyCubeSize cubeSize, long[] gridIds, Type blockType,
         string[] customNames, (long ID, string? Name)[] owners,
         Vector3D[] positions,
         double totalTime, double averageTimePerFrame,
         int includedInNumGroups, int numFramesCounted)
     {
         EntityId = entityId;
-        GridId = gridId;
+        CubeSize = cubeSize;
+        GridIds = gridIds;
         BlockType = blockType;
         CustomNames = customNames;
         Owners = owners;
@@ -1694,10 +1797,10 @@ class CubeBlockAnalysisInfo
     {
         return $"""
                 {BlockType.Name}, ID: {EntityId}
-                    Grid ID: {GridId}
+                    {(GridIds.Length == 1 ? $"Grid ID: {GridIds[0]}" : $"Grid IDs: {string.Join(", ", GridIds)}")}
                     {(CustomNames.Length == 1 ? $"Custom Name: {CustomNames[0]}" : $"Custom Names: {string.Join(", ", CustomNames)}")}
                     Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
-                    Position{(Positions.Length > 1 ? "s" : "")}: {string.Join(", ", Positions.Select(p => Vector3D.Round(p, 0)).Distinct().Select(p => $"({p})"))}
+                    Avg. Position{Vector3D.Round(AveragePosition, 0)}
                 Total Time: {TotalTime:N1}ms
                 Average Time: {AverageTimePerFrame:N2}ms
                 Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
