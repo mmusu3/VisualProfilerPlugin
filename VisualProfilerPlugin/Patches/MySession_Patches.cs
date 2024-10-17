@@ -191,12 +191,6 @@ static class MySession_Patches
             }
         }
 
-        if (__instance.ComponentAssetModifiers != null)
-        {
-            Profiler.Restart(1, "ComponentAssetModifiers.RunRemoval");
-            __instance.ComponentAssetModifiers.RunRemoval();
-        }
-
         if (MyMultiplayer.Static != null)
         {
             Profiler.Restart(2, "Simulate Replication Layer");
