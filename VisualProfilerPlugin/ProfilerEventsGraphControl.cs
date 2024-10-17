@@ -103,6 +103,7 @@ class ProfilerEventsGraphControl : Control
     (int SegmentIndex, int EventIndex, int Count) hoverIndices = (-1, -1, 0);
     Point mouseDownPos;
     bool zoomSelectionStarted;
+    bool mousePanStarted;
 
     StringBuilder stringBuilder = new();
     StringBuilder stringBuilder2 = new();
@@ -241,6 +242,9 @@ class ProfilerEventsGraphControl : Control
             vScroll.ViewportSize = Math.Max(0, ViewportHeight - headerHeight);
             UpdateVScroll();
         }
+
+        if (zoom == minZoom)
+            ResetZoom();
     }
 
     protected override void OnMouseMove(MouseEventArgs args)
@@ -248,6 +252,31 @@ class ProfilerEventsGraphControl : Control
         mousePos = args.GetPosition(this);
 
         base.OnMouseMove(args);
+
+        if (mousePanStarted)
+        {
+            var mouseDelta = mousePos - mouseDownPos;
+
+            if (mouseDelta.X != 0)
+            {
+                long minShift = GetMinXShift();
+
+                shiftX += (long)PixelsToTicks(mouseDelta.X);
+
+                if (shiftX > minShift)
+                    shiftX = minShift;
+
+                hScroll.Value = TicksToPixels(-shiftX);
+            }
+
+            if (mouseDelta.Y != 0)
+                vScroll.Value -= mouseDelta.Y;
+
+            if (mouseDelta != default)
+                InvalidateVisual(); // Redraw graph
+
+            mouseDownPos = mousePos;
+        }
 
         if (zoomSelectionStarted)
             RedrawSelection(mousePos);
@@ -458,9 +487,9 @@ class ProfilerEventsGraphControl : Control
         }
     }
 
-    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs args)
     {
-        base.OnMouseRightButtonDown(e);
+        base.OnMouseRightButtonDown(args);
 
         if (zoomSelectionStarted)
         {
@@ -469,9 +498,34 @@ class ProfilerEventsGraphControl : Control
         }
     }
 
+    protected override void OnMouseDown(MouseButtonEventArgs args)
+    {
+        base.OnMouseDown(args);
+
+        if (args.ChangedButton == MouseButton.Middle)
+        {
+            if (!Keyboard.IsKeyDown(Key.LeftCtrl) && !Keyboard.IsKeyDown(Key.RightCtrl))
+            {
+                mouseDownPos = args.GetPosition(this);
+                mousePanStarted = true;
+            }
+        }
+    }
+
+    protected override void OnMouseUp(MouseButtonEventArgs args)
+    {
+        base.OnMouseUp(args);
+
+        if (args.ChangedButton == MouseButton.Middle)
+            mousePanStarted = false;
+    }
+
     protected override void OnMouseLeave(MouseEventArgs args)
     {
         base.OnMouseLeave(args);
+
+        if (mousePanStarted)
+            mousePanStarted = false;
 
         if (zoomSelectionStarted)
         {
@@ -490,14 +544,7 @@ class ProfilerEventsGraphControl : Control
     {
         base.OnMouseWheel(args);
 
-        long minShift;
-
-        if (combineFrames && combinedFramesEvents != null)
-            minShift = combinedFramesEvents.Value.Time;
-        else
-            minShift = endTime - startTime;
-
-        minShift /= 2;
+        long minShift = GetMinXShift();
 
         if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl))
         {
@@ -536,6 +583,20 @@ class ProfilerEventsGraphControl : Control
         }
 
         InvalidateVisual(); // Redraw graph
+    }
+
+    long GetMinXShift()
+    {
+        long minShift;
+
+        if (combineFrames && combinedFramesEvents != null)
+            minShift = combinedFramesEvents.Value.Time;
+        else
+            minShift = endTime - startTime;
+
+        minShift /= 2;
+
+        return minShift;
     }
 
     void RedrawSelection(Point mousePos)
@@ -609,7 +670,12 @@ class ProfilerEventsGraphControl : Control
         endTime = 0;
 
         recordedEvents = recording;
-        combinedFramesEvents = null;
+
+        if (combineFrames && recording != null)
+            combinedFramesEvents = ProfilerHelper.CombineFrames(recording);
+        else
+            combinedFramesEvents = null;
+
         groupMaxDepths.Clear();
 
         float y = 0;
@@ -633,9 +699,6 @@ class ProfilerEventsGraphControl : Control
 
         hoverIndices = (-1, -1, 0);
         hoverDrawing.RenderOpen().Close(); // Clear
-
-        if (combineFrames && recordedEvents != null)
-            combinedFramesEvents = ProfilerHelper.CombineFrames(recordedEvents);
 
         InvalidateVisual();
 
