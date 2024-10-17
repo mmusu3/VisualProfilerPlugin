@@ -1299,9 +1299,10 @@ class CharacterInfoProxy
     [ProtoMember(4)] public string Name;
     [ProtoMember(5)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
 
+    [ProtoContract]
     public class Snapshot
     {
-        [ProtoMember(1)] public CharacterInfoProxy Character;
+        [ProtoMember(1, AsReference = true)] public CharacterInfoProxy Character;
         [ProtoMember(2)] public Vector3D Position;
 
         public Snapshot(CharacterInfoProxy characterInfo, MyCharacter character)
