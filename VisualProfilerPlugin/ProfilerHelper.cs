@@ -351,6 +351,8 @@ static class ProfilerHelper
 
             return id;
         }
+
+        recording.DataStrings = GeneralStringCache.GetStrings();
     }
 
     internal static void RestoreRecordingObjectsAfterDeserialization(ProfilerEventsRecording recording)

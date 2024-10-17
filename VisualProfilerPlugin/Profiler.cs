@@ -627,6 +627,8 @@ public sealed class ProfilerTimer : IDisposable
 
         var exclusiveAfterChildren = c.Exclusive;
 
+        // TODO: Color events based on GC generation
+
         if (c.FirstChildStartTime != 0)
         {
             var exclusiveBeforeChildren = c.FirstChildBefore - c.Before;
@@ -2276,7 +2278,7 @@ public class ProfilerEventsRecording
         NumFrames = numFrames;
         Groups = groups.ToDictionary(k => k.GroupId, e => e.Recording);
         EventStrings = ProfilerKeyCache.GetStrings();
-        DataStrings = GeneralStringCache.GetStrings();
+        DataStrings = [];
         DataObjects = [];
     }
 
