@@ -158,6 +158,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     {
         base.OnClosing(args);
 
+        // TODO: Prompt if unsaved
+
         window = null;
     }
 
@@ -534,6 +536,18 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         switch (header.Name)
         {
+        case nameof(physicsClusterTotalTimeColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.TotalTime);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(physicsClusterAverageTimeColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.AverageTimePerFrame);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(physicsClusterCountedFramesColumn):
+            propName = nameof(PhysicsClusterAnalysisInfo.NumFramesCounted);
+            defaultDir = ListSortDirection.Descending;
+            break;
         case nameof(physicsClusterIdColumn):
             propName = nameof(PhysicsClusterAnalysisInfo.ID);
             break;
@@ -552,18 +566,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             break;
         case nameof(physicsClusterPositionColumn):
             propName = nameof(PhysicsClusterAnalysisInfo.AveragePositionForColumn);
-            break;
-        case nameof(physicsClusterTotalTimeColumn):
-            propName = nameof(PhysicsClusterAnalysisInfo.TotalTime);
-            defaultDir = ListSortDirection.Descending;
-            break;
-        case nameof(physicsClusterAverageTimeColumn):
-            propName = nameof(PhysicsClusterAnalysisInfo.AverageTimePerFrame);
-            defaultDir = ListSortDirection.Descending;
-            break;
-        case nameof(physicsClusterCountedFramesColumn):
-            propName = nameof(PhysicsClusterAnalysisInfo.NumFramesCounted);
-            defaultDir = ListSortDirection.Descending;
             break;
         default:
             break;
@@ -611,8 +613,20 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         switch (header.Name)
         {
-        case nameof(gridSizeColumn):
-            propName = nameof(CubeGridAnalysisInfo.GridSize);
+        case nameof(gridTotalTimeColumn):
+            propName = nameof(CubeGridAnalysisInfo.TotalTime);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(gridAverageTimeColumn):
+            propName = nameof(CubeGridAnalysisInfo.AverageTimePerFrame);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(gridCountedFramesColumn):
+            propName = nameof(CubeGridAnalysisInfo.NumFramesCounted);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(gridTypeColumn):
+            propName = nameof(CubeGridAnalysisInfo.GridTypeForColumn);
             break;
         case nameof(gridEntityIdColumn):
             propName = nameof(CubeGridAnalysisInfo.EntityId);
@@ -632,20 +646,25 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             defaultDir = ListSortDirection.Descending;
             comparers = CubeGridBlockCountsComparer.Instances;
             break;
+        case nameof(gridPCUsColumn):
+            propName = nameof(CubeGridAnalysisInfo.PCUsForColumn);
+            defaultDir = ListSortDirection.Descending;
+            comparers = CubeGridPCUsComparer.Instances;
+            break;
+        case nameof(gridSizesColumn):
+            propName = nameof(CubeGridAnalysisInfo.SizesForColumn);
+            defaultDir = ListSortDirection.Descending;
+            comparers = CubeGridSizesComparer.Instances;
+            break;
         case nameof(gridAveragePositionColumn):
             propName = nameof(CubeGridAnalysisInfo.AveragePositionForColumn);
             break;
-        case nameof(gridTotalTimeColumn):
-            propName = nameof(CubeGridAnalysisInfo.TotalTime);
+        case nameof(gridAverageSpeedColumn):
+            propName = nameof(CubeGridAnalysisInfo.AverageSpeedForColumn);
             defaultDir = ListSortDirection.Descending;
             break;
-        case nameof(gridAverageTimeColumn):
-            propName = nameof(CubeGridAnalysisInfo.AverageTimePerFrame);
-            defaultDir = ListSortDirection.Descending;
-            break;
-        case nameof(gridCountedFramesColumn):
-            propName = nameof(CubeGridAnalysisInfo.NumFramesCounted);
-            defaultDir = ListSortDirection.Descending;
+        case nameof(gridIsPoweredColumn):
+            propName = nameof(CubeGridAnalysisInfo.IsPoweredForColumn);
             break;
         default:
             break;
@@ -767,6 +786,94 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         }
     }
 
+    class CubeGridPCUsComparer(ListSortDirection sortDirection) : IComparer
+    {
+        public static readonly CubeGridPCUsComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridPCUsComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridPCUsComparer[] Instances = [Ascending, Descending];
+
+        public ListSortDirection SortDirection = sortDirection;
+
+        public int Compare(object? x, object? y)
+        {
+            var gridX = x as CubeGridAnalysisInfo;
+            var gridY = y as CubeGridAnalysisInfo;
+
+            if (gridX == null || gridY == null)
+                return 0;
+
+            var countsX = gridX.PCUs;
+            var countsY = gridY.PCUs;
+
+            if (countsX.Length == 1)
+            {
+                if (countsY.Length == 1)
+                {
+                    if (SortDirection == ListSortDirection.Ascending)
+                        return countsX[0].CompareTo(countsY[0]);
+                    else
+                        return countsY[0].CompareTo(countsX[0]);
+                }
+
+                return -1;
+            }
+            else
+            {
+                if (countsY.Length == 1)
+                    return 1;
+
+                if (SortDirection == ListSortDirection.Ascending)
+                    return countsX.Length.CompareTo(countsY.Length);
+                else
+                    return countsY.Length.CompareTo(countsX.Length);
+            }
+        }
+    }
+
+    class CubeGridSizesComparer(ListSortDirection sortDirection) : IComparer
+    {
+        public static readonly CubeGridSizesComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridSizesComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridSizesComparer[] Instances = [Ascending, Descending];
+
+        public ListSortDirection SortDirection = sortDirection;
+
+        public int Compare(object? x, object? y)
+        {
+            var gridX = x as CubeGridAnalysisInfo;
+            var gridY = y as CubeGridAnalysisInfo;
+
+            if (gridX == null || gridY == null)
+                return 0;
+
+            var sizesX = gridX.Sizes;
+            var sizesY = gridY.Sizes;
+
+            if (sizesX.Length == 1)
+            {
+                if (sizesY.Length == 1)
+                {
+                    if (SortDirection == ListSortDirection.Ascending)
+                        return sizesX[0].Volume().CompareTo(sizesY[0].Volume());
+                    else
+                        return sizesY[0].Volume().CompareTo(sizesX[0].Volume());
+                }
+
+                return -1;
+            }
+            else
+            {
+                if (sizesY.Length == 1)
+                    return 1;
+
+                if (SortDirection == ListSortDirection.Ascending)
+                    return sizesX.Length.CompareTo(sizesY.Length);
+                else
+                    return sizesY.Length.CompareTo(sizesX.Length);
+            }
+        }
+    }
+
     #endregion
 
     #region PB list sorting
@@ -781,6 +888,18 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         switch (header.Name)
         {
+        case nameof(blockTotalTimeColumn):
+            propName = nameof(CubeBlockAnalysisInfo.TotalTime);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(blockAverageTimeColumn):
+            propName = nameof(CubeBlockAnalysisInfo.AverageTimePerFrame);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(blockCountedFramesColumn):
+            propName = nameof(CubeBlockAnalysisInfo.NumFramesCounted);
+            defaultDir = ListSortDirection.Descending;
+            break;
         case nameof(blockGridSizeColumn):
             propName = nameof(CubeGridAnalysisInfo.GridSize);
             break;
@@ -803,18 +922,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             break;
         case nameof(blockAveragePositionColumn):
             propName = nameof(CubeBlockAnalysisInfo.AveragePositionForColumn);
-            break;
-        case nameof(blockTotalTimeColumn):
-            propName = nameof(CubeBlockAnalysisInfo.TotalTime);
-            defaultDir = ListSortDirection.Descending;
-            break;
-        case nameof(blockAverageTimeColumn):
-            propName = nameof(CubeBlockAnalysisInfo.AverageTimePerFrame);
-            defaultDir = ListSortDirection.Descending;
-            break;
-        case nameof(blockCountedFramesColumn):
-            propName = nameof(CubeBlockAnalysisInfo.NumFramesCounted);
-            defaultDir = ListSortDirection.Descending;
             break;
         default:
             break;

@@ -85,6 +85,15 @@
                               GridViewColumnHeader.Click="PhysicsClustersListHeader_Click">
                         <ListView.View>
                             <GridView AllowsColumnReorder="True">
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
+                                    <GridViewColumnHeader Name="physicsClusterTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
+                                    <GridViewColumnHeader Name="physicsClusterAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                    <GridViewColumnHeader Name="physicsClusterCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the cluster was timed in."/>
+                                </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=ID}">
                                     <GridViewColumnHeader Name="physicsClusterIdColumn" Content=" ID "/>
                                 </GridViewColumn>
@@ -103,15 +112,6 @@
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
                                     <GridViewColumnHeader Name="physicsClusterPositionColumn" Content=" Avg. Position " ToolTip="Average position of the cluster over all the recorded frames."/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
-                                    <GridViewColumnHeader Name="physicsClusterTotalTimeColumn" Content=" Total Time (ms) "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N2}">
-                                    <GridViewColumnHeader Name="physicsClusterAverageTimeColumn" Content=" Avg. ms/frame "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="physicsClusterCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the cluster was timed in."/>
-                                </GridViewColumn>
                             </GridView>
                         </ListView.View>
                     </ListView>
@@ -124,8 +124,17 @@
                               GridViewColumnHeader.Click="CubeGridsListHeader_Click">
                         <ListView.View>
                             <GridView AllowsColumnReorder="True">
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=GridSize}">
-                                    <GridViewColumnHeader Name="gridSizeColumn" Content=" Grid Size "/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
+                                    <GridViewColumnHeader Name="gridTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
+                                    <GridViewColumnHeader Name="gridAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                    <GridViewColumnHeader Name="gridCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the grid was timed in."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=GridTypeForColumn}">
+                                    <GridViewColumnHeader Name="gridTypeColumn" Content=" Grid Type "/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=EntityId}">
                                     <GridViewColumnHeader Name="gridEntityIdColumn" Content=" Entity ID "/>
@@ -142,17 +151,20 @@
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=BlockCountsForColumn}">
                                     <GridViewColumnHeader Name="gridBlockCountsColumn" Content=" Block Counts " ToolTip="Number of blocks on the grid.&#10;Can be multiple values if blocks were added/removed over time."/>
                                 </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=PCUsForColumn}">
+                                    <GridViewColumnHeader Name="gridPCUsColumn" Content=" PCUs " ToolTip="Total PCU of the grid.&#10;Can be multiple values if blocks were added/removed or [de]constructed over time."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=SizesForColumn}">
+                                    <GridViewColumnHeader Name="gridSizesColumn" Content=" Sizes " ToolTip="Dimensions of the grid in blocks.&#10;Can be multiple values if blocks were added/removed or [de]constructed over time."/>
+                                </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
                                     <GridViewColumnHeader Name="gridAveragePositionColumn" Content=" Avg. Position " ToolTip="Average position of the grid over all the recorded frames."/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
-                                    <GridViewColumnHeader Name="gridTotalTimeColumn" Content=" Total Time (ms) "/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageSpeedForColumn}">
+                                    <GridViewColumnHeader Name="gridAverageSpeedColumn" Content=" Avg. Speed " ToolTip="Average speed of the grid over all the recorded frames."/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N2}">
-                                    <GridViewColumnHeader Name="gridAverageTimeColumn" Content=" Avg. ms/frame "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="gridCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the grid was timed in."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=IsPoweredForColumn}">
+                                    <GridViewColumnHeader Name="gridIsPoweredColumn" Content=" Is Powered " ToolTip="Whether the grid is marked as being powered.&#10;Will be * if the value changed over time."/>
                                 </GridViewColumn>
                             </GridView>
                         </ListView.View>
@@ -166,6 +178,15 @@
                               GridViewColumnHeader.Click="ProgBlocksListHeader_Click">
                         <ListView.View>
                             <GridView AllowsColumnReorder="True">
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
+                                    <GridViewColumnHeader Name="blockTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
+                                    <GridViewColumnHeader Name="blockAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                    <GridViewColumnHeader Name="blockCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the block was timed in."/>
+                                </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=CubeSize}">
                                     <GridViewColumnHeader Name="blockGridSizeColumn" Content=" Cube Size "/>
                                 </GridViewColumn>
@@ -186,15 +207,6 @@
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
                                     <GridViewColumnHeader Name="blockAveragePositionColumn" Content=" Avg. Position " ToolTip="Average world position of the block over all the recorded frames."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
-                                    <GridViewColumnHeader Name="blockTotalTimeColumn" Content=" Total Time (ms) "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N2}">
-                                    <GridViewColumnHeader Name="blockAverageTimeColumn" Content=" Avg. ms/frame "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="blockCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the block was timed in."/>
                                 </GridViewColumn>
                             </GridView>
                         </ListView.View></ListView>
