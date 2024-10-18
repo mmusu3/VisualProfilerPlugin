@@ -10,8 +10,10 @@ using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Entities.Cube;
 using Sandbox.Game.Replication;
 using Sandbox.Game.World;
+using VRage;
 using VRage.Game;
 using VRage.Network;
+using VRage.Utils;
 using VRageMath;
 using VRageMath.Spatial;
 
@@ -128,17 +130,8 @@ static class ProfilerHelper
                 data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
             }
             break;
-        case MyExternalReplicable<MyCharacter> charRepl:
+        case MyCharacter character:
             {
-                var character = charRepl.Instance;
-
-                if (character == null)
-                {
-                    data.Object = null;
-                    data.Format = "Empty character replicable{0}";
-                    break;
-                }
-
                 data.Format = "{0}";
 
                 CharacterInfoProxy charInfo;
@@ -154,6 +147,25 @@ static class ProfilerHelper
                 }
 
                 data.Object = charInfo.GetSnapshot(character);
+            }
+            break;
+        case MyFloatingObject floatingObj:
+            {
+                data.Format = "{0}";
+
+                FloatingObjectInfoProxy floatObjInfo;
+
+                if (cache.TryGetValue(floatingObj, out var cachedObj))
+                {
+                    floatObjInfo = (FloatingObjectInfoProxy)cachedObj;
+                }
+                else
+                {
+                    floatObjInfo = new FloatingObjectInfoProxy(floatingObj);
+                    cache.Add(floatingObj, floatObjInfo);
+                }
+
+                data.Object = floatObjInfo.GetSnapshot(floatingObj);
             }
             break;
         case MyExternalReplicable<MyCubeGrid> gridRepl:
@@ -212,6 +224,62 @@ static class ProfilerHelper
                 var gridSnapshot = GetGridSnapshot(cache, block.CubeGrid);
 
                 data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
+            }
+            break;
+        case MyExternalReplicable<MyCharacter> charRepl:
+            {
+                var character = charRepl.Instance;
+
+                if (character == null)
+                {
+                    data.Object = null;
+                    data.Format = "Empty character replicable{0}";
+                    break;
+                }
+
+                data.Format = "{0}";
+
+                CharacterInfoProxy charInfo;
+
+                if (cache.TryGetValue(character, out var cachedObj))
+                {
+                    charInfo = (CharacterInfoProxy)cachedObj;
+                }
+                else
+                {
+                    charInfo = new CharacterInfoProxy(character);
+                    cache.Add(character, charInfo);
+                }
+
+                data.Object = charInfo.GetSnapshot(character);
+            }
+            break;
+        case MyExternalReplicable<MyFloatingObject> floatObjRepl:
+            {
+                var floatingObj = floatObjRepl.Instance;
+
+                if (floatingObj == null)
+                {
+                    data.Object = null;
+                    data.Format = "Empty floating object replicable{0}";
+                    break;
+                }
+
+                data.Format = "{0}";
+
+                FloatingObjectInfoProxy floatObjInfo;
+
+                if (cache.TryGetValue(floatingObj, out var cachedObj))
+                {
+                    floatObjInfo = (FloatingObjectInfoProxy)cachedObj;
+                }
+                else
+                {
+                    floatObjInfo = new FloatingObjectInfoProxy(floatingObj);
+                    cache.Add(floatingObj, floatObjInfo);
+                }
+
+                data.Object = floatObjInfo.GetSnapshot(floatingObj);
             }
             break;
         case MyExternalReplicable<MyVoxelBase> voxelRepl:
@@ -748,6 +816,8 @@ static class ProfilerHelper
                     return ProfilerEvent.EventCategory.Blocks;
                 case CharacterInfoProxy.Snapshot:
                     return ProfilerEvent.EventCategory.Characters;
+                case FloatingObjectInfoProxy.Snapshot:
+                    return ProfilerEvent.EventCategory.FloatingObjects;
                 }
             }
 
@@ -838,9 +908,42 @@ static class ProfilerHelper
 }
 
 [ProtoContract]
-struct StringId(int id)
+struct StringId
 {
-    [ProtoMember(1)] public int ID = id;
+    [ProtoMember(1)] public int ID;
+
+    [ProtoIgnore]
+    public string? String
+    {
+        get
+        {
+            if (_string == null && ID > 0)
+                _string = GeneralStringCache.Get(this);
+
+            return _string;
+        }
+        set
+        {
+            _string = value;
+            ID = GeneralStringCache.GetOrAdd(value).ID;
+        }
+    }
+    string? _string;
+
+    public StringId(int id)
+    {
+        ID = id;
+    }
+
+    public StringId(string? _string)
+    {
+        this._string = _string;
+        ID = GeneralStringCache.GetOrAdd(_string).ID;
+    }
+
+    public override string? ToString() => String;
+
+    public static implicit operator string?(StringId sid) => sid.String;
 }
 
 static class GeneralStringCache
@@ -942,7 +1045,7 @@ struct TypeProxy
     public TypeProxy(Type type)
     {
         this.type = type;
-        TypeName = GeneralStringCache.GetOrAdd(Type?.AssemblyQualifiedName ?? "");
+        TypeName = new StringId(Type?.AssemblyQualifiedName ?? "");
     }
 
     public TypeProxy() => type = null!;
@@ -1078,33 +1181,7 @@ class CubeGridInfoProxy
         [ProtoMember(8)] public bool IsStatic;
         [ProtoMember(3)] public string CustomName;
         [ProtoMember(4)] public long OwnerId;
-
-        [ProtoMember(5)]
-        public StringId OwnerNameId
-        {
-            get => ownerNameId;
-            set => ownerNameId = value;
-        }
-        StringId ownerNameId;
-
-        [ProtoIgnore]
-        public string? OwnerName
-        {
-            get
-            {
-                if (ownerName == null && ownerNameId.ID > 0)
-                    ownerName = GeneralStringCache.Get(ownerNameId);
-
-                return ownerName;
-            }
-            set
-            {
-                ownerName = value;
-                ownerNameId = GeneralStringCache.GetOrAdd(value);
-            }
-        }
-        string? ownerName;
-
+        [ProtoMember(5)] public StringId OwnerName;
         [ProtoMember(6)] public int BlockCount;
         [ProtoMember(7)] public Vector3D Position;
         // Must preserve field member IDs
@@ -1124,7 +1201,7 @@ class CubeGridInfoProxy
 
             CustomName = grid.DisplayName;
             OwnerId = ownerId;
-            OwnerName = ownerIdentity?.DisplayName;
+            OwnerName = new StringId(ownerIdentity?.DisplayName);
             BlockCount = grid.BlocksCount;
             PCU = grid.BlocksPCU;
             Size = grid.Max - grid.Min;
@@ -1158,10 +1235,10 @@ class CubeGridInfoProxy
 
         public override string ToString()
         {
-            var idPart = OwnerName != null ? $", ID: " : null;
+            var idPart = OwnerName.String != null ? $", ID: " : null;
 
             return $"""
-                {(IsStatic && Grid.GridSize == MyCubeSize.Large ? "Static" : Grid.GridSize)} Grid, ID: {Grid.EntityId}{(Grid.IsNPC ? "\n    IsNPC: true" : "")}
+                {(IsStatic && Grid.GridSize == MyCubeSize.Large ? "Static" : Grid.GridSize)} Grid, ID: {Grid.EntityId}{(Grid.IsNPC ? "\n   IsNPC: True" : "")}
                    Custom Name: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Blocks: {BlockCount}
@@ -1215,33 +1292,7 @@ class CubeBlockInfoProxy
         [ProtoMember(3)] public ulong FrameIndex;
         [ProtoMember(4)] public string? CustomName;
         [ProtoMember(5)] public long OwnerId;
-
-        [ProtoMember(6)]
-        public StringId OwnerNameId
-        {
-            get => ownerNameId;
-            set => ownerNameId = value;
-        }
-        StringId ownerNameId;
-
-        [ProtoIgnore]
-        public string? OwnerName
-        {
-            get
-            {
-                if (ownerName == null && ownerNameId.ID > 0)
-                    ownerName = GeneralStringCache.Get(ownerNameId);
-
-                return ownerName;
-            }
-            set
-            {
-                ownerName = value;
-                ownerNameId = GeneralStringCache.GetOrAdd(value);
-            }
-        }
-        string? ownerName;
-
+        [ProtoMember(6)] public StringId OwnerName;
         [ProtoMember(7)] public Vector3D Position;
 
         public Snapshot(CubeGridInfoProxy.Snapshot gridInfo, CubeBlockInfoProxy blockInfo, MyCubeBlock block)
@@ -1255,7 +1306,7 @@ class CubeBlockInfoProxy
 
             CustomName = (block as MyTerminalBlock)?.CustomName.ToString();
             OwnerId = ownerId;
-            OwnerName = ownerIdentity?.DisplayName;
+            OwnerName = new StringId(ownerIdentity?.DisplayName);
             Position = block.PositionComp.GetPosition();
         }
 
@@ -1278,7 +1329,7 @@ class CubeBlockInfoProxy
 
         public override string ToString()
         {
-            var idPart = OwnerName != null ? $", ID: " : null;
+            var idPart = OwnerName.String != null ? $", ID: " : null;
 
             return $"""
                 {Block.BlockType.Type.Name}, ID: {Block.EntityId}
@@ -1376,6 +1427,70 @@ class CharacterInfoProxy
             return lastSnapshot;
 
         var snapshot = new Snapshot(this, character);
+
+        Snapshots.Add(new(snapshot));
+
+        return snapshot;
+    }
+}
+
+[ProtoContract]
+class FloatingObjectInfoProxy
+{
+    [ProtoMember(1)] public long EntityId;
+    [ProtoMember(2)] public StringId ItemTypeId;
+    [ProtoMember(3)] public StringId ItemSubtypeId;
+    [ProtoMember(4)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
+
+    [ProtoContract]
+    public class Snapshot
+    {
+        [ProtoMember(1, AsReference = true)] public FloatingObjectInfoProxy FloatingObj;
+        [ProtoMember(2)] public Vector3D Position;
+        [ProtoMember(3)] public MyFixedPoint Amount;
+
+        public Snapshot(FloatingObjectInfoProxy objInfo, MyFloatingObject floatingObj)
+        {
+            FloatingObj = objInfo;
+            Position = floatingObj.PositionComp.GetPosition();
+            Amount = floatingObj.Amount;
+        }
+
+        public Snapshot()
+        {
+            FloatingObj = null!;
+        }
+
+        public override string ToString()
+        {
+            return $"""
+                Floating Object, ID: {FloatingObj.EntityId}
+                   Item ID: {FloatingObj.ItemTypeId}/{FloatingObj.ItemSubtypeId}
+                   Amount: {Amount}
+                   Position: {Vector3D.Round(Position, 1)}
+                """;
+        }
+    }
+
+    public FloatingObjectInfoProxy(MyFloatingObject floatingObj)
+    {
+        EntityId = floatingObj.EntityId;
+        ItemTypeId = new StringId(floatingObj.ItemDefinition.Id.TypeId.ToString());
+        ItemSubtypeId = new StringId(floatingObj.ItemDefinition.Id.SubtypeId.String);
+    }
+
+    public FloatingObjectInfoProxy()
+    {
+    }
+
+    public Snapshot GetSnapshot(MyFloatingObject floatingObj)
+    {
+        var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1].Object : null;
+
+        if (lastSnapshot != null && lastSnapshot.Equals(floatingObj))
+            return lastSnapshot;
+
+        var snapshot = new Snapshot(this, floatingObj);
 
         Snapshots.Add(new(snapshot));
 
@@ -1782,7 +1897,7 @@ class CubeGridAnalysisInfo
     public override string ToString()
     {
         return $"""
-                {(IsStatic == true && GridSize == MyCubeSize.Large ? "Static" : GridSize)} Grid, ID: {EntityId}{(IsNPC ? "\n    IsNPC: true" : "")}
+                {(IsStatic == true && GridSize == MyCubeSize.Large ? "Static" : GridSize)} Grid, ID: {EntityId}{(IsNPC ? "\n    IsNPC: True" : "")}
                     {(CustomNames.Length == 1 ? $"Custom Name: {CustomNames[0]}" : $"Custom Names: {string.Join(", ", CustomNames)}")}
                     Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null)}{o.ID})"))}
                     {(BlockCounts.Length == 1 ? $"Block Count: {BlockCounts[0]}" : $"Block Counts: {string.Join(", ", BlockCounts)}")}
