@@ -829,7 +829,7 @@ static class ProfilerHelper
     {
         var (_, groups) = CombineFrames(recording);
 
-        var header = $"Recorded {recording.NumFrames} frames over {recording.ElapsedTime.TotalSeconds} seconds.";
+        var header = $"Recorded {recording.NumFrames} frames over {recording.ElapsedTime.TotalSeconds:N1} seconds.";
 
         if (groups.Length == 0)
             return header;
@@ -864,9 +864,9 @@ static class ProfilerHelper
             if (t.Category is ProfilerEvent.EventCategory.Wait or ProfilerEvent.EventCategory.Other)
                 continue;
 
-            var cat = t.Category.ToString();
+            var cat = t.Category != ProfilerEvent.EventCategory.FloatingObjects ? t.Category.ToString() : "FloatObjs";
 
-            sb.Append(cat).Append(':').Append(' ', 10 - cat.Length).Append("  ")
+            sb.Append(cat).Append(':').Append(' ', Math.Max(0, 10 - cat.Length)).Append("  ")
                 .AppendFormat("{0:N2}  -  ", t.AvgTime)
                 .AppendFormat("{0:N1}", t.TotalTime);
 
