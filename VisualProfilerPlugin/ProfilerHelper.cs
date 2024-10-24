@@ -1204,7 +1204,7 @@ class CubeGridInfoProxy
             OwnerName = new StringId(ownerIdentity?.DisplayName);
             BlockCount = grid.BlocksCount;
             PCU = grid.BlocksPCU;
-            Size = grid.Max - grid.Min;
+            Size = grid.Max - grid.Min + Vector3I.One;
             Position = grid.PositionComp.GetPosition();
             Speed = grid.LinearVelocity.Length();
             IsPowered = grid.IsPowered;
@@ -1227,7 +1227,7 @@ class CubeGridInfoProxy
                 && OwnerName == ownerIdentity?.DisplayName
                 && BlockCount == grid.BlocksCount
                 && PCU == grid.BlocksPCU
-                && Size == grid.Max - grid.Min
+                && Size == (grid.Max - grid.Min + Vector3I.One)
                 && Vector3D.Round(Position, 1) == Vector3D.Round(grid.PositionComp.GetPosition(), 1)
                 && Math.Round(Speed, 1) == Math.Round(grid.LinearVelocity.Length(), 1)
                 && IsPowered == grid.IsPowered;
