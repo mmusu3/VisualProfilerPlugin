@@ -24,6 +24,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     public static bool IsOpen => window != null;
 
     static Thread? windowThread;
+    static Dispatcher? dispatcher;
     static ProfilerWindow? window;
 
     const int maxRecordingSeconds = 60;
@@ -123,30 +124,28 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
                     window.WindowState = WindowState.Normal;
             });
         }
-        else
+        else if (dispatcher != null)
         {
-            Dispatcher.CurrentDispatcher.BeginInvoke(() =>
-            {
-                window = new ProfilerWindow();
-                window.WindowStartupLocation = WindowStartupLocation.Manual;
-                window.Left = centerParent.X - window.Width / 2;
-                window.Top = centerParent.Y - window.Height / 2;
-                window.Show();
-            });
+            dispatcher.BeginInvoke(CreateWindow, centerParent);
         }
     }
 
     static void ThreadStart(object? startObj)
     {
-        var centerParent = (Point)startObj!;
+        CreateWindow((Point)startObj!);
 
+        dispatcher = Dispatcher.CurrentDispatcher;
+
+        Dispatcher.Run();
+    }
+
+    static void CreateWindow(Point centerParent)
+    {
         window = new ProfilerWindow();
         window.WindowStartupLocation = WindowStartupLocation.Manual;
         window.Left = centerParent.X - window.Width / 2;
         window.Top = centerParent.Y - window.Height / 2;
         window.Show();
-
-        Dispatcher.Run();
     }
 
     public ProfilerWindow()
