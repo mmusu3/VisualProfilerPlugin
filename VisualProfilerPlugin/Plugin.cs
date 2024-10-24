@@ -5,6 +5,8 @@ using System.Threading;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using NLog;
+using ProtoBuf;
+using Sandbox.ModAPI;
 using Torch;
 using Torch.API;
 using Torch.API.Plugins;
@@ -43,22 +45,37 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
     public UserControl GetControl() => new ConfigView(new()/*configVM.Data*/);
 
-    internal static string? SaveRecording(ProfilerEventsRecording recording, bool showDiag)
+    internal static byte[] SerializeRecording(ProfilerEventsRecording recording)
     {
         ProfilerHelper.PrepareRecordingForSerialization(recording);
 
-        var folderPath = Path.Combine(Plugin.Instance.StoragePath, "VisualProfiler", "Recordings");
+        byte[] serializedRecording;
+
+        using (var stream = new MemoryStream())
+        {
+            using (var gzipStream = new GZipStream(stream, CompressionLevel.Optimal))
+                Serializer.Serialize(gzipStream, recording);
+
+            serializedRecording = stream.ToArray();
+        }
+
+        return serializedRecording;
+    }
+
+    internal static void SaveRecording(ProfilerEventsRecording recording)
+    {
+        SaveRecording(recording, showDiag: false, out _, out _);
+    }
+
+    internal static void SaveRecording(ProfilerEventsRecording recording, bool showDiag, out byte[] serializedRecording, out string? filePath)
+    {
+        serializedRecording = SerializeRecording(recording);
+
+        var folderPath = Path.Combine(Instance.StoragePath, "VisualProfiler", "Recordings");
 
         Directory.CreateDirectory(folderPath);
 
-        var sessionName = recording.SessionName.Replace(' ', '_');
-
-        foreach (var item in Path.GetInvalidPathChars())
-            sessionName = sessionName.Replace(item, '_');
-
-        sessionName += "-" + recording.StartTime.ToString("s").Replace(':', '-');
-
-        string filePath;
+        var sessionName = GetRecordingFileName(recording);
 
         if (showDiag)
         {
@@ -72,7 +89,10 @@ public class Plugin : TorchPluginBase, IWpfPlugin
             bool? result = diag.ShowDialog();
 
             if (result is not true)
-                return null;
+            {
+                filePath = null;
+                return;
+            }
 
             filePath = diag.FileName;
         }
@@ -81,13 +101,58 @@ public class Plugin : TorchPluginBase, IWpfPlugin
             filePath = Path.Combine(folderPath, sessionName) + ".prec";
         }
 
-        using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+        try
         {
-            using (var gzipStream = new GZipStream(stream, CompressionLevel.Optimal))
-                ProtoBuf.Serializer.Serialize(gzipStream, recording);
+            File.WriteAllBytes(filePath, serializedRecording);
+        }
+        catch
+        {
+            filePath = null;
+        }
+    }
+
+    internal static string GetRecordingFileName(ProfilerEventsRecording recording)
+    {
+        var fileName = recording.SessionName.Replace(' ', '_');
+
+        foreach (var item in Path.GetInvalidPathChars())
+            fileName = fileName.Replace(item, '_');
+
+        fileName += "-" + recording.StartTime.ToString("s").Replace(':', '-');
+
+        return fileName;
+    }
+
+    internal static void SendRecordingToClient(byte[] serializedRecording, string fileName, ulong userId)
+    {
+        const ushort FileNetMessageId = 19911; // Picked at random, may conflict with other mods/plugins.
+
+        var filePayload = new FilePayload { FileName = fileName, RecordingFile = serializedRecording };
+        byte[] messagePayload;
+
+        using (var stream = new MemoryStream())
+        {
+            Serializer.Serialize(stream, filePayload);
+            messagePayload = stream.ToArray();
         }
 
-        return filePath;
+        MyModAPIHelper.MyMultiplayer.Static.SendMessageTo(FileNetMessageId, messagePayload, userId, reliable: true);
+    }
+
+    [ProtoContract]
+    class FilePayload
+    {
+        [ProtoMember(1)]
+        public string FileName;
+
+        [ProtoMember(2)]
+        public byte[] RecordingFile;
+
+        public FilePayload()
+        {
+            FileName = null!;
+            RecordingFile = null!;
+        }
     }
 }
 
@@ -111,6 +176,7 @@ public class Commands : CommandModule
         string? secs = null;
         string? frames = null;
         bool saveToFile = false;
+        bool sendToClient = false;
 
         foreach (var item in Context.Args)
         {
@@ -170,6 +236,9 @@ public class Commands : CommandModule
             case "savetofile":
                 saveToFile = true;
                 break;
+            case "sendtoclient":
+                sendToClient = true;
+                break;
             default:
                 Context.Respond($"Command error: Invalid argument: {item}.");
                 return;
@@ -184,18 +253,18 @@ public class Commands : CommandModule
                 return;
             }
 
-            StartSeconds(secs, saveToFile);
+            StartSeconds(secs, saveToFile, sendToClient);
             return;
         }
 
         if (frames != null)
         {
-            StartFrames(frames, saveToFile);
+            StartFrames(frames, saveToFile, sendToClient);
             return;
         }
     }
 
-    void StartSeconds(string seconds, bool saveToFile)
+    void StartSeconds(string seconds, bool saveToFile, bool sendToClient)
     {
         double numSeconds;
 
@@ -250,16 +319,30 @@ public class Commands : CommandModule
 
             recording.SessionName = sessionName;
 
+            byte[]? serializedRecording = null;
+
             if (saveToFile)
             {
-                var savePath = Plugin.SaveRecording(recording, showDiag: false);
+                Plugin.SaveRecording(recording, showDiag: false, out serializedRecording, out var filePath);
 
                 Context.Torch.Invoke(() =>
                 {
-                    var msg = $"Saved profiler recording file as {Path.GetFileName(savePath)}.";
+                    var msg = $"Saved profiler recording file as {Path.GetFileName(filePath)}.";
 
                     Context.Respond(msg);
                     Plugin.Log.Info(msg);
+                });
+            }
+
+            if (sendToClient)
+            {
+                serializedRecording ??= Plugin.SerializeRecording(recording);
+
+                var fileName = Plugin.GetRecordingFileName(recording);
+
+                Context.Torch.Invoke(() =>
+                {
+                    Plugin.SendRecordingToClient(serializedRecording, fileName, Context.Player.SteamUserId);
                 });
             }
 
@@ -270,7 +353,7 @@ public class Commands : CommandModule
         }
     }
 
-    void StartFrames(string frames, bool saveToFile)
+    void StartFrames(string frames, bool saveToFile, bool sendToClient)
     {
         int numFrames;
 
@@ -310,13 +393,28 @@ public class Commands : CommandModule
         {
             recording.SessionName = sessionName;
 
+            byte[]? serializedRecording = null;
+
             if (saveToFile)
             {
-                var savePath = Plugin.SaveRecording(recording, showDiag: false);
-                var msg = $"Saved profiler recording file as {Path.GetFileName(savePath)}.";
+                Plugin.SaveRecording(recording, showDiag: false, out serializedRecording, out var filePath);
+
+                var msg = $"Saved profiler recording file as {Path.GetFileName(filePath)}.";
 
                 Context.Respond(msg);
                 Plugin.Log.Info(msg);
+            }
+
+            if (sendToClient)
+            {
+                serializedRecording ??= Plugin.SerializeRecording(recording);
+
+                var fileName = Plugin.GetRecordingFileName(recording);
+
+                Context.Torch.Invoke(() =>
+                {
+                    Plugin.SendRecordingToClient(serializedRecording, fileName, Context.Player.SteamUserId);
+                });
             }
 
             var summary = ProfilerHelper.SummarizeRecording(recording);
