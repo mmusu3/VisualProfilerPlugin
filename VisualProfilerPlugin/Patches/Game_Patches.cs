@@ -7,7 +7,6 @@ using System.Runtime.CompilerServices;
 using Sandbox.Engine.Platform;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
-using VRageRender;
 
 namespace VisualProfiler.Patches;
 
@@ -68,7 +67,7 @@ static class Game_Patches
 
         Plugin.Log.Debug($"Patching {nameof(Game)}.UpdateInternal.");
 
-        const int expectedParts = 4;
+        const int expectedParts = 2;
         int patchedParts = 0;
 
         var beginFrameMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(BeginFrame));
@@ -81,8 +80,6 @@ static class Game_Patches
         var endMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(EndFrame));
 
         var updateCounterField = typeof(Game).GetField("m_updateCounter", BindingFlags.NonPublic | BindingFlags.Instance);
-        var rpBeforeUpdateMethod = typeof(MyRenderProxy).GetPublicStaticMethod(nameof(MyRenderProxy.BeforeUpdate));
-        var afterDrawMethod = typeof(Game).GetNonPublicInstanceMethod("AfterDraw");
         var updateMethod = typeof(Game).GetNonPublicInstanceMethod("Update");
 
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
@@ -108,17 +105,7 @@ static class Game_Patches
             {
                 var callMethod = callOperand.Value;
 
-                if (callMethod == rpBeforeUpdateMethod)
-                {
-                    Emit(new MsilInstruction(OpCodes.Ldc_I4_0).SwapTryCatchOperations(ins));
-                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("MyRenderProxy.BeforeUpdate"));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
-                    Emit(ins);
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
-                    patchedParts++;
-                    continue;
-                }
-                else if (callMethod == updateMethod)
+                if (callMethod == updateMethod)
                 {
                     Emit(ins);
                     Emit(timerLocal2.AsValueLoad());
@@ -136,17 +123,6 @@ static class Game_Patches
                     Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
                     Emit(timerLocal2.AsValueStore());
                     patchedParts++;
-                }
-                else if (instructions[i + 1].Operand is MsilOperandInline<MethodBase> callOperand2 && callOperand2.Value == afterDrawMethod)
-                {
-                    Emit(new MsilInstruction(OpCodes.Ldc_I4_2).SwapTryCatchOperations(ins));
-                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("MyRenderProxy.AfterUpdate")); // MyRenderProxy.AfterUpdate() is called by MySandboxGame.AfterDraw()
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
-                    Emit(ins);
-                    Emit(instructions[++i]);
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
-                    patchedParts++;
-                    continue;
                 }
             }
             else if (ins.OpCode == OpCodes.Ret)
