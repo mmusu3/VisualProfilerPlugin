@@ -660,6 +660,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             break;
         case nameof(gridAverageSpeedColumn):
             propName = nameof(CubeGridAnalysisInfo.AverageSpeedForColumn);
+            comparers = CubeGridAverageSpeedComparer.Instances;
             defaultDir = ListSortDirection.Descending;
             break;
         case nameof(gridIsPoweredColumn):
@@ -870,6 +871,32 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
                 else
                     return sizesY.Length.CompareTo(sizesX.Length);
             }
+        }
+    }
+
+    class CubeGridAverageSpeedComparer(ListSortDirection sortDirection) : IComparer
+    {
+        public static readonly CubeGridAverageSpeedComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridAverageSpeedComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridAverageSpeedComparer[] Instances = [Ascending, Descending];
+
+        public ListSortDirection SortDirection = sortDirection;
+
+        public int Compare(object? x, object? y)
+        {
+            var gridX = x as CubeGridAnalysisInfo;
+            var gridY = y as CubeGridAnalysisInfo;
+
+            if (gridX == null || gridY == null)
+                return 0;
+
+            var speedX = gridX.AverageSpeed;
+            var speedY = gridY.AverageSpeed;
+
+            if (SortDirection == ListSortDirection.Ascending)
+                return speedX.CompareTo(speedY);
+            else
+                return speedY.CompareTo(speedX);
         }
     }
 
