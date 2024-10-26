@@ -139,8 +139,8 @@
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=EntityId}">
                                     <GridViewColumnHeader Name="gridEntityIdColumn" Content=" Entity ID "/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=CustomNamesForColumn}">
-                                    <GridViewColumnHeader Name="gridCustomNamesColumn" Content=" Grid Names " ToolTip="Player assigned names of the grid.&#10;Can be multiple values if the name was changed over time."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=NamesForColumn}">
+                                    <GridViewColumnHeader Name="gridNamesColumn" Content=" Grid Names " ToolTip="Player assigned names of the grid.&#10;Can be multiple values if the name was changed over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerIDsForColumn}">
                                     <GridViewColumnHeader Name="gridOwnerIdsColumn" Content=" Main Owner IDs " ToolTip="Identity IDs of the players that own the most blocks on the grid (BigOwner).&#10;Will be 0 if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>

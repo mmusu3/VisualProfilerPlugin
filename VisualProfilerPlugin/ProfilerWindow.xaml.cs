@@ -630,8 +630,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         case nameof(gridEntityIdColumn):
             propName = nameof(CubeGridAnalysisInfo.EntityId);
             break;
-        case nameof(gridCustomNamesColumn):
-            propName = nameof(CubeGridAnalysisInfo.CustomNamesForColumn);
+        case nameof(gridNamesColumn):
+            propName = nameof(CubeGridAnalysisInfo.NamesForColumn);
             break;
         case nameof(gridOwnerIdsColumn):
             propName = nameof(CubeGridAnalysisInfo.OwnerIDsForColumn);
@@ -1134,7 +1134,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             }
         case CubeGridAnalysisInfo gridInfo:
             {
-                var name = gridInfo.CustomNames.Length > 0 ? gridInfo.CustomNames[^1].Replace(':', '_') : $"{gridInfo.GridSize} Grid {gridInfo.EntityId}";
+                var name = gridInfo.Names.Length > 0 ? gridInfo.Names[^1].Replace(':', '_') : $"{gridInfo.GridSize} Grid {gridInfo.EntityId}";
                 var gps = FormatGPS(name, gridInfo.Positions[^1]);
 
                 Clipboard.SetText(gps);

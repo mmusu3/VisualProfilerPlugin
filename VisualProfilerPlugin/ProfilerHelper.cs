@@ -1179,7 +1179,7 @@ class CubeGridInfoProxy
         [ProtoMember(2)] public ulong FrameIndex;
         // Must preserve field member IDs
         [ProtoMember(8)] public bool IsStatic;
-        [ProtoMember(3)] public string CustomName;
+        [ProtoMember(3)] public string Name;
         [ProtoMember(4)] public long OwnerId;
         [ProtoMember(5)] public StringId OwnerName;
         [ProtoMember(6)] public int BlockCount;
@@ -1199,7 +1199,7 @@ class CubeGridInfoProxy
             long ownerId = grid.BigOwners.Count > 0 ? grid.BigOwners[0] : 0;
             var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
 
-            CustomName = grid.DisplayName;
+            Name = grid.DisplayName;
             OwnerId = ownerId;
             OwnerName = new StringId(ownerIdentity?.DisplayName);
             BlockCount = grid.BlocksCount;
@@ -1213,7 +1213,7 @@ class CubeGridInfoProxy
         public Snapshot()
         {
             Grid = null!;
-            CustomName = "";
+            Name = "";
         }
 
         public bool Equals(MyCubeGrid grid)
@@ -1222,7 +1222,7 @@ class CubeGridInfoProxy
             var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
 
             return IsStatic == grid.IsStatic
-                && CustomName == grid.DisplayName
+                && Name == grid.DisplayName
                 && OwnerId == ownerId
                 && OwnerName == ownerIdentity?.DisplayName
                 && BlockCount == grid.BlocksCount
@@ -1239,7 +1239,7 @@ class CubeGridInfoProxy
 
             return $"""
                 {(IsStatic && Grid.GridSize == MyCubeSize.Large ? "Static" : Grid.GridSize)} Grid, ID: {Grid.EntityId}{(Grid.IsNPC ? "\n   IsNPC: True" : "")}
-                   Custom Name: {CustomName}
+                   Name: {Name}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Blocks: {BlockCount}
                    PCU: {PCU}
@@ -1333,7 +1333,7 @@ class CubeBlockInfoProxy
 
             return $"""
                 {Block.BlockType.Type.Name}, ID: {Block.EntityId}
-                   Custom Name: {CustomName}
+                   Name: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
                    Position: {Vector3D.Round(Position, 1)}
                 {Grid}
@@ -1742,7 +1742,7 @@ class CubeGridAnalysisInfo
         public MyCubeSize GridSize;
         public bool IsNPC;
         public bool? IsStatic; // Null value means mixed
-        public HashSet<string> CustomNames = [];
+        public HashSet<string> Names = [];
         public Dictionary<long, string?> Owners = [];
         public HashSet<int> BlockCounts = [];
         public HashSet<int> PCUs = [];
@@ -1772,7 +1772,7 @@ class CubeGridAnalysisInfo
             if (IsStatic != null && info.IsStatic != IsStatic)
                 IsStatic = null;
 
-            CustomNames.Add(info.CustomName);
+            Names.Add(info.Name);
             Owners[info.OwnerId] = info.OwnerName;
             BlockCounts.Add(info.BlockCount);
             PCUs.Add(info.PCU);
@@ -1786,7 +1786,7 @@ class CubeGridAnalysisInfo
 
         public CubeGridAnalysisInfo Finish()
         {
-            return new CubeGridAnalysisInfo(EntityId, GridSize, IsStatic, IsNPC, CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
+            return new CubeGridAnalysisInfo(EntityId, GridSize, IsStatic, IsNPC, Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
                 BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), Speeds.ToArray(), IsPowered,
                 TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
@@ -1796,7 +1796,7 @@ class CubeGridAnalysisInfo
     public MyCubeSize GridSize;
     public bool? IsStatic;
     public bool IsNPC;
-    public string[] CustomNames;
+    public string[] Names;
     public (long ID, string? Name)[] Owners;
     public int[] BlockCounts;
     public int[] PCUs;
@@ -1837,7 +1837,7 @@ class CubeGridAnalysisInfo
     }
 
     public string GridTypeForColumn => IsStatic == true && GridSize == MyCubeSize.Large ? "Station" : GridSize.ToString();
-    public string CustomNamesForColumn => CustomNames.Length == 1 ? CustomNames[0] : string.Join("\n", CustomNames);
+    public string NamesForColumn => Names.Length == 1 ? Names[0] : string.Join("\n", Names);
     public string OwnerIDsForColumn => string.Join("\n", Owners.Select(o => o.ID));
     public string OwnerNamesForColumn => string.Join("\n", Owners.Select(o => o.Name));
     public string BlockCountsForColumn => BlockCounts.Length == 1 ? (BlockCounts[0] == 1 ? "1" : BlockCounts[0].ToString()) : string.Join(",\n", BlockCounts);
@@ -1869,7 +1869,7 @@ class CubeGridAnalysisInfo
 
     public CubeGridAnalysisInfo(
         long entityId, MyCubeSize gridSize, bool? isStatic, bool isNpc,
-        string[] customNames, (long ID, string? Name)[] owners,
+        string[] names, (long ID, string? Name)[] owners,
         int[] blockCounts, int[] pcus, Vector3I[] sizes,
         Vector3D[] positions, float[] speeds, bool? isPowered,
         double totalTime, double averageTimePerFrame,
@@ -1879,7 +1879,7 @@ class CubeGridAnalysisInfo
         GridSize = gridSize;
         IsStatic = isStatic;
         IsNPC = isNpc;
-        CustomNames = customNames;
+        Names = names;
         Owners = owners;
         BlockCounts = blockCounts;
         PCUs = pcus;
@@ -1898,7 +1898,7 @@ class CubeGridAnalysisInfo
     {
         return $"""
                 {(IsStatic == true && GridSize == MyCubeSize.Large ? "Static" : GridSize)} Grid, ID: {EntityId}{(IsNPC ? "\n    IsNPC: True" : "")}
-                    {(CustomNames.Length == 1 ? $"Custom Name: {CustomNames[0]}" : $"Custom Names: {string.Join(", ", CustomNames)}")}
+                    {(Names.Length == 1 ? $"Name: {Names[0]}" : $"Names: {string.Join(", ", Names)}")}
                     Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null)}{o.ID})"))}
                     {(BlockCounts.Length == 1 ? $"Block Count: {BlockCounts[0]}" : $"Block Counts: {string.Join(", ", BlockCounts)}")}
                     {(PCUs.Length == 1 ? $"PCU: {PCUs[0]}" : $"PCUs: {string.Join(", ", PCUs)}")}
