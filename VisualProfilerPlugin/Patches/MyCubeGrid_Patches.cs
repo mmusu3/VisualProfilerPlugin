@@ -17,13 +17,13 @@ static class MyCubeGrid_Patches
     {
         Keys.Init();
 
-        PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateBeforeSimulation), _public: true, _static: false);
-        PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateBeforeSimulation10), _public: true, _static: false);
-        PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateBeforeSimulation100), _public: true, _static: false);
+        //PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateBeforeSimulation), _public: true, _static: false);
+        //PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateBeforeSimulation10), _public: true, _static: false);
+        //PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateBeforeSimulation100), _public: true, _static: false);
 
-        PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation), _public: true, _static: false);
-        PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation10), _public: true, _static: false);
-        PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation100), _public: true, _static: false);
+        //PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation), _public: true, _static: false);
+        //PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation10), _public: true, _static: false);
+        //PatchPrefixSuffixPair(ctx, nameof(MyCubeGrid.UpdateAfterSimulation100), _public: true, _static: false);
 
         var source = typeof(MyCubeGrid).GetNonPublicInstanceMethod("Dispatch");
         var transpiler = typeof(MyCubeGrid_Patches).GetNonPublicStaticMethod(nameof(Transpile_Dispatch));
