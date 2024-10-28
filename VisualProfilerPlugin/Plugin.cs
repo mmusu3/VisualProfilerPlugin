@@ -62,9 +62,9 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         return serializedRecording;
     }
 
-    internal static void SaveRecording(ProfilerEventsRecording recording)
+    internal static void SaveRecording(ProfilerEventsRecording recording, bool showDiag)
     {
-        SaveRecording(recording, showDiag: false, out _, out _);
+        SaveRecording(recording, showDiag, out _, out _);
     }
 
     internal static void SaveRecording(ProfilerEventsRecording recording, bool showDiag, out byte[] serializedRecording, out string? filePath)
