@@ -268,15 +268,26 @@ public readonly struct ProfilerKey
 
 public sealed class ProfilerTimer : IDisposable
 {
+    // TODO: Organize fields by use
+
     public readonly string Name;
     public readonly ProfilerKey Key;
 
     long startTimestamp;
     long elapsedTicks;
 
-    public bool IsRunning => isRunning;
-    bool isRunning;
-    bool wasRun;
+    enum State
+    {
+        Stopped,
+        Running,
+        WasRun,
+        StartedDisabled
+    }
+
+    State state;
+
+    public bool IsRunning => state == State.Running;
+    public bool WasRun => state == State.WasRun;
 
     ProfilerEvent[]? eventArray;
     int eventIndex = -1;
@@ -441,7 +452,13 @@ public sealed class ProfilerTimer : IDisposable
 
     internal void StartInternal(ProfilerEvent.ExtraData extraData)
     {
-        if (isRunning)
+        if (!Profiler.IsEnabled)
+        {
+            state = State.StartedDisabled;
+            return;
+        }
+
+        if (IsRunning)
         {
             ThrowTimerAlreadyRunning();
 
@@ -450,7 +467,7 @@ public sealed class ProfilerTimer : IDisposable
             static void ThrowTimerAlreadyRunning() => throw new InvalidOperationException("Timer is already running");
         }
 
-        isRunning = true;
+        state = State.Running;
 
         prevInvokeCount++;
 
@@ -500,7 +517,13 @@ public sealed class ProfilerTimer : IDisposable
 
     public void StartOrSplit()
     {
-        if (!isRunning)
+        if (!Profiler.IsEnabled)
+        {
+            state = State.StartedDisabled;
+            return;
+        }
+
+        if (!IsRunning)
         {
             Start();
             return;
@@ -519,9 +542,17 @@ public sealed class ProfilerTimer : IDisposable
 
             _event = ref eventArray[eventIndex];
             _event.EndTime = endTimestamp;
-            _event.MemoryAfter = ProfileMemory ? GC.GetAllocatedBytesForCurrentThread() : 0;
 
-            EndGCCountsInfo(_event.EndTime);
+            if (ProfileMemory)
+            {
+                _event.MemoryAfter = GC.GetAllocatedBytesForCurrentThread();
+
+                EndGCCountsInfo(_event.EndTime);
+            }
+            else
+            {
+                _event.MemoryAfter = 0;
+            }
         }
 
         group.StartEvent(out eventArray, out eventIndex);
@@ -568,8 +599,11 @@ public sealed class ProfilerTimer : IDisposable
 
     internal void StopInternal()
     {
-        if (!isRunning)
+        if (!IsRunning)
         {
+            if (!Profiler.IsEnabled || state == State.StartedDisabled)
+                return;
+
             ThrowTimerNotRunning();
 
             [DoesNotReturn]
@@ -577,10 +611,16 @@ public sealed class ProfilerTimer : IDisposable
             static void ThrowTimerNotRunning() => throw new InvalidOperationException("Timer is not running. Must call Start first");
         }
 
+        if (!Profiler.IsEnabled)
+        {
+            Reset();
+            return;
+        }
+
         long endTimestamp = Stopwatch.GetTimestamp();
         elapsedTicks += endTimestamp - startTimestamp;
 
-        isRunning = false;
+        state = State.Stopped;
 
         if (elapsedTicks < 0)
             elapsedTicks = 0;
@@ -592,13 +632,13 @@ public sealed class ProfilerTimer : IDisposable
             long memDelta = MemoryAfter - MemoryBefore;
             InclusiveMemoryDelta += memDelta;
 
-            if (Profiler.IsRecordingEvents)
-                EndGCCountsInfo(endTimestamp);
-
 #if NET7_0_OR_GREATER
             GCTimeAfter = GC.GetTotalPauseDuration();
             GCTimeDelta = GCTimeAfter - GCTimeBefore;
 #endif
+
+            if (Profiler.IsRecordingEvents)
+                EndGCCountsInfo(endTimestamp);
         }
 
         if (eventArray != null && eventIndex != -1)
@@ -611,7 +651,7 @@ public sealed class ProfilerTimer : IDisposable
             eventIndex = -1;
         }
 
-        wasRun = true;
+        state = State.WasRun;
     }
 
     void EndGCCountsInfo(long endTimestamp)
@@ -665,12 +705,15 @@ public sealed class ProfilerTimer : IDisposable
 
         this.elapsedTicks += elapsedTicks;
         prevInvokeCount++;
-        wasRun = true;
+        state = State.WasRun;
     }
 
     public void EndFrame(out bool hasOutliers)
     {
         hasOutliers = false;
+
+        if (!Profiler.IsEnabled)
+            return;
 
         TimeInclusive = elapsedTicks;
         TimeExclusive = elapsedTicks;
@@ -686,7 +729,7 @@ public sealed class ProfilerTimer : IDisposable
             if (timer == null)
                 continue;
 
-            if (timer.wasRun)
+            if (timer.WasRun)
             {
                 subTimerWasRun = true;
                 subTimerTicks += timer.elapsedTicks;
@@ -698,13 +741,13 @@ public sealed class ProfilerTimer : IDisposable
             hasOutliers |= outliers;
         }
 
-        Assert.True(wasRun || !subTimerWasRun);
+        Assert.True(WasRun || !subTimerWasRun);
         //Assert.True(elapsedTicks >= subTimerTicks);
 
         //TimeExclusive -= subTimerTicks;
         TimeExclusive = Math.Max(0, TimeExclusive - subTimerTicks);
 
-        if (wasRun)
+        if (WasRun)
         {
             double deviation = TimeExclusive - AverageExclusiveTime;
             double d2 = deviation * deviation;
@@ -748,11 +791,10 @@ public sealed class ProfilerTimer : IDisposable
 
     public void Reset()
     {
-        Assert.False(isRunning);
+        Assert.False(IsRunning);
 
         elapsedTicks = 0;
-        isRunning = false;
-        wasRun = false;
+        state = State.Stopped;
         startTimestamp = 0;
         prevInvokeCount = 0;
         InclusiveMemoryDelta = 0;
@@ -1294,6 +1336,7 @@ public class ProfilerGroup
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void StartEvent(out ProfilerEvent[] array, out int index)
     {
         currentEvents.Alloc(out array, out index);
@@ -1301,6 +1344,9 @@ public class ProfilerGroup
 
     public void BeginFrame()
     {
+        if (!Profiler.IsEnabled)
+            return;
+
         lock (frameLock)
         {
             if (Profiler.IsRecordingEvents)
@@ -1313,6 +1359,9 @@ public class ProfilerGroup
 
     public void EndFrame()
     {
+        if (!Profiler.IsEnabled)
+            return;
+
         if (ActiveTimer != null) throw new InvalidOperationException($"Profiler group '{Name}' still has an active timer '{ActiveTimer.Name}'");
 
         bool hasOutliers = false;
@@ -1550,6 +1599,9 @@ public static class Profiler
     }
 
     static long frameIndex;
+
+    public static bool IsEnabled => isEnabled;
+    static bool isEnabled;
 
     public static bool IsRecordingEvents => isRecordingEvents;
     static bool isRecordingEvents;
@@ -2002,6 +2054,13 @@ public static class Profiler
             profilerGroupsById.Remove(threadId);
     }
 
+    public static void SetEnabled(bool enabled)
+    {
+        if (isRecordingEvents) throw new InvalidOperationException("Cannot change profiler enabled state while event recording is in progress.");
+
+        isEnabled = enabled;
+    }
+
     public static void SetEventObjectResolver(IProfilerEventDataObjectResolver? objectResolver)
     {
         EventObjectResolver = objectResolver;
@@ -2010,6 +2069,8 @@ public static class Profiler
     public static void StartEventRecording(int? numFrames = null, Action<ProfilerEventsRecording>? completedCallback = null)
     {
         if (isRecordingEvents) throw new InvalidOperationException("Event recording has already started.");
+
+        isEnabled = true;
 
         numFramesToRecord = numFrames;
 
@@ -2029,6 +2090,9 @@ public static class Profiler
     public static void EndOfFrame()
     {
         frameIndex++;
+
+        if (!isEnabled)
+            return;
 
         if (!isRecordingEvents || !numFramesToRecord.HasValue || ThreadGroup == null)
             return;
@@ -2236,6 +2300,8 @@ static class ProfilerKeyCache
 [ProtoContract]
 public class ProfilerEventsRecording
 {
+    // TODO: Version number
+
     [ProtoMember(1)] public string SessionName;
     [ProtoMember(2)] public DateTime StartTime;
     [ProtoMember(3)] public int NumFrames;
