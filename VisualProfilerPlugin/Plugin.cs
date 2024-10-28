@@ -69,7 +69,7 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
     internal static void SaveRecording(ProfilerEventsRecording recording, bool showDiag, out byte[] serializedRecording, out string? filePath)
     {
-        serializedRecording = SerializeRecording(recording);
+        filePath = null;
 
         var folderPath = Path.Combine(Instance.StoragePath, "VisualProfiler", "Recordings");
 
@@ -88,18 +88,18 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
             bool? result = diag.ShowDialog();
 
-            if (result is not true)
-            {
-                filePath = null;
-                return;
-            }
-
-            filePath = diag.FileName;
+            if (result == true)
+                filePath = diag.FileName;
         }
         else
         {
             filePath = Path.Combine(folderPath, sessionName) + ".prec";
         }
+
+        serializedRecording = SerializeRecording(recording);
+
+        if (filePath == null)
+            return;
 
         try
         {
