@@ -273,14 +273,6 @@ public readonly struct ProfilerKey
 
 public sealed class ProfilerTimer : IDisposable
 {
-    // TODO: Organize fields by use
-
-    public readonly string Name;
-    public readonly ProfilerKey Key;
-
-    long startTimestamp;
-    long elapsedTicks;
-
     enum State
     {
         Stopped,
@@ -289,45 +281,8 @@ public sealed class ProfilerTimer : IDisposable
         StartedDisabled
     }
 
-    State state;
-
-    public bool IsRunning => state == State.Running;
-    public bool WasRun => state == State.WasRun;
-
-    ProfilerEvent[]? eventArray;
-    int eventIndex = -1;
-
-    readonly ProfilerGroup group;
-    public readonly ProfilerTimer? Parent;
-    public readonly bool ProfileMemory;
-
-    public readonly int Depth;
-
-    public IReadOnlyList<ProfilerTimer?> SubTimers => subTimers;
-    internal ProfilerTimer?[] subTimers;
-
-    internal readonly Dictionary<int, int> subTimersMap;
-
-    public const int BufferSize = 300;
-
-    public int CurrentIndex;
-
-    public long MemoryBefore;
-    public long MemoryAfter;
-
-    public long InclusiveMemoryTotal;
-    public long ExclusiveMemoryTotal;
-
-    public long[] InclusiveMemoryDeltas;
-    public long InclusiveMemoryDelta;
-
-    public long[] ExclusiveMemoryDeltas;
-    public long ExclusiveMemoryDelta;
-
     public struct GCCountsInfo
     {
-        public Vector3I[] History;
-
         public Vector3I Before;
         public Vector3I After;
         public Vector3I Inclusive;
@@ -339,17 +294,43 @@ public sealed class ProfilerTimer : IDisposable
         internal Vector3I FirstChildBefore;
     }
 
+    public bool IsRunning => state == State.Running;
+    public bool WasRun => state == State.WasRun;
+
+    State state;
+    int invokeCount;
+
+    readonly ProfilerGroup group;
+
+    ProfilerEvent[]? eventArray;
+    int eventIndex = -1;
+
+    public readonly ProfilerKey Key;
+    public readonly int Depth;
+    public readonly bool ProfileMemory;
+
+    long startTimestamp;
+    long elapsedTicks;
+
+    public long MemoryBefore;
+    public long MemoryAfter;
+    public long InclusiveMemoryDelta;
+
     public GCCountsInfo GCCounts;
 
 #if NET7_0_OR_GREATER
     public TimeSpan GCTimeBefore;
     public TimeSpan GCTimeAfter;
     public TimeSpan GCTimeDelta;
-    public TimeSpan[] GCTimes;
 #endif
 
-    public long[] InclusiveTimes;
-    public long[] ExclusiveTimes;
+    public readonly ProfilerTimer? Parent;
+    public readonly string Name;
+
+    public IReadOnlyList<ProfilerTimer?> SubTimers => subTimers;
+    internal ProfilerTimer?[] subTimers;
+
+    internal readonly Dictionary<int, int> subTimersMap;
 
     public long TimeInclusive;
     public long TimeExclusive;
@@ -357,8 +338,25 @@ public sealed class ProfilerTimer : IDisposable
     public double AverageExclusiveTime;
     public double ExclusiveTimeVariance;
 
+    public long ExclusiveMemoryDelta;
+
+    public int HistoryIndex;
+
     public int[] InvokeCounts;
-    int prevInvokeCount;
+
+    public long[] InclusiveTimes;
+    public long[] ExclusiveTimes;
+
+    public long[] InclusiveMemoryDeltas;
+    public long[] ExclusiveMemoryDeltas;
+
+    public Vector3I[] GCCountsHistory;
+
+#if NET7_0_OR_GREATER
+    public TimeSpan[] GCTimes;
+#endif
+
+    public const int BufferSize = 300;
 
     const int outlierAveragingSampleRange = 50;
     const int minTicksForOutlier = 1000;
@@ -407,7 +405,7 @@ public sealed class ProfilerTimer : IDisposable
         if (parent != null)
             Depth = parent.Depth + 1;
 
-        GCCounts.History = new Vector3I[BufferSize];
+        GCCountsHistory = new Vector3I[BufferSize];
 #if NET7_0_OR_GREATER
         GCTimes = new TimeSpan[BufferSize];
 #endif
@@ -474,7 +472,7 @@ public sealed class ProfilerTimer : IDisposable
 
         state = State.Running;
 
-        prevInvokeCount++;
+        invokeCount++;
 
         ref var _event = ref Unsafe.NullRef<ProfilerEvent>();
 
@@ -534,7 +532,7 @@ public sealed class ProfilerTimer : IDisposable
             return;
         }
 
-        prevInvokeCount++;
+        invokeCount++;
 
         if (!group.IsRealtimeThread && !Profiler.IsRecordingEvents)
             return;
@@ -709,7 +707,7 @@ public sealed class ProfilerTimer : IDisposable
         Assert.True(elapsedTicks >= 0);
 
         this.elapsedTicks += elapsedTicks;
-        prevInvokeCount++;
+        invokeCount++;
         state = State.WasRun;
     }
 
@@ -770,26 +768,23 @@ public sealed class ProfilerTimer : IDisposable
             ExclusiveTimeVariance = ExclusiveTimeVariance * ((outlierAveragingSampleRange - 1) / (double)outlierAveragingSampleRange) + d2 * (1.0 / outlierAveragingSampleRange);
         }
 
-        InclusiveTimes[CurrentIndex] = TimeInclusive;
-        ExclusiveTimes[CurrentIndex] = TimeExclusive;
+        InclusiveTimes[HistoryIndex] = TimeInclusive;
+        ExclusiveTimes[HistoryIndex] = TimeExclusive;
 
-        InclusiveMemoryDeltas[CurrentIndex] = InclusiveMemoryDelta;
-        ExclusiveMemoryDeltas[CurrentIndex] = ExclusiveMemoryDelta;
+        InclusiveMemoryDeltas[HistoryIndex] = InclusiveMemoryDelta;
+        ExclusiveMemoryDeltas[HistoryIndex] = ExclusiveMemoryDelta;
 
-        if (InclusiveMemoryDelta > 0)
-            InclusiveMemoryTotal += InclusiveMemoryDelta;
-
-        GCCounts.History[CurrentIndex] = GCCounts.CumulativeExclusive;
+        GCCountsHistory[HistoryIndex] = GCCounts.CumulativeExclusive;
 #if NET7_0_OR_GREATER
-        GCTimes[CurrentIndex] = GCTimeDelta;
+        GCTimes[HistoryIndex] = GCTimeDelta;
 #endif
 
-        InvokeCounts[CurrentIndex] = prevInvokeCount;
+        InvokeCounts[HistoryIndex] = invokeCount;
 
-        CurrentIndex++;
+        HistoryIndex++;
 
-        if (CurrentIndex == BufferSize)
-            CurrentIndex = 0;
+        if (HistoryIndex == BufferSize)
+            HistoryIndex = 0;
 
         Reset();
     }
@@ -801,7 +796,7 @@ public sealed class ProfilerTimer : IDisposable
         elapsedTicks = 0;
         state = State.Stopped;
         startTimestamp = 0;
-        prevInvokeCount = 0;
+        invokeCount = 0;
         InclusiveMemoryDelta = 0;
 
         GCCounts.CumulativeExclusive = default;
@@ -820,10 +815,10 @@ public sealed class ProfilerTimer : IDisposable
 
         for (int i = 1; i < averageRange + 1; i++)
         {
-            long inclusive = InclusiveTimes[(BufferSize - i + CurrentIndex) % BufferSize];
+            long inclusive = InclusiveTimes[(BufferSize - i + HistoryIndex) % BufferSize];
             averageInclusiveTime += MillisecondsFromTicks(inclusive);
 
-            long exclusive = ExclusiveTimes[(BufferSize - i + CurrentIndex) % BufferSize];
+            long exclusive = ExclusiveTimes[(BufferSize - i + HistoryIndex) % BufferSize];
             averageExclusiveTime += MillisecondsFromTicks(exclusive);
         }
 
