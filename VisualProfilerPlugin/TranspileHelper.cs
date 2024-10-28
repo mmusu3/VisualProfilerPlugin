@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Emit;
 using Torch.Managers.PatchManager.MSIL;
 
@@ -56,4 +57,10 @@ static class TranspileHelper
 
         return true;
     }
+
+    public static MsilInstruction LoadString(string str) => new MsilInstruction(OpCodes.Ldstr).InlineValue(str);
+    public static MsilInstruction LoadField(FieldInfo field) => new MsilInstruction(OpCodes.Ldfld).InlineValue(field);
+    public static MsilInstruction Call(MethodInfo method) => new MsilInstruction(OpCodes.Call).InlineValue(method);
+    public static MsilInstruction CallVirt(MethodInfo method) => new MsilInstruction(OpCodes.Callvirt).InlineValue(method);
+    public static MsilInstruction NewObj(ConstructorInfo ctor) => new MsilInstruction(OpCodes.Newobj).InlineValue(ctor);
 }

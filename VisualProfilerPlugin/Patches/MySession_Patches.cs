@@ -13,6 +13,7 @@ using VRage.Game;
 using VRage.Game.Components;
 using static System.Reflection.Emit.OpCodes;
 using static VisualProfiler.TranspileHelper;
+using Instn = Torch.Managers.PatchManager.MSIL.MsilInstruction;
 
 namespace VisualProfiler.Patches;
 
@@ -177,32 +178,32 @@ static class MySession_Patches
         return false;
     }
 
-    static IEnumerable<MsilInstruction> Transpile_UpdateComponents(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
+    static IEnumerable<Instn> Transpile_UpdateComponents(IEnumerable<Instn> instructionStream, Func<Type, MsilLocal> __localCreator)
     {
         var instructions = instructionStream.ToArray();
-        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var newInstructions = new List<Instn>((int)(instructions.Length * 1.1f));
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+        void Emit(Instn ins) => newInstructions.Add(ins);
 
         Plugin.Log.Debug($"Patching {nameof(MySession)}.{nameof(MySession.UpdateComponents)}.");
 
         const int expectedParts = 6;
         int patchedParts = 0;
 
-        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var profilerStart1Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(bool)]);
-        var profilerStart2Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)]);
-        var profilerStart3Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)]);
-        var profilerRestartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Restart), [typeof(int), typeof(string), typeof(bool)]);
-        var profilerStopMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Stop));
-        var timerDisposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
+        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
+        var profilerStart1Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(bool)])!;
+        var profilerStart2Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)])!;
+        var profilerStart3Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)])!;
+        var profilerRestartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Restart), [typeof(int), typeof(string), typeof(bool)])!;
+        var profilerStopMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Stop))!;
+        var timerDisposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
 
         var compsField = typeof(MySession).GetField("m_sessionComponentsForUpdate", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var tryGetValueMethod = typeof(Dictionary<int, SortedSet<MySessionComponentBase>>).GetPublicInstanceMethod("TryGetValue");
-        var debugNameField = typeof(MySessionComponentBase).GetField(nameof(MySessionComponentBase.DebugName), BindingFlags.Instance | BindingFlags.Public);
-        var updateBeforeSimMethod = typeof(MySessionComponentBase).GetPublicInstanceMethod(nameof(MySessionComponentBase.UpdateBeforeSimulation));
-        var simulateMethod = typeof(MySessionComponentBase).GetPublicInstanceMethod(nameof(MySessionComponentBase.Simulate));
-        var updateAfterSimMethod = typeof(MySessionComponentBase).GetPublicInstanceMethod(nameof(MySessionComponentBase.UpdateAfterSimulation));
+        var tryGetValueMethod = typeof(Dictionary<int, SortedSet<MySessionComponentBase>>).GetPublicInstanceMethod("TryGetValue")!;
+        var debugNameField = typeof(MySessionComponentBase).GetField(nameof(MySessionComponentBase.DebugName), BindingFlags.Instance | BindingFlags.Public)!;
+        var updateBeforeSimMethod = typeof(MySessionComponentBase).GetPublicInstanceMethod(nameof(MySessionComponentBase.UpdateBeforeSimulation))!;
+        var simulateMethod = typeof(MySessionComponentBase).GetPublicInstanceMethod(nameof(MySessionComponentBase.Simulate))!;
+        var updateAfterSimMethod = typeof(MySessionComponentBase).GetPublicInstanceMethod(nameof(MySessionComponentBase.UpdateAfterSimulation))!;
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
@@ -213,11 +214,11 @@ static class MySession_Patches
         var pattern3 = new OpCode[] { Ldarg_0, Ldfld, Ldc_I4_4, Ldloca_S, Callvirt, Brfalse_S };
         var pattern33 = new OpCode[] { Ldloc_S, Callvirt };
 
-        Emit(new MsilInstruction(Ldc_I4).InlineValue(Keys.UpdateComponents.GlobalIndex));
-        Emit(new MsilInstruction(Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(Ldc_I4_1)); // profilerMemory: true
-        Emit(new MsilInstruction(Call).InlineValue(profilerStart1Method));
-        Emit(new MsilInstruction(Pop));
+        Emit(new Instn(Ldc_I4).InlineValue(Keys.UpdateComponents.GlobalIndex));
+        Emit(NewObj(profilerKeyCtor));
+        Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+        Emit(Call(profilerStart1Method));
+        Emit(new Instn(Pop));
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -228,10 +229,10 @@ static class MySession_Patches
                 if (instructions[i + 1].Operand is MsilOperandInline<FieldInfo> field && field.Value == compsField
                     && instructions[i + 4].Operand is MsilOperandInline<MethodBase> call && call.Value == tryGetValueMethod)
                 {
-                    Emit(new MsilInstruction(Ldc_I4_0));
-                    Emit(new MsilInstruction(Ldstr).InlineValue("Before Simulation"));
-                    Emit(new MsilInstruction(Call).InlineValue(profilerStart2Method));
-                    Emit(new MsilInstruction(Pop));
+                    Emit(new Instn(Ldc_I4_0));
+                    Emit(LoadString("Before Simulation"));
+                    Emit(Call(profilerStart2Method));
+                    Emit(new Instn(Pop));
                     patchedParts++;
                 }
             }
@@ -239,16 +240,16 @@ static class MySession_Patches
             {
                 if (instructions[i + 1].Operand is MsilOperandInline<MethodBase> call && call.Value == updateBeforeSimMethod)
                 {
-                    Emit(new MsilInstruction(Ldloc_2).SwapLabels(ins));
-                    Emit(new MsilInstruction(Ldfld).InlineValue(debugNameField));
-                    Emit(new MsilInstruction(Call).InlineValue(profilerStart3Method));
+                    Emit(new Instn(Ldloc_2).SwapLabels(ins));
+                    Emit(LoadField(debugNameField));
+                    Emit(Call(profilerStart3Method));
                     Emit(timerLocal.AsValueStore());
                     // Move past existing ops
                     Emit(instructions[i++]);
                     Emit(instructions[i]);
                     // Dispose timer
                     Emit(timerLocal.AsValueLoad());
-                    Emit(new MsilInstruction(Call).InlineValue(timerDisposeMethod));
+                    Emit(Call(timerDisposeMethod));
                     patchedParts++;
                     continue;
                 }
@@ -258,11 +259,11 @@ static class MySession_Patches
                 if (instructions[i + 1].Operand is MsilOperandInline<FieldInfo> field && field.Value == compsField
                     && instructions[i + 4].Operand is MsilOperandInline<MethodBase> call && call.Value == tryGetValueMethod)
                 {
-                    Emit(new MsilInstruction(Ldc_I4_1).SwapLabelsAndTryCatchOperations(ins));
-                    Emit(new MsilInstruction(Ldstr).InlineValue("Simulate"));
-                    Emit(new MsilInstruction(Ldc_I4_1)); // profilerMemory: true
-                    Emit(new MsilInstruction(Call).InlineValue(profilerRestartMethod));
-                    Emit(new MsilInstruction(Pop));
+                    Emit(new Instn(Ldc_I4_1).SwapLabelsAndTryCatchOperations(ins));
+                    Emit(LoadString("Simulate"));
+                    Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+                    Emit(Call(profilerRestartMethod));
+                    Emit(new Instn(Pop));
                     patchedParts++;
                 }
             }
@@ -270,16 +271,16 @@ static class MySession_Patches
             {
                 if (instructions[i + 1].Operand is MsilOperandInline<MethodBase> call && call.Value == simulateMethod)
                 {
-                    Emit(new MsilInstruction(Ldloc_3).SwapLabels(ins));
-                    Emit(new MsilInstruction(Ldfld).InlineValue(debugNameField));
-                    Emit(new MsilInstruction(Call).InlineValue(profilerStart3Method));
+                    Emit(new Instn(Ldloc_3).SwapLabels(ins));
+                    Emit(LoadField(debugNameField));
+                    Emit(Call(profilerStart3Method));
                     Emit(timerLocal.AsValueStore());
                     // Move past existing ops
                     Emit(instructions[i++]);
                     Emit(instructions[i]);
                     // Dispose timer
                     Emit(timerLocal.AsValueLoad());
-                    Emit(new MsilInstruction(Call).InlineValue(timerDisposeMethod));
+                    Emit(Call(timerDisposeMethod));
                     patchedParts++;
                     continue;
                 }
@@ -289,11 +290,11 @@ static class MySession_Patches
                 if (instructions[i + 1].Operand is MsilOperandInline<FieldInfo> field && field.Value == compsField
                     && instructions[i + 4].Operand is MsilOperandInline<MethodBase> call && call.Value == tryGetValueMethod)
                 {
-                    Emit(new MsilInstruction(Ldc_I4_2).SwapLabelsAndTryCatchOperations(ins));
-                    Emit(new MsilInstruction(Ldstr).InlineValue("After Simulation"));
-                    Emit(new MsilInstruction(Ldc_I4_1)); // profilerMemory: true
-                    Emit(new MsilInstruction(Call).InlineValue(profilerRestartMethod));
-                    Emit(new MsilInstruction(Pop));
+                    Emit(new Instn(Ldc_I4_2).SwapLabelsAndTryCatchOperations(ins));
+                    Emit(LoadString("After Simulation"));
+                    Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+                    Emit(Call(profilerRestartMethod));
+                    Emit(new Instn(Pop));
                     patchedParts++;
                 }
             }
@@ -301,16 +302,16 @@ static class MySession_Patches
             {
                 if (instructions[i + 1].Operand is MsilOperandInline<MethodBase> call && call.Value == updateAfterSimMethod)
                 {
-                    Emit(new MsilInstruction(Ldloc_S).InlineValue(new MsilLocal(4)).SwapLabels(ins));
-                    Emit(new MsilInstruction(Ldfld).InlineValue(debugNameField));
-                    Emit(new MsilInstruction(Call).InlineValue(profilerStart3Method));
+                    Emit(new Instn(Ldloc_S).InlineValue(new MsilLocal(4)).SwapLabels(ins));
+                    Emit(LoadField(debugNameField));
+                    Emit(Call(profilerStart3Method));
                     Emit(timerLocal.AsValueStore());
                     // Move past existing ops
                     Emit(instructions[i++]);
                     Emit(instructions[i]);
                     // Dispose timer
                     Emit(timerLocal.AsValueLoad());
-                    Emit(new MsilInstruction(Call).InlineValue(timerDisposeMethod));
+                    Emit(Call(timerDisposeMethod));
                     patchedParts++;
                     continue;
                 }
@@ -323,9 +324,9 @@ static class MySession_Patches
             Emit(ins);
         }
 
-        Emit(new MsilInstruction(Call).InlineValue(profilerStopMethod).SwapLabelsAndTryCatchOperations(instructions[^1]));
-        Emit(new MsilInstruction(Call).InlineValue(profilerStopMethod));
-        Emit(new MsilInstruction(Ret));
+        Emit(Call(profilerStopMethod).SwapLabelsAndTryCatchOperations(instructions[^1]));
+        Emit(Call(profilerStopMethod));
+        Emit(new Instn(Ret));
 
         if (patchedParts != expectedParts)
         {
