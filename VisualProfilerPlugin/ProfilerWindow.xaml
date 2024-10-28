@@ -73,8 +73,11 @@
                     <Rectangle Height="2" Fill="LightGray"/>
                 </StackPanel>
 
-                <Expander ExpandDirection="Down" Grid.Row="1" IsExpanded="True" Header="Outlier Frames" Margin="0,0,0,4" FontWeight="Bold"
+                <Expander ExpandDirection="Down" Grid.Row="1" IsExpanded="True" Margin="0,0,0,4" FontWeight="Bold"
                           Expanded="OutlierFramesExpander_Expanded" Collapsed="OutlierFramesExpander_Collapsed">
+                    <Expander.Header>
+                        <TextBlock ToolTip="Frames with outlier events.">Outlier Frames</TextBlock>
+                    </Expander.Header>
                     <ListView Name="outliersList" BorderThickness="0,1,0,0" FontWeight="Regular"/>
                 </Expander>
                 <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
