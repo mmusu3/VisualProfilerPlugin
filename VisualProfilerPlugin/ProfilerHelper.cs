@@ -375,7 +375,8 @@ static class ProfilerHelper
         {
             foreach (ref var _event in item.Value.AllEvents)
             {
-                if (_event.ExtraValue.Type != ProfilerEvent.ExtraValueTypeOption.Object)
+                if (_event.ExtraValue.Type is not ProfilerEvent.ExtraValueTypeOption.Object
+                    and not ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
                     continue;
 
                 var obj = _event.ExtraValue.Object;
@@ -435,7 +436,8 @@ static class ProfilerHelper
                 if (_event.NameKey != 0)
                     _event.NameKey = ProfilerKeyCache.GetOrAdd(recording.EventStrings[_event.NameKey]).GlobalIndex;
 
-                if (_event.ExtraValue.Type != ProfilerEvent.ExtraValueTypeOption.Object)
+                if (_event.ExtraValue.Type is not ProfilerEvent.ExtraValueTypeOption.Object
+                    and not ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
                     continue;
 
                 int objId = _event.ExtraValue.ObjectKey.ID;
@@ -523,6 +525,7 @@ static class ProfilerHelper
                         switch (_event.ExtraValue.Type)
                         {
                         case ProfilerEvent.ExtraValueTypeOption.Object:
+                        case ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory:
                             {
                                 // TODO: Record list of event IDs per object for highlighting events in graph when object selected
 

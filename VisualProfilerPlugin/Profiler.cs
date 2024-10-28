@@ -134,6 +134,7 @@ public struct ProfilerEvent
 
         [ProtoMember(4)] public string? Format;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(object? obj, string? format = null)
         {
             Type = ExtraValueTypeOption.Object;
@@ -142,6 +143,16 @@ public struct ProfilerEvent
             Format = format;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ExtraData(EventCategory category, object? obj = null, string? format = null)
+        {
+            Type = ExtraValueTypeOption.ObjectAndCategory;
+            Value = new(category);
+            Object = obj;
+            Format = format;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(long value, string? format = null)
         {
             Type = ExtraValueTypeOption.Long;
@@ -149,6 +160,7 @@ public struct ProfilerEvent
             Format = format;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(double value, string? format = null)
         {
             Type = ExtraValueTypeOption.Double;
@@ -156,18 +168,11 @@ public struct ProfilerEvent
             Format = format;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(float value, string? format = null)
         {
             Type = ExtraValueTypeOption.Float;
             Value = new(value);
-            Format = format;
-        }
-
-        public ExtraData(EventCategory category, object? obj = null, string? format = null)
-        {
-            Type = ExtraValueTypeOption.ObjectAndCategory;
-            Value = new(category);
-            Object = obj;
             Format = format;
         }
     }
@@ -482,7 +487,7 @@ public sealed class ProfilerTimer : IDisposable
             _event.Depth = Depth;
             _event.ExtraValue = extraData;
 
-            if (extraData.Type == ProfilerEvent.ExtraValueTypeOption.Object && !group.IsRealtimeThread)
+            if (extraData.Type is ProfilerEvent.ExtraValueTypeOption.Object or ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory && !group.IsRealtimeThread)
                 Profiler.EventObjectResolver?.ResolveNonCached(ref _event.ExtraValue);
         }
 
@@ -1530,7 +1535,7 @@ public class ProfilerGroup
             {
                 ref var _event = ref segment[j];
 
-                if (_event.ExtraValue.Type == ProfilerEvent.ExtraValueTypeOption.Object)
+                if (_event.ExtraValue.Type is ProfilerEvent.ExtraValueTypeOption.Object or ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
                     objectResolver.Resolve(ref _event.ExtraValue);
             }
         }
