@@ -331,9 +331,10 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         int patchedParts = 0;
 
         var keyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
-        var extraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null)!;
+        var extraDataCtor1 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null)!;
+        var extraDataCtor2 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null)!;
         var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool), typeof(ProfilerEvent.ExtraData)])!;
-        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(string)])!;
+        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)])!;
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop))!;
         var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
 
@@ -349,7 +350,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
         newInstructions.AddRange(dataInstructions);
         Emit(LoadString("Num entities: {0:n0}"));
-        Emit(NewObj(extraDataCtor));
+        Emit(NewObj(extraDataCtor1));
         Emit(Call(startMethod1));
         Emit(timerLocal1.AsValueStore());
 
@@ -363,6 +364,10 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 Emit(new Instn(ins.OpCode)); // entity
                 Emit(CallVirt(getTypeMethod));
                 Emit(CallVirt(nameGetter));
+                Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+                Emit(new Instn(ins.OpCode)); // entity
+                Emit(new Instn(Ldnull)); // data format
+                Emit(NewObj(extraDataCtor2));
                 Emit(Call(startMethod2));
                 Emit(timerLocal2.AsValueStore());
 
