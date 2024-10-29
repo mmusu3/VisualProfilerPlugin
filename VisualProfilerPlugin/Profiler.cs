@@ -53,67 +53,32 @@ public struct ProfilerEvent
     [ProtoContract]
     public struct ExtraValueUnion
     {
-        [ProtoMember(1)]
-        public long DataField;
-
-        [ProtoIgnore]
-        public long LongValue
-        {
-            readonly get => DataField;
-            set => DataField = value;
-        }
-
-        [ProtoIgnore]
-        public double DoubleValue
-        {
-            get => Unsafe.As<long, double>(ref DataField);
-            set => Unsafe.As<long, double>(ref DataField) = value;
-        }
-
-        [ProtoIgnore]
-        public float FloatValue
-        {
-            get => Unsafe.As<long, float>(ref DataField);
-            set
-            {
-                DataField = 0;
-                Unsafe.As<long, float>(ref DataField) = value;
-            }
-        }
-
-        [ProtoIgnore]
-        public EventCategory CategoryValue
-        {
-            get => Unsafe.As<long, EventCategory>(ref DataField);
-            set
-            {
-                DataField = 0;
-                Unsafe.As<long, EventCategory>(ref DataField) = value;
-            }
-        }
+        [ProtoMember(1)] public long DataField;
+        [ProtoIgnore] public readonly long LongValue => DataField;
+        [ProtoIgnore] public double DoubleValue => Unsafe.As<long, double>(ref DataField);
+        [ProtoIgnore] public float FloatValue => Unsafe.As<long, float>(ref DataField);
+        [ProtoIgnore] public readonly EventCategory CategoryValue => (EventCategory)(DataField >> 32);
 
         public ExtraValueUnion(long value)
         {
-            DataField = 0;
-            LongValue = value;
+            DataField = value;
         }
 
         public ExtraValueUnion(double value)
         {
             DataField = 0;
-            DoubleValue = value;
+            Unsafe.As<long, double>(ref DataField) = value;
         }
 
         public ExtraValueUnion(float value)
         {
             DataField = 0;
-            FloatValue = value;
+            Unsafe.As<long, float>(ref DataField) = value;
         }
 
         public ExtraValueUnion(EventCategory category)
         {
-            DataField = 0;
-            CategoryValue = category;
+            DataField = (long)category << 32;
         }
     }
 
@@ -128,8 +93,8 @@ public struct ProfilerEvent
         [ProtoMember(3)]
         public ObjectId ObjectKey
         {
-            readonly get => new ObjectId((int)Value.LongValue);
-            set => Value.LongValue = value.ID;
+            readonly get => new ObjectId((int)Value.DataField);
+            set => Value.DataField = (Value.DataField & ~0xFFFFFFFFL) | (long)value.ID;
         }
 
         [ProtoMember(4)] public string? Format;
