@@ -11,7 +11,9 @@ static class MyGridContactInfo_Patches
     {
         Keys.Init();
 
-        PatchPrefixSuffixPair(ctx, "ReadVoxelSurfaceMaterial", _public: false, _static: false);
+        // TODO: Have had an AVE in MyGridPhysics.RigidBody_ContactPointCallbackImpl at the
+        // second get of MyGridContactInfo.VoxelSurfaceMaterial
+        //PatchPrefixSuffixPair(ctx, "ReadVoxelSurfaceMaterial", _public: false, _static: false);
     }
 
     static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
