@@ -88,14 +88,14 @@
                               GridViewColumnHeader.Click="PhysicsClustersListHeader_Click">
                         <ListView.View>
                             <GridView AllowsColumnReorder="True">
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
-                                    <GridViewColumnHeader Name="physicsClusterTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                    <GridViewColumnHeader Name="physicsClusterCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the cluster was timed in."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
                                     <GridViewColumnHeader Name="physicsClusterAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="physicsClusterCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the cluster was timed in."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
+                                    <GridViewColumnHeader Name="physicsClusterTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=ID}">
                                     <GridViewColumnHeader Name="physicsClusterIdColumn" Content=" ID "/>
@@ -127,23 +127,23 @@
                               GridViewColumnHeader.Click="CubeGridsListHeader_Click">
                         <ListView.View>
                             <GridView AllowsColumnReorder="True">
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
-                                    <GridViewColumnHeader Name="gridTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                    <GridViewColumnHeader Name="gridCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the grid was timed in."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
                                     <GridViewColumnHeader Name="gridAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="gridCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the grid was timed in."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
+                                    <GridViewColumnHeader Name="gridTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=NamesForColumn}">
+                                    <GridViewColumnHeader Name="gridNamesColumn" Content=" Grid Names " ToolTip="Player assigned names of the grid.&#10;Can be multiple values if the name was changed over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=GridTypeForColumn}">
                                     <GridViewColumnHeader Name="gridTypeColumn" Content=" Grid Type "/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=EntityId}">
                                     <GridViewColumnHeader Name="gridEntityIdColumn" Content=" Entity ID "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NamesForColumn}">
-                                    <GridViewColumnHeader Name="gridNamesColumn" Content=" Grid Names " ToolTip="Player assigned names of the grid.&#10;Can be multiple values if the name was changed over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerIDsForColumn}">
                                     <GridViewColumnHeader Name="gridOwnerIdsColumn" Content=" Main Owner IDs " ToolTip="Identity IDs of the players that own the most blocks on the grid (BigOwner).&#10;Will be 0 if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
@@ -181,14 +181,17 @@
                               GridViewColumnHeader.Click="ProgBlocksListHeader_Click">
                         <ListView.View>
                             <GridView AllowsColumnReorder="True">
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
-                                    <GridViewColumnHeader Name="blockTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                    <GridViewColumnHeader Name="blockCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the block was timed in."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
                                     <GridViewColumnHeader Name="blockAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="blockCountedFramesColumn" Content=" N Frames " ToolTip="Number of frames that the block was timed in."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
+                                    <GridViewColumnHeader Name="blockTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=CustomNamesForColumn}">
+                                    <GridViewColumnHeader Name="blockCustomNamesColumn" Content=" Block Names " ToolTip="Player assigned names of the block.&#10;Can be multiple values if the name was changed over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=CubeSize}">
                                     <GridViewColumnHeader Name="blockGridSizeColumn" Content=" Cube Size "/>
@@ -198,9 +201,6 @@
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=GridIdsForColumn}">
                                     <GridViewColumnHeader Name="blockGridIdColumn" Content=" Grid IDs " ToolTip="IDs of the parent grid of the block.&#10;Can be multiple values if the block was moved between grids."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=CustomNamesForColumn}">
-                                    <GridViewColumnHeader Name="blockCustomNamesColumn" Content=" Block Names " ToolTip="Player assigned names of the block.&#10;Can be multiple values if the name was changed over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerIDsForColumn}">
                                     <GridViewColumnHeader Name="blockOwnerIdsColumn" Content=" Main Owner IDs " ToolTip="Identity IDs of the players that owned the block.&#10;Will be 0 if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
