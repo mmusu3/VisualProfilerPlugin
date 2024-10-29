@@ -442,7 +442,11 @@ static class ProfilerHelper
 
                 int objId = _event.ExtraValue.ObjectKey.ID;
 
-                if (objId < 0)
+                if (objId == 0)
+                {
+                    // Null object
+                }
+                else if (objId < 0)
                 {
                     if (!recording.DataStrings.TryGetValue(-objId, out var str))
                     {
