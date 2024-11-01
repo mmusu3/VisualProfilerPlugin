@@ -7,15 +7,15 @@ using Torch.Managers.PatchManager;
 namespace VisualProfiler.Patches;
 
 [PatchShim]
-static class MyProgrammableBlock_RunSandboxedProgramAction_Patch
+static class MyProgrammableBlock_Patches
 {
     public static void Patch(PatchContext ctx)
     {
         Keys.Init();
 
         var source = typeof(MyProgrammableBlock).GetPublicInstanceMethod(nameof(MyProgrammableBlock.RunSandboxedProgramAction));
-        var prefix = typeof(MyProgrammableBlock_RunSandboxedProgramAction_Patch).GetNonPublicStaticMethod(nameof(Prefix_RunSandboxedProgramAction));
-        var suffix = typeof(MyProgrammableBlock_RunSandboxedProgramAction_Patch).GetNonPublicStaticMethod(nameof(Suffix_RunSandboxedProgramAction));
+        var prefix = typeof(MyProgrammableBlock_Patches).GetNonPublicStaticMethod(nameof(Prefix_RunSandboxedProgramAction));
+        var suffix = typeof(MyProgrammableBlock_Patches).GetNonPublicStaticMethod(nameof(Suffix_RunSandboxedProgramAction));
 
         var pattern = ctx.GetPattern(source);
         pattern.Prefixes.Add(prefix);
