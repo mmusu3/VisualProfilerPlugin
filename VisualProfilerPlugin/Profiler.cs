@@ -2150,6 +2150,8 @@ public static class Profiler
             if (!isRecordingEvents)
                 return null!;
 
+            isRecordingEvents = false;
+
             var groups = new List<ProfilerGroup>(profilerGroupsById.Count);
             var groupsRecordings = new List<(int, ProfilerGroup.GroupEventsRecording)>(profilerGroupsById.Count);
 
@@ -2163,8 +2165,6 @@ public static class Profiler
                     groupsRecordings.Add((item.Key, events));
                 }
             }
-
-            isRecordingEvents = false;
 
             int numRecordedFrames = 0;
 
