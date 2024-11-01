@@ -34,7 +34,7 @@ static class MyReceiveQueue_Patches
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_Process(ref ProfilerTimer __local_timer, ConcurrentQueue<MyPacket> __field_m_receiveQueue)
-    { __local_timer = Profiler.Start(Keys.Process, profileMemory: true, new(__field_m_receiveQueue.Count, "ReceiveQueue Count: {0}")); return true; }
+    { __local_timer = Profiler.Start(Keys.Process, ProfilerTimerOptions.ProfileMemory, new(__field_m_receiveQueue.Count, "ReceiveQueue Count: {0}")); return true; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Suffix(ref ProfilerTimer __local_timer)

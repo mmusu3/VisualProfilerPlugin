@@ -33,7 +33,7 @@ static class MyWheel_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_ContactPointCallback(ref ProfilerTimer __local_timer, MyWheel __instance)
     {
-        __local_timer = Profiler.Start(Keys.ContactPointCallback, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.ContactPointCallback, ProfilerTimerOptions.ProfileMemory,
             new(__instance, "Wheel: {0}"));
 
         return true;

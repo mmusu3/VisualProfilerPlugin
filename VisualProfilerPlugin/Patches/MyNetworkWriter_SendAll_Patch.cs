@@ -34,7 +34,7 @@ static class MyNetworkWriter_SendAll_Patch
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_SendAll(ref ProfilerTimer __local_timer, ConcurrentQueue<MyNetworkWriter.MyPacketDescriptor> __field_m_packetsToSend)
     {
-        __local_timer = Profiler.Start(Keys.SendAll, profileMemory: true, new(__field_m_packetsToSend.Count, "Packets to send: {0}"));
+        __local_timer = Profiler.Start(Keys.SendAll, ProfilerTimerOptions.ProfileMemory, new(__field_m_packetsToSend.Count, "Packets to send: {0}"));
         return true;
     }
 

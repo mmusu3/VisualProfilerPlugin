@@ -50,7 +50,7 @@ static class MyPlanet_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_UpdateOnceBeforeFrame(ref ProfilerTimer __local_timer, MyPlanet __instance)
     {
-        __local_timer = Profiler.Start(Keys.UpdateOnceBeforeFrame, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateOnceBeforeFrame, ProfilerTimerOptions.ProfileMemory,
             new(__instance, "Planet: {0}"));
 
         return true;
@@ -59,7 +59,7 @@ static class MyPlanet_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_UpdateAfterSimulation10(ref ProfilerTimer __local_timer, MyPlanet __instance)
     {
-        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation10, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation10, ProfilerTimerOptions.ProfileMemory,
             new(__instance, "Planet: {0}"));
 
         return true;
@@ -68,7 +68,7 @@ static class MyPlanet_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_UpdatePlanetPhysics(ref ProfilerTimer __local_timer, MyPlanet __instance)
     {
-        __local_timer = Profiler.Start(Keys.UpdatePlanetPhysics, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdatePlanetPhysics, ProfilerTimerOptions.ProfileMemory,
             new(__instance, "Planet: {0}"));
 
         return true;
@@ -77,7 +77,7 @@ static class MyPlanet_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_UpdateAfterSimulation100(ref ProfilerTimer __local_timer, MyPlanet __instance)
     {
-        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation100, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation100, ProfilerTimerOptions.ProfileMemory,
             new(__instance, "Planet: {0}"));
 
         return true;

@@ -55,7 +55,7 @@ static class Game_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Suffix_RunSingleFrame()
     {
-        Profiler.Start(Keys.WaitForNextUpdate, profileMemory: false, new(ProfilerEvent.EventCategory.Wait));
+        Profiler.Start(Keys.WaitForNextUpdate, ProfilerTimerOptions.None, new(ProfilerEvent.EventCategory.Wait));
     }
 
     static IEnumerable<MsilInstruction> Transpile_UpdateInternal(IEnumerable<MsilInstruction> instructionStream, Func<Type, MsilLocal> __localCreator)
@@ -73,8 +73,8 @@ static class Game_Patches
         var beginFrameMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(BeginFrame));
         var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
         var extraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
-        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
-        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(int), typeof(string)]);
+        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)]);
+        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)]);
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
         var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
         var endMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(EndFrame));
@@ -88,7 +88,7 @@ static class Game_Patches
         Emit(new MsilInstruction(OpCodes.Call).InlineValue(beginFrameMethod));
         Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.UpdateFrame.GlobalIndex));
         Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profilerMemory: true
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
         Emit(new MsilInstruction(OpCodes.Ldarg_0));
         Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(updateCounterField));
         Emit(new MsilInstruction(OpCodes.Conv_I8));

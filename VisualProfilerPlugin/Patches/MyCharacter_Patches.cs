@@ -33,7 +33,7 @@ static class MyCharacter_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_RigidBody_ContactPointCallback(ref ProfilerTimer __local_timer, MyCharacter __instance)
     {
-        __local_timer = Profiler.Start(Keys.RigidBody_ContactPointCallback, profileMemory: true, new(__instance));
+        __local_timer = Profiler.Start(Keys.RigidBody_ContactPointCallback, ProfilerTimerOptions.ProfileMemory, new(__instance));
 
         return true;
     }

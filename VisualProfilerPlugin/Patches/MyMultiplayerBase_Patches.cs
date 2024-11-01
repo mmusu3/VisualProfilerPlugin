@@ -48,14 +48,14 @@ static class MyMultiplayerBase_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_ControlMessageReceived(ref ProfilerTimer __local_timer, MyPacket p)
     {
-        __local_timer = Profiler.Start(Keys.ControlMessageReceived, profileMemory: true, new((long)p.Sender.Id.Value, "SenderId: {0}"));
+        __local_timer = Profiler.Start(Keys.ControlMessageReceived, ProfilerTimerOptions.ProfileMemory, new((long)p.Sender.Id.Value, "SenderId: {0}"));
         return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_Tick(ref ProfilerTimer __local_timer)
     {
-        __local_timer = Profiler.Start(Keys.Tick, profileMemory: true, new(ProfilerEvent.EventCategory.Network));
+        __local_timer = Profiler.Start(Keys.Tick, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.Network));
         return true;
     }
 }

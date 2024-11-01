@@ -33,7 +33,7 @@ static class IVRageScriptingFunctions_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_CompileIngameScriptAsync(ref ProfilerTimer __local_timer, string program)
     {
-        __local_timer = Profiler.Start(Keys.CompileIngameScriptAsync, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.CompileIngameScriptAsync, ProfilerTimerOptions.ProfileMemory,
             new(program.Length, "Program Length: {0:N0}"));
 
         return true;

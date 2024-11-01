@@ -43,7 +43,7 @@ static class MyDefinitionManager_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_LoadData(ref ProfilerTimer __local_timer, List<MyObjectBuilder_Checkpoint.ModItem> mods)
     {
-        __local_timer = Profiler.Start(Keys.LoadData, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.LoadData, ProfilerTimerOptions.ProfileMemory,
             new(mods.Count, "Mod Count: {0}"));
 
         return true;

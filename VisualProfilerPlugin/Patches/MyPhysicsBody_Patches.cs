@@ -47,7 +47,7 @@ static class MyPhysicsBody_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_OnContactPointCallback(ref ProfilerTimer __local_timer, MyPhysicsBody __instance)
     {
-        __local_timer = Profiler.Start(Keys.OnContactPointCallback, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.OnContactPointCallback, ProfilerTimerOptions.ProfileMemory,
             new(__instance.Entity, "PhysicsBody entity: {0}"));
 
         return true;
@@ -56,7 +56,7 @@ static class MyPhysicsBody_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_OnContactSoundCallback(ref ProfilerTimer __local_timer, MyPhysicsBody __instance)
     {
-        __local_timer = Profiler.Start(Keys.OnContactSoundCallback, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.OnContactSoundCallback, ProfilerTimerOptions.ProfileMemory,
             new(__instance.Entity, "PhysicsBody entity: {0}"));
 
         return true;

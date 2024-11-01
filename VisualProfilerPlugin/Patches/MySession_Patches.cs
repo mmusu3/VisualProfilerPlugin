@@ -96,7 +96,7 @@ static class MySession_Patches
     [MethodImpl(Inline)]
     static bool Prefix_Load(ref ProfilerTimer __local_timer)
     {
-        __local_timer = Profiler.Start(Keys.Load, profileMemory: true, new(ProfilerEvent.EventCategory.Load));
+        __local_timer = Profiler.Start(Keys.Load, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.Load));
         return true;
     }
 
@@ -191,10 +191,10 @@ static class MySession_Patches
         int patchedParts = 0;
 
         var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
-        var profilerStart1Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(bool)])!;
+        var profilerStart1Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)])!;
         var profilerStart2Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)])!;
         var profilerStart3Method = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)])!;
-        var profilerRestartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Restart), [typeof(int), typeof(string), typeof(bool)])!;
+        var profilerRestartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Restart), [typeof(int), typeof(string), typeof(ProfilerTimerOptions)])!;
         var profilerStopMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Stop))!;
         var timerDisposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
 
@@ -216,7 +216,7 @@ static class MySession_Patches
 
         Emit(new Instn(Ldc_I4).InlineValue(Keys.UpdateComponents.GlobalIndex));
         Emit(NewObj(profilerKeyCtor));
-        Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+        Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
         Emit(Call(profilerStart1Method));
         Emit(new Instn(Pop));
 
@@ -261,7 +261,7 @@ static class MySession_Patches
                 {
                     Emit(new Instn(Ldc_I4_1).SwapLabelsAndTryCatchOperations(ins));
                     Emit(LoadString("Simulate"));
-                    Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+                    Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
                     Emit(Call(profilerRestartMethod));
                     Emit(new Instn(Pop));
                     patchedParts++;
@@ -292,7 +292,7 @@ static class MySession_Patches
                 {
                     Emit(new Instn(Ldc_I4_2).SwapLabelsAndTryCatchOperations(ins));
                     Emit(LoadString("After Simulation"));
-                    Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+                    Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
                     Emit(Call(profilerRestartMethod));
                     Emit(new Instn(Pop));
                     patchedParts++;

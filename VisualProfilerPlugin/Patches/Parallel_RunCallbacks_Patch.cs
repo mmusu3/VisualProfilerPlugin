@@ -46,7 +46,7 @@ static class Parallel_RunCallbacks_Patch
         int patchedParts = 0;
 
         var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(bool)]);
+        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)]);
         var startCallbackMethod = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(StartCallback));
         var startDataCallbackMethod = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(StartDataCallback));
         var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
@@ -63,7 +63,7 @@ static class Parallel_RunCallbacks_Patch
 
         Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.RunCallbacks.GlobalIndex));
         Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profileMemory: true
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
         Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod));
         Emit(timerLocal1.AsValueStore());
 

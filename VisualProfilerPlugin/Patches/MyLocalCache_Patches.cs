@@ -68,7 +68,7 @@ static class MyLocalCache_Patches
     [MethodImpl(Inline)]
     static bool Prefix_SaveCheckpoint(ref ProfilerTimer __local_timer)
     {
-        __local_timer = Profiler.Start(Keys.SaveCheckpoint, profileMemory: true, new(ProfilerEvent.EventCategory.Save));
+        __local_timer = Profiler.Start(Keys.SaveCheckpoint, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.Save));
         return true;
     }
 }

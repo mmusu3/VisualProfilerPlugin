@@ -45,8 +45,8 @@ static class MyFloatingObjects_Patches
     {
         //int itemCount = __field_m_floatingOres.Count + __field_m_floatingItems.Count + __field_m_floatingBags.Count;
 
-        //__local_timer = Profiler.Start(Keys.UpdateAfterSimulation, profileMemory: true, new(itemCount, "Total Items: {0:N}"));
-        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation, profileMemory: true, new(ProfilerEvent.EventCategory.FloatingObjects));
+        //__local_timer = Profiler.Start(Keys.UpdateAfterSimulation, ProfilerTimerOptions.ProfileMemory, new(itemCount, "Total Items: {0:N}"));
+        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.FloatingObjects));
 
         return true;
     }

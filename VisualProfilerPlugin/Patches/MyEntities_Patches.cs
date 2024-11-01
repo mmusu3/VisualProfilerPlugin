@@ -71,18 +71,18 @@ static class MyEntities_Patches
     { __local_timer = Profiler.Start(Keys.Load); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_CreateFromObjectBuilder(ref ProfilerTimer __local_timer, MyObjectBuilder_EntityBase objectBuilder)
-    { __local_timer = Profiler.Start(Keys.CreateFromObjectBuilder, profileMemory: true, new((Type)objectBuilder.TypeId, "Type: {0}")); return true; }
+    { __local_timer = Profiler.Start(Keys.CreateFromObjectBuilder, ProfilerTimerOptions.ProfileMemory, new((Type)objectBuilder.TypeId, "Type: {0}")); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_LoadEntity(ref ProfilerTimer __local_timer, MyObjectBuilder_EntityBase objectBuilder)
-    { __local_timer = Profiler.Start(Keys.LoadEntity, profileMemory: true, new((Type)objectBuilder.TypeId, "Type: {0}")); return true; }
+    { __local_timer = Profiler.Start(Keys.LoadEntity, ProfilerTimerOptions.ProfileMemory, new((Type)objectBuilder.TypeId, "Type: {0}")); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_Add(ref ProfilerTimer __local_timer, MyEntity entity)
-    { __local_timer = Profiler.Start(Keys.Add, profileMemory: true, new(entity, "{0}")); return true; }
+    { __local_timer = Profiler.Start(Keys.Add, ProfilerTimerOptions.ProfileMemory, new(entity, "{0}")); return true; }
 
     [MethodImpl(Inline)]
     static bool Prefix_RaiseEntityAdd(ref ProfilerTimer __local_timer, MyEntity entity, Action<MyEntity> __field_OnEntityAdd)
     {
-        __local_timer = Profiler.Start(Keys.RaiseEntityAdd, profileMemory: true, new(entity, "{0}"));
+        __local_timer = Profiler.Start(Keys.RaiseEntityAdd, ProfilerTimerOptions.ProfileMemory, new(entity, "{0}"));
 
         var obj = InvocationListGetter(__field_OnEntityAdd);
         int count = (int)InvocationCountGetter(__field_OnEntityAdd);
@@ -95,7 +95,7 @@ static class MyEntities_Patches
                 {
                     var di = (Delegate)list[i];
 
-                    using (Profiler.Start(di.Method.Name, profileMemory: true, new(di.Target?.GetType() ?? di.Method.DeclaringType)))
+                    using (Profiler.Start(di.Method.Name, ProfilerTimerOptions.ProfileMemory, new(di.Target?.GetType() ?? di.Method.DeclaringType)))
                         ((Action<MyEntity>)di).Invoke(entity);
                 }
 
@@ -103,7 +103,7 @@ static class MyEntities_Patches
             }
         case Delegate dg:
             {
-                using (Profiler.Start(dg.Method.Name, profileMemory: true, new(dg.Target?.GetType() ?? dg.Method.DeclaringType)))
+                using (Profiler.Start(dg.Method.Name, ProfilerTimerOptions.ProfileMemory, new(dg.Target?.GetType() ?? dg.Method.DeclaringType)))
                     ((Action<MyEntity>)dg).Invoke(entity);
 
                 break;

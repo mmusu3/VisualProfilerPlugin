@@ -78,7 +78,7 @@ static class MyReplicationServer_Patches
     [MethodImpl(Inline)]
     static bool Prefix_UpdateBefore(ref ProfilerTimer __local_timer)
     {
-        __local_timer = Profiler.Start(Keys.UpdateBefore, profileMemory: true, new(ProfilerEvent.EventCategory.Network));
+        __local_timer = Profiler.Start(Keys.UpdateBefore, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.Network));
         return true;
     }
 
@@ -95,7 +95,7 @@ static class MyReplicationServer_Patches
     { __local_timer = Profiler.Start(Keys.FilterStateSync); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_AddForClient(ref ProfilerTimer __local_timer, IMyReplicable replicable)
-    { __local_timer = Profiler.Start(Keys.AddForClient, profileMemory: true, new(replicable)); return true; }
+    { __local_timer = Profiler.Start(Keys.AddForClient, ProfilerTimerOptions.ProfileMemory, new(replicable)); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_SendStreamingEntry(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.SendStreamingEntry); return true; }

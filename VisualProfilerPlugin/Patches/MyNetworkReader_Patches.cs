@@ -47,7 +47,7 @@ static class MyNetworkReader_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_Process(ref ProfilerTimer __local_timer)
     {
-        __local_timer = Profiler.Start(Keys.Process, profileMemory: true, new(ProfilerEvent.EventCategory.Network));
+        __local_timer = Profiler.Start(Keys.Process, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.Network));
         return true;
     }
 

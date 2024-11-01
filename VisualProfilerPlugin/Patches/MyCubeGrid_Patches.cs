@@ -68,22 +68,22 @@ static class MyCubeGrid_Patches
     [MethodImpl(Inline)] static void Suffix(ref ProfilerTimer __local_timer) => __local_timer.Stop();
 
     [MethodImpl(Inline)] static bool Prefix_UpdateBeforeSimulation(ref ProfilerTimer __local_timer, MyCubeGrid __instance)
-    { __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation, profileMemory: true, new(__instance)); return true; }
+    { __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation, ProfilerTimerOptions.ProfileMemory, new(__instance)); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_UpdateBeforeSimulation10(ref ProfilerTimer __local_timer, MyCubeGrid __instance)
-    { __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation10, profileMemory: true, new(__instance)); return true; }
+    { __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation10, ProfilerTimerOptions.ProfileMemory, new(__instance)); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_UpdateBeforeSimulation100(ref ProfilerTimer __local_timer, MyCubeGrid __instance)
-    { __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation100, profileMemory: true, new(__instance)); return true; }
+    { __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation100, ProfilerTimerOptions.ProfileMemory, new(__instance)); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_UpdateAfterSimulation(ref ProfilerTimer __local_timer, MyCubeGrid __instance)
-    { __local_timer = Profiler.Start(Keys.UpdateAfterSimulation, profileMemory: true, new(__instance)); return true; }
+    { __local_timer = Profiler.Start(Keys.UpdateAfterSimulation, ProfilerTimerOptions.ProfileMemory, new(__instance)); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_UpdateAfterSimulation10(ref ProfilerTimer __local_timer, MyCubeGrid __instance)
-    { __local_timer = Profiler.Start(Keys.UpdateAfterSimulation10, profileMemory: true, new(__instance)); return true; }
+    { __local_timer = Profiler.Start(Keys.UpdateAfterSimulation10, ProfilerTimerOptions.ProfileMemory, new(__instance)); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_UpdateAfterSimulation100(ref ProfilerTimer __local_timer, MyCubeGrid __instance)
-    { __local_timer = Profiler.Start(Keys.UpdateAfterSimulation100, profileMemory: true, new(__instance)); return true; }
+    { __local_timer = Profiler.Start(Keys.UpdateAfterSimulation100, ProfilerTimerOptions.ProfileMemory, new(__instance)); return true; }
 
     static IEnumerable<MsilInstruction> Transpile_Dispatch(IEnumerable<MsilInstruction> instructionStream, MethodBody __methodBody, Func<Type, MsilLocal> __localCreator)
     {
@@ -98,7 +98,7 @@ static class MyCubeGrid_Patches
         int patchedParts = 0;
 
         var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool)]);
+        var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)]);
         var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
 
         var invokeMethod = typeof(MyCubeGrid).GetNonPublicInstanceMethod("Invoke");
@@ -112,7 +112,7 @@ static class MyCubeGrid_Patches
 
         Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.Dispatch.GlobalIndex));
         Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profilerMemory: true
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
         Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod));
         Emit(timerLocal.AsValueStore());
 
@@ -165,7 +165,7 @@ static class MyCubeGrid_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Invoke(Action callback)
     {
-        using (Profiler.Start(callback.Method.Name, profileMemory: true, new(callback)))
+        using (Profiler.Start(callback.Method.Name, ProfilerTimerOptions.ProfileMemory, new(callback)))
             callback();
     }
 }

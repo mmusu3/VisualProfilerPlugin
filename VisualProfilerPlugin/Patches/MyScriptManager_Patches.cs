@@ -47,7 +47,7 @@ static class MyScriptManager_Patches
     {
         var mods = MySession.Static.Mods;
 
-        __local_timer = Profiler.Start(Keys.LoadData, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.LoadData, ProfilerTimerOptions.ProfileMemory,
             new(mods?.Count ?? 0, "Mod Count: {0}"));
 
         return true;
@@ -56,7 +56,7 @@ static class MyScriptManager_Patches
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_LoadScripts(ref ProfilerTimer __local_timer, MyModContext mod)
     {
-        __local_timer = Profiler.Start(Keys.LoadScripts, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.LoadScripts, ProfilerTimerOptions.ProfileMemory,
             new(mod.ModName, "Mod: {0}"));
 
         return true;

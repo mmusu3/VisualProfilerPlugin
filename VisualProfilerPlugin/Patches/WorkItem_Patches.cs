@@ -143,8 +143,8 @@ static class WorkItem_Patches
         const int expectedParts = 2;
         int patchedParts = 0;
 
-        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(ProfilerKey), typeof(bool)], null);
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(bool)]);
+        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(ProfilerKey), typeof(ProfilerTimerOptions)], null);
+        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)]);
         var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
@@ -166,7 +166,7 @@ static class WorkItem_Patches
             {
                 Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.WaitTask.GlobalIndex));
                 Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-                Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profileMemory: true
+                Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
                 Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod)); // OnTaskStarted(MyProfiler.TaskType.SyncWait, "WaitTask");
                 Emit(timerLocal.AsValueStore());
                 patchedParts++;

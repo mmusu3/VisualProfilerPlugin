@@ -134,7 +134,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     [MethodImpl(Inline)]
     static bool Prefix_UpdateBeforeSimulation(ref ProfilerTimer __local_timer, HashSet<MyEntity> __field_m_entitiesForUpdate)
     {
-        __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation, ProfilerTimerOptions.ProfileMemory,
             new(__field_m_entitiesForUpdate.Count, "Num entities: {0:n0}"));
 
         return true;
@@ -144,7 +144,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateBeforeSimulation10(ref ProfilerTimer __local_timer,
         MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate10, MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate10Heavy)
     {
-        __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation10, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation10, ProfilerTimerOptions.ProfileMemory,
             new(__field_m_entitiesForUpdate10.Count + __field_m_entitiesForUpdate10Heavy.Count, "Num entities: {0:n0}"));
 
         return true;
@@ -154,7 +154,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateBeforeSimulation100(ref ProfilerTimer __local_timer,
         MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate100, MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate100Heavy)
     {
-        __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation100, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateBeforeSimulation100, ProfilerTimerOptions.ProfileMemory,
             new(__field_m_entitiesForUpdate100.Count + __field_m_entitiesForUpdate100Heavy.Count, "Num entities: {0:n0}"));
 
         return true;
@@ -174,7 +174,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateAfterSimulation(ref ProfilerTimer __local_timer,
         HashSet<MyEntity> __field_m_entitiesForUpdate, HashSet<MyEntity> __field_m_entitiesForUpdateAfter)
     {
-        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation, ProfilerTimerOptions.ProfileMemory,
             new(__field_m_entitiesForUpdate.Count + __field_m_entitiesForUpdateAfter.Count, "Num entities: {0:n0}"));
 
         return true;
@@ -184,7 +184,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateAfterSimulation10(ref ProfilerTimer __local_timer,
         MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate10, MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate10Heavy)
     {
-        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation10, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation10, ProfilerTimerOptions.ProfileMemory,
             new(__field_m_entitiesForUpdate10.Count + __field_m_entitiesForUpdate10Heavy.Count, "Num entities: {0:n0}"));
 
         return true;
@@ -194,7 +194,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     static bool Prefix_UpdateAfterSimulation100(ref ProfilerTimer __local_timer,
         MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate100, MyDistributedTypeUpdater<MyEntity> __field_m_entitiesForUpdate100Heavy)
     {
-        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation100, profileMemory: true,
+        __local_timer = Profiler.Start(Keys.UpdateAfterSimulation100, ProfilerTimerOptions.ProfileMemory,
             new(__field_m_entitiesForUpdate100.Count + __field_m_entitiesForUpdate100Heavy.Count, "Num entities: {0:n0}"));
 
         return true;
@@ -333,8 +333,8 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var keyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
         var extraDataCtor1 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null)!;
         var extraDataCtor2 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null)!;
-        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool), typeof(ProfilerEvent.ExtraData)])!;
-        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)])!;
+        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop))!;
         var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
 
@@ -347,7 +347,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
         Emit(new Instn(Ldc_I4).InlineValue(key.GlobalIndex));
         Emit(NewObj(keyCtor));
-        Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+        Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
         newInstructions.AddRange(dataInstructions);
         Emit(LoadString("Num entities: {0:n0}"));
         Emit(NewObj(extraDataCtor1));
@@ -364,7 +364,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 Emit(new Instn(ins.OpCode)); // entity
                 Emit(CallVirt(getTypeMethod));
                 Emit(CallVirt(nameGetter));
-                Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+                Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
                 Emit(new Instn(ins.OpCode)); // entity
                 Emit(new Instn(Ldnull)); // data format
                 Emit(NewObj(extraDataCtor2));
@@ -408,7 +408,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     //static bool Prefix_PerformParallelUpdate(ref ProfilerTimer __local_timer,
     //    HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelFirst, HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelLast)
     //{
-    //    __local_timer = Profiler.Start("PerformParallelUpdate", profileMemory: true,
+    //    __local_timer = Profiler.Start("PerformParallelUpdate", ProfilerTimerOptions.ProfileMemory,
     //        new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}"));
 
     //    return true;
@@ -422,7 +422,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
     {
         using var stateToken = Havok.HkAccessControl.PushState(Havok.HkAccessControl.AccessState.SharedRead);
 
-        using (Profiler.Start(Keys.PerformParallelUpdate, profileMemory: true,
+        using (Profiler.Start(Keys.PerformParallelUpdate, ProfilerTimerOptions.ProfileMemory,
             new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}")))
         {
             if (MyParallelEntityUpdateOrchestrator.ForceSerialUpdate)
@@ -445,7 +445,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         if (entity.MarkedForClose || (entity.UpdateFlags & MyParallelUpdateFlags.EACH_FRAME_PARALLEL) == 0 || !entity.InScene)
             return;
 
-        using (Profiler.Start(entity.GetType().Name, profileMemory: true, extraData: new(entity)))
+        using (Profiler.Start(entity.GetType().Name, ProfilerTimerOptions.ProfileMemory, extraData: new(entity)))
             entity.UpdateBeforeSimulationParallel();
     }
 
@@ -454,7 +454,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         if (entity.MarkedForClose || (entity.UpdateFlags & MyParallelUpdateFlags.EACH_FRAME_PARALLEL) == 0 || !entity.InScene)
             return;
 
-        using (Profiler.Start(entity.GetType().Name, profileMemory: true, extraData: new(entity)))
+        using (Profiler.Start(entity.GetType().Name, ProfilerTimerOptions.ProfileMemory, extraData: new(entity)))
             entity.UpdateAfterSimulationParallel();
     }
 
@@ -471,7 +471,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         int patchedParts = 0;
 
         var extraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null)!;
-        var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)])!;
+        var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
         var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
 
         var updateMethod = typeof(IMyParallelUpdateable).GetPublicInstanceMethod(nameof(IMyParallelUpdateable.UpdateBeforeSimulationParallel))!;
@@ -490,7 +490,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 Emit(new Instn(Ldarg_1)); // entity
                 Emit(CallVirt(getTypeMethod));
                 Emit(CallVirt(nameGetter));
-                Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+                Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
                 Emit(new Instn(Ldarg_1)); // entity
                 Emit(new Instn(Ldnull));
                 Emit(NewObj(extraDataCtor));
@@ -533,7 +533,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         int patchedParts = 0;
 
         var extraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null)!;
-        var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)])!;
+        var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
         var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
 
         var updateMethod = typeof(IMyParallelUpdateable).GetPublicInstanceMethod(nameof(IMyParallelUpdateable.UpdateAfterSimulationParallel))!;
@@ -552,7 +552,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 Emit(new Instn(Ldarg_1)); // entity
                 Emit(CallVirt(getTypeMethod));
                 Emit(CallVirt(nameGetter));
-                Emit(new Instn(Ldc_I4_1)); // profilerMemory: true
+                Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
                 Emit(new Instn(Ldarg_1)); // entity
                 Emit(new Instn(Ldnull));
                 Emit(NewObj(extraDataCtor));
@@ -590,7 +590,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         if (__field_m_callbacksPendingExecution.IsEmpty)
             return false;
 
-        Profiler.Start(Keys.ProcessInvokeLater, profileMemory: true, new(__field_m_callbacksPendingExecutionSwap.Count));
+        using var t = Profiler.Start(Keys.ProcessInvokeLater, ProfilerTimerOptions.ProfileMemory, new(__field_m_callbacksPendingExecutionSwap.Count));
 
         using (__field_m_lockInvokeLater.EnterUnique())
             MyUtils.Swap(ref __field_m_callbacksPendingExecution, ref __field_m_callbacksPendingExecutionSwap);
@@ -603,7 +603,6 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
         while (__field_m_callbacksPendingExecutionSwap.TryDequeue(out _)) { }
 
-        Profiler.Stop();
         return false;
     }
 }

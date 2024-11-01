@@ -133,8 +133,8 @@ static class MySandboxGame_Patches
 
         var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
         var profilerEventExtraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
-        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(ProfilerKey), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
-        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), paramTypes: [typeof(string)]);
+        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)]);
+        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)]);
         var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
 
         var invokeQueueField = typeof(MySandboxGame).GetField("m_invokeQueue", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -149,7 +149,7 @@ static class MySandboxGame_Patches
 
         Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.ProcessInvoke.GlobalIndex));
         Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profileMemory: true
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
         Emit(new MsilInstruction(OpCodes.Ldarg_0));
         Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(invokeQueueField));
         Emit(new MsilInstruction(OpCodes.Call).InlineValue(countGetter));

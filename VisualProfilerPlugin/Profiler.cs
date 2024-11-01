@@ -1636,14 +1636,9 @@ public static class Profiler
         return group.ActiveTimer != null;
     }
 
-    #region Start / Stop
+    const MethodImplOptions Inline = MethodImplOptions.AggressiveInlining;
 
-    [Obsolete("Use overload with ProfilerTimerOptions instead.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(int index, string name, bool profileMemory, ProfilerEvent.ExtraData extraData)
-    {
-        return Start(index, name, profileMemory ? ProfilerTimerOptions.ProfileMemory : ProfilerTimerOptions.None, extraData);
-    }
+    #region Start / Stop
 
     public static ProfilerTimer Start(int index, string name, ProfilerTimerOptions options, ProfilerEvent.ExtraData extraData)
     {
@@ -1657,13 +1652,6 @@ public static class Profiler
         timer.StartInternal(extraData);
 
         return timer;
-    }
-
-    [Obsolete("Use overload with ProfilerTimerOptions instead.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(ProfilerKey key, bool profileMemory, ProfilerEvent.ExtraData extraData)
-    {
-        return Start(key, profileMemory ? ProfilerTimerOptions.ProfileMemory : ProfilerTimerOptions.None, extraData);
     }
 
     public static ProfilerTimer Start(ProfilerKey key, ProfilerTimerOptions options, ProfilerEvent.ExtraData extraData)
@@ -1680,13 +1668,6 @@ public static class Profiler
         return timer;
     }
 
-    [Obsolete("Use overload with ProfilerTimerOptions instead.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(string name, bool profileMemory, ProfilerEvent.ExtraData extraData)
-    {
-        return Start(name, profileMemory ? ProfilerTimerOptions.ProfileMemory : ProfilerTimerOptions.None, extraData);
-    }
-
     public static ProfilerTimer Start(string name, ProfilerTimerOptions options, ProfilerEvent.ExtraData extraData)
     {
         Assert.NotNull(name, "Name must not be null");
@@ -1701,50 +1682,17 @@ public static class Profiler
         return timer;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(int index, string name)
-    {
-        return Start(index, name, ProfilerTimerOptions.ProfileMemory, default);
-    }
+    [MethodImpl(Inline)]
+    public static ProfilerTimer Start(int index, string name) => Start(index, name, ProfilerTimerOptions.ProfileMemory, default);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(string name)
-    {
-        return Start(name, ProfilerTimerOptions.ProfileMemory, default);
-    }
+    [MethodImpl(Inline)]
+    public static ProfilerTimer Start(string name) => Start(name, ProfilerTimerOptions.ProfileMemory, default);
 
-    [Obsolete("Use overload with ProfilerTimerOptions instead.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(ProfilerKey key, bool profileMemory)
-    {
-        return Start(key, profileMemory ? ProfilerTimerOptions.ProfileMemory : ProfilerTimerOptions.None);
-    }
+    [MethodImpl(Inline)]
+    public static ProfilerTimer Start(ProfilerKey key, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory) => Start(key, options, default);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(ProfilerKey key, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory)
-    {
-        return Start(key, options, default);
-    }
-
-    [Obsolete("Use overload with ProfilerTimerOptions instead.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(string name, bool profileMemory)
-    {
-        return Start(name, profileMemory ? ProfilerTimerOptions.ProfileMemory : ProfilerTimerOptions.None);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Start(string name, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory)
-    {
-        return Start(name, options, default);
-    }
-
-    [Obsolete("Use overload with ProfilerTimerOptions instead.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Restart(int index, string name, bool profileMemory)
-    {
-        return Restart(index, name, profileMemory ? ProfilerTimerOptions.ProfileMemory : ProfilerTimerOptions.None);
-    }
+    [MethodImpl(Inline)]
+    public static ProfilerTimer Start(string name, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory) => Start(name, options, default);
 
     public static ProfilerTimer Restart(int index, string name, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory)
     {
@@ -1767,13 +1715,6 @@ public static class Profiler
         timer.StartInternal(default);
 
         return timer;
-    }
-
-    [Obsolete("Use overload with ProfilerTimerOptions instead.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Restart(ProfilerKey key, bool profileMemory)
-    {
-        return Restart(key, profileMemory ? ProfilerTimerOptions.ProfileMemory : ProfilerTimerOptions.None);
     }
 
     public static ProfilerTimer Restart(ProfilerKey key, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory)
@@ -1799,13 +1740,6 @@ public static class Profiler
         return timer;
     }
 
-    [Obsolete("Use overload with ProfilerTimerOptions instead.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ProfilerTimer Restart(string name, bool profileMemory)
-    {
-        return Restart(name, profileMemory ? ProfilerTimerOptions.ProfileMemory : ProfilerTimerOptions.None);
-    }
-
     public static ProfilerTimer Restart(string name, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory)
     {
         Assert.NotNull(name, "Name must not be null");
@@ -1829,7 +1763,7 @@ public static class Profiler
         return timer;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(Inline)]
     public static ProfilerTimer Restart(string name)
     {
         return Restart(name, ProfilerTimerOptions.ProfileMemory);
@@ -1976,7 +1910,7 @@ public static class Profiler
         frame.Groups.Add((group.ID, events));
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(Inline)]
     public static ProfilerTimer? GetThreadTimer(int index)
     {
         var group = ThreadGroup;
@@ -1994,7 +1928,7 @@ public static class Profiler
         return timer;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(Inline)]
     public static ProfilerTimer? GetThreadTimer([CallerMemberName] string name = null!)
     {
         return ThreadGroup?.GetTimer(name);
@@ -2007,7 +1941,7 @@ public static class Profiler
         return GetOrCreateGroupForCurrentThread().GetOrCreateTimer(name, options);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(Inline)]
     public static ProfilerGroup? GetGroupForCurrentThread() => ThreadGroup;
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -2027,7 +1961,7 @@ public static class Profiler
         return tg;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(Inline)]
     static ProfilerGroup GetOrCreateGroupForCurrentThread()
     {
         return ThreadGroup ?? CreateGroupForCurrentThread();
@@ -2211,7 +2145,7 @@ public static class Profiler
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(Inline)]
     public static void AddEvent(string name, ProfilerEvent.ExtraData extraData)
     {
         if (!isRecordingEvents)
@@ -2221,7 +2155,7 @@ public static class Profiler
         AddEventInternal(name).ExtraValue = extraData;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(Inline)]
     public static void AddEvent(string name)
     {
         if (!isRecordingEvents)

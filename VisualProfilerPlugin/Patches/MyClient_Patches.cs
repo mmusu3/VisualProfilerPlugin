@@ -66,5 +66,5 @@ static class MyClient_Patches
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_Serialize(ref ProfilerTimer __local_timer, IMyStateGroup group)
-    { __local_timer = Profiler.Start(Keys.Serialize, profileMemory: true, new(group.Owner)); return true; }
+    { __local_timer = Profiler.Start(Keys.Serialize, ProfilerTimerOptions.ProfileMemory, new(group.Owner)); return true; }
 }

@@ -209,7 +209,7 @@ static class MyPhysics_Patches
     [MethodImpl(Inline)]
     static bool Prefix_SimulateInternal(ref ProfilerTimer __local_timer)
     {
-        __local_timer = Profiler.Start(Keys.SimulateInternal, profileMemory: true, new(ProfilerEvent.EventCategory.Physics));
+        __local_timer = Profiler.Start(Keys.SimulateInternal, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.Physics));
         return true;
     }
 
@@ -217,7 +217,7 @@ static class MyPhysics_Patches
     { __local_timer = Profiler.Start(Keys.ExecuteParallelRayCasts); return true; }
 
     [MethodImpl(Inline)] static bool Prefix_StepSingleWorld(ref ProfilerTimer __local_timer, HkWorld world)
-    { __local_timer = Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(world)); return true; }
+    { __local_timer = Profiler.Start(0, "MyPhysics.StepSingleWorld", ProfilerTimerOptions.ProfileMemory, new(world)); return true; }
 
     static IEnumerable<MsilInstruction> Transpile_StepWorldsParallel(IEnumerable<MsilInstruction> instructionStream, MethodBody __methodBody, Func<Type, MsilLocal> __localCreator)
     {
@@ -232,9 +232,9 @@ static class MyPhysics_Patches
         int patchedParts = 0;
 
         var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
+        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)]);
         var profilerStartMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)]);
-        var profilerStartMethod3 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string), typeof(bool), typeof(ProfilerEvent.ExtraData)]);
+        var profilerStartMethod3 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)]);
         var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
         var profilerEventExtraDataCtor1 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
         var profilerEventExtraDataCtor2 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null);
@@ -255,7 +255,7 @@ static class MyPhysics_Patches
 
         Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.StepWorldsParallel.GlobalIndex));
         Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // profileMemory: true
+        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
         Emit(new MsilInstruction(OpCodes.Ldsfld).InlineValue(clustersField));
         Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(clustersField2));
         Emit(new MsilInstruction(OpCodes.Call).InlineValue(listCountGetter));
@@ -433,14 +433,14 @@ static class MyPhysics_Patches
     {
         var clusters = MyPhysics.Clusters.GetClusters();
 
-        using var _ = Profiler.Start(Keys.StepWorldsMeasured, profileMemory: true, new(clusters.Count, "Num Clusters: {0}"));
+        using var _ = Profiler.Start(Keys.StepWorldsMeasured, ProfilerTimerOptions.ProfileMemory, new(clusters.Count, "Num Clusters: {0}"));
 
         foreach (var cluster in clusters)
         {
             var world = (HkWorld)cluster.UserData;
             long start = Stopwatch.GetTimestamp();
 
-            using (Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(cluster)))
+            using (Profiler.Start(0, "MyPhysics.StepSingleWorld", ProfilerTimerOptions.ProfileMemory, new(cluster)))
                 StepSingleWorld(__instance, world);
 
             long end = Stopwatch.GetTimestamp();
@@ -452,13 +452,13 @@ static class MyPhysics_Patches
     {
         var clusters = MyPhysics.Clusters.GetClusters();
 
-        using var _ = Profiler.Start(Keys.StepWorldsSequential, profileMemory: true, new(clusters.Count, "Num Clusters: {0}"));
+        using var _ = Profiler.Start(Keys.StepWorldsSequential, ProfilerTimerOptions.ProfileMemory, new(clusters.Count, "Num Clusters: {0}"));
 
         foreach (var cluster in clusters)
         {
             if (cluster.UserData is HkWorld world && IsClusterActive(__instance, cluster.ClusterId, world.CharacterRigidBodies.Count))
             {
-                using (Profiler.Start(0, "MyPhysics.StepSingleWorld", profileMemory: true, new(cluster)))
+                using (Profiler.Start(0, "MyPhysics.StepSingleWorld", ProfilerTimerOptions.ProfileMemory, new(cluster)))
                     StepSingleWorld(__instance, world);
             }
         }
