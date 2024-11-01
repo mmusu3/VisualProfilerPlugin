@@ -1676,8 +1676,8 @@ class PhysicsClusterAnalysisInfo
                 }
             }
 
-            var minExt = Vector3D.Round(AABBs[minIndex].Size, 0);
-            var maxExt = Vector3D.Round(AABBs[maxIndex].Size, 0);
+            var minExt = Vector3D.Round(AABBs[minIndex].Size / 1000, 1);
+            var maxExt = Vector3D.Round(AABBs[maxIndex].Size / 1000, 1);
 
             return minExt == maxExt ? minExt.ToString() : $"{minExt} - {maxExt}";
         }

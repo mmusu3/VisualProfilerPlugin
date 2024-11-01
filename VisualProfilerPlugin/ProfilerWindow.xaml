@@ -14,8 +14,9 @@
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="350"/>
-            <ColumnDefinition/>
+            <ColumnDefinition Width="150"/>
+            <ColumnDefinition Width="20*"/>
+            <ColumnDefinition Width="80*"/>
         </Grid.ColumnDefinitions>
 
         <StackPanel Orientation="Horizontal" Height="26" Grid.ColumnSpan="3">
@@ -55,7 +56,7 @@
             <CheckBox Content="Combine Frames" VerticalAlignment="Center" Margin="4,0,4,0" IsChecked="{Binding CombineFrames}"/>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" Grid.Column="0" Margin="0,0,4,0">
+        <ScrollViewer Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,4,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="auto"/><!--Statistics-->
@@ -110,7 +111,7 @@
                                     <GridViewColumnHeader Name="physicsClusterNumCharactersColumn" Content=" Characters " ToolTip="Number of characters in the cluster.&#10;Shows the min - max values if characters were added/removed over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=SizeForColumn}">
-                                    <GridViewColumnHeader Name="physicsClusterSizeColumn" Content=" Size " ToolTip="Size of the cluster.&#10;Shows the min - max values if the size changed over time."/>
+                                    <GridViewColumnHeader Name="physicsClusterSizeColumn" Content=" Size km " ToolTip="Dimensions of the cluster in kilometers.&#10;Shows the min - max values if the size changed over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
                                     <GridViewColumnHeader Name="physicsClusterPositionColumn" Content=" Avg. Position " ToolTip="Average position of the cluster over all the recorded frames."/>
@@ -218,8 +219,8 @@
             </Grid>
         </ScrollViewer>
 
-        <GridSplitter Grid.Column="0" Grid.Row="1" VerticalAlignment="Stretch" Width="4" ShowsPreview="true" Background="LightGray"/>
+        <GridSplitter Grid.Column="1" Grid.Row="1" VerticalAlignment="Stretch" Width="4" ShowsPreview="true" Background="LightGray"/>
 
-        <local:ProfilerEventsGraphControl x:Name="eventsGraph" Grid.Row="1" Grid.Column="1"/>
+        <local:ProfilerEventsGraphControl x:Name="eventsGraph" Grid.Row="1" Grid.Column="2"/>
     </Grid>
 </Window>
