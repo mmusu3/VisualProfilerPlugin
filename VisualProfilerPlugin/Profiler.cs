@@ -244,6 +244,38 @@ public enum ProfilerTimerOptions
     ProfileMemory = 1
 }
 
+public struct ProfilerEventHandle : IDisposable
+{
+    internal ProfilerEvent[] Array;
+    internal int EventIndex;
+    internal int Depth;
+
+    public readonly void Dispose()
+    {
+        long endTime = Stopwatch.GetTimestamp();
+
+        if (Array != null)
+        {
+            ref var _event = ref Array[EventIndex];
+
+            bool profileMemory = (_event.Flags & ProfilerEvent.EventFlags.MemoryTracked) != 0;
+            long memory = profileMemory ? GC.GetAllocatedBytesForCurrentThread() : 0;
+
+            _event.EndTime = endTime;
+            _event.MemoryAfter = memory;
+        }
+
+        var group = Profiler.GetGroupForCurrentThread();
+
+        if (group != null)
+        {
+            Assert.True(Depth == group.CurrentDepth);
+
+            group.CurrentDepth = Depth - 1;
+        }
+    }
+}
+
 public sealed class ProfilerTimer : IDisposable
 {
     enum State
@@ -350,7 +382,7 @@ public sealed class ProfilerTimer : IDisposable
     public static double MicrosecondsFromTicks(long ticks) => ticks * microsecondsPerTick;
     public static TimeSpan TimeSpanFromTimestampTicks(long ticks) => new TimeSpan(unchecked((long)(ticks * stopwatchToTimeSpanTicks)));
 
-    internal ProfilerTimer(string name, ProfilerKey key, ProfilerTimerOptions options, ProfilerGroup group, ProfilerTimer? parent)
+    internal ProfilerTimer(string name, ProfilerKey key, ProfilerTimerOptions options, ProfilerGroup group, ProfilerTimer? parent, int depth)
     {
         Name = name;
         Key = key;
@@ -360,9 +392,7 @@ public sealed class ProfilerTimer : IDisposable
         Assert.False(parent == this);
 
         Parent = parent;
-
-        if (parent != null)
-            Depth = parent.Depth + 1;
+        Depth = depth;
 
         GCCountsHistory = new Vector3I[BufferSize];
 #if NET7_0_OR_GREATER
@@ -389,8 +419,10 @@ public sealed class ProfilerTimer : IDisposable
     {
         Assert.NotNull(group);
         Assert.False(group.ActiveTimer == this);
+        Assert.True(Depth == group.CurrentDepth + 1);
 
         group.ActiveTimer = this;
+        group.CurrentDepth = Depth;
 
         StartInternal(default);
     }
@@ -533,6 +565,7 @@ public sealed class ProfilerTimer : IDisposable
         Assert.True(group.ActiveTimer == this);
 
         group.ActiveTimer = Parent;
+        group.CurrentDepth--;
     }
 
     internal void StopInternal()
@@ -767,7 +800,7 @@ public sealed class ProfilerTimer : IDisposable
     #region Get / Create Timers
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal ProfilerTimer CreateSubTimer(int index, string name, ProfilerTimerOptions options)
+    internal ProfilerTimer CreateSubTimer(int index, string name, ProfilerTimerOptions options, int depth)
     {
         ProfilerKey key;
 
@@ -777,7 +810,7 @@ public sealed class ProfilerTimer : IDisposable
             group.LocalKeyCache.Add(name, key);
         }
 
-        var timer = new ProfilerTimer(name, key, options, group, this);
+        var timer = new ProfilerTimer(name, key, options, group, this, depth);
 
         if (index >= subTimers.Length)
             Array.Resize(ref subTimers, index + 1);
@@ -788,17 +821,17 @@ public sealed class ProfilerTimer : IDisposable
         return timer;
     }
 
-    internal ProfilerTimer CreateSubTimer(ProfilerKey key, ProfilerTimerOptions options)
+    internal ProfilerTimer CreateSubTimer(ProfilerKey key, ProfilerTimerOptions options, int depth)
     {
         var name = ProfilerKeyCache.GetName(key);
 
-        return CreateSubTimer(name, key, options);
+        return CreateSubTimer(name, key, options, depth);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal ProfilerTimer CreateSubTimer(string name, ProfilerKey key, ProfilerTimerOptions options)
+    internal ProfilerTimer CreateSubTimer(string name, ProfilerKey key, ProfilerTimerOptions options, int depth)
     {
-        var timer = new ProfilerTimer(name, key, options, group, this);
+        var timer = new ProfilerTimer(name, key, options, group, this, depth);
         int index = subTimers.Length;
 
         Array.Resize(ref subTimers, index + 1);
@@ -809,17 +842,17 @@ public sealed class ProfilerTimer : IDisposable
         return timer;
     }
 
-    public ProfilerTimer GetOrCreateSubTimer(int index, string name, ProfilerTimerOptions options)
+    public ProfilerTimer GetOrCreateSubTimer(int index, string name, ProfilerTimerOptions options, int depth)
     {
         var timer = subTimers[index];
 
         if (timer != null)
             return timer;
 
-        return CreateSubTimer(index, name, options);
+        return CreateSubTimer(index, name, options, depth);
     }
 
-    public ProfilerTimer GetOrCreateSubTimer(string name, ProfilerTimerOptions options, out bool existing)
+    public ProfilerTimer GetOrCreateSubTimer(string name, ProfilerTimerOptions options, int depth, out bool existing)
     {
         ProfilerKey key;
         ProfilerTimer? timer;
@@ -842,7 +875,7 @@ public sealed class ProfilerTimer : IDisposable
 
         existing = false;
 
-        timer = CreateSubTimer(name, key, options);
+        timer = CreateSubTimer(name, key, options, depth);
 
         return timer;
     }
@@ -876,6 +909,7 @@ public sealed class ProfilerTimer : IDisposable
         Assert.True(group.ActiveTimer == this);
 
         group.ActiveTimer = Parent;
+        group.CurrentDepth--;
     }
 
     public override string ToString() => $"Timer: {Name}, Profile Memory: {ProfileMemory}";
@@ -885,6 +919,7 @@ public class ProfilerGroup
 {
     internal ProfilerTimer? ActiveTimer;
     internal Dictionary<string, ProfilerKey> LocalKeyCache = [];
+    internal int CurrentDepth = -1;
 
     public bool IsRealtimeThread = false;
 
@@ -925,7 +960,7 @@ public class ProfilerGroup
 
     #region Get / Create Timers
 
-    internal ProfilerTimer GetOrCreateRootTimer(string name, ProfilerTimerOptions options, out bool existing)
+    internal ProfilerTimer GetOrCreateRootTimer(string name, ProfilerTimerOptions options)
     {
         ProfilerKey key;
         ProfilerTimer? timer;
@@ -935,18 +970,13 @@ public class ProfilerGroup
             timer = GetRootTimer(key);
 
             if (timer != null)
-            {
-                existing = true;
                 return timer;
-            }
         }
         else
         {
             key = ProfilerKeyCache.GetOrAdd(name);
             LocalKeyCache.Add(name, key);
         }
-
-        existing = false;
 
         timer = CreateRootTimer(name, key, options);
 
@@ -968,24 +998,26 @@ public class ProfilerGroup
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ProfilerTimer GetOrCreateTimer(string name, ProfilerTimerOptions options)
-        => GetOrCreateTimer(name, options, ActiveTimer);
+        => GetOrCreateTimer(name, options, ActiveTimer, CurrentDepth);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ProfilerTimer GetOrCreateTimer(string name, ProfilerTimerOptions options, ProfilerTimer? parentTimer)
+    internal ProfilerTimer GetOrCreateTimer(string name, ProfilerTimerOptions options, ProfilerTimer? parentTimer, int currentDepth)
     {
         ProfilerTimer? timer;
         bool existing;
 
         if (parentTimer != null)
         {
-            timer = parentTimer.GetOrCreateSubTimer(name, options, out existing);
+            timer = parentTimer.GetOrCreateSubTimer(name, options, currentDepth + 1, out existing);
 
             if (!existing)
                 timers.Add(timer);
         }
         else
         {
-            timer = GetOrCreateRootTimer(name, options, out existing);
+            Assert.True(currentDepth == -1);
+
+            timer = GetOrCreateRootTimer(name, options);
         }
 
         return timer;
@@ -994,7 +1026,7 @@ public class ProfilerGroup
     [MethodImpl(MethodImplOptions.NoInlining)]
     ProfilerTimer CreateRootTimer(string name, ProfilerKey key, ProfilerTimerOptions options)
     {
-        var timer = new ProfilerTimer(name, key, options, this, null);
+        var timer = new ProfilerTimer(name, key, options, this, null, 0);
         int index = rootTimers.Length;
 
         Array.Resize(ref rootTimers, index + 1);
@@ -1007,9 +1039,9 @@ public class ProfilerGroup
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ProfilerTimer GetOrCreateTimer(int index, string name, ProfilerTimerOptions options)
-        => GetOrCreateTimer(index, name, options, ActiveTimer);
+        => GetOrCreateTimer(index, name, options, ActiveTimer, CurrentDepth);
 
-    internal ProfilerTimer GetOrCreateTimer(int index, string name, ProfilerTimerOptions options, ProfilerTimer? parentTimer)
+    internal ProfilerTimer GetOrCreateTimer(int index, string name, ProfilerTimerOptions options, ProfilerTimer? parentTimer, int currentDepth)
     {
         ProfilerTimer? timer = null;
 
@@ -1020,12 +1052,14 @@ public class ProfilerGroup
 
             if (timer == null)
             {
-                timer = parentTimer.CreateSubTimer(index, name, options);
+                timer = parentTimer.CreateSubTimer(index, name, options, currentDepth + 1);
                 timers.Add(timer);
             }
         }
         else
         {
+            Assert.True(currentDepth == -1);
+
             if ((uint)index < (uint)rootTimers.Length)
                 timer = rootTimers[index];
 
@@ -1046,7 +1080,7 @@ public class ProfilerGroup
             LocalKeyCache.Add(name, key);
         }
 
-        var timer = new ProfilerTimer(name, key, options, group: this, parent: null);
+        var timer = new ProfilerTimer(name, key, options, group: this, parent: null, 0);
 
         Array.Resize(ref rootTimers, index + 1);
 
@@ -1058,21 +1092,27 @@ public class ProfilerGroup
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ProfilerTimer GetOrCreateTimer(ProfilerKey key, ProfilerTimerOptions options)
-        => GetOrCreateTimer(key, options, ActiveTimer);
+        => GetOrCreateTimer(key, options, ActiveTimer, CurrentDepth);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ProfilerTimer GetOrCreateTimer(ProfilerKey key, ProfilerTimerOptions options, ProfilerTimer? parentTimer)
+    internal ProfilerTimer GetOrCreateTimer(ProfilerKey key, ProfilerTimerOptions options, ProfilerTimer? parentTimer, int currentDepth)
     {
         if (parentTimer != null)
-            return parentTimer.FindSubTimer(key) ?? CreateSubTimer(parentTimer, key, options);
+        {
+            return parentTimer.FindSubTimer(key) ?? CreateSubTimer(parentTimer, key, options, currentDepth);
+        }
         else
+        {
+            Assert.True(currentDepth == -1);
+
             return GetRootTimer(key) ?? CreateRootTimer(key, options);
+        }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    ProfilerTimer CreateSubTimer(ProfilerTimer parentTimer, ProfilerKey key, ProfilerTimerOptions options)
+    ProfilerTimer CreateSubTimer(ProfilerTimer parentTimer, ProfilerKey key, ProfilerTimerOptions options, int currentDepth)
     {
-        var timer = parentTimer.CreateSubTimer(key, options);
+        var timer = parentTimer.CreateSubTimer(key, options, currentDepth + 1);
         timers.Add(timer);
         return timer;
     }
@@ -1094,7 +1134,7 @@ public class ProfilerGroup
     ProfilerTimer CreateRootTimer(ProfilerKey key, ProfilerTimerOptions options)
     {
         var name = ProfilerKeyCache.GetName(key);
-        var timer = new ProfilerTimer(name, key, options, this, null);
+        var timer = new ProfilerTimer(name, key, options, this, null, 0);
         int index = rootTimers.Length;
 
         Array.Resize(ref rootTimers, index + 1);
@@ -1111,7 +1151,7 @@ public class ProfilerGroup
 
     public ProfilerTimer StartTimer(string name, ProfilerTimerOptions options, ProfilerEvent.ExtraData extraData)
     {
-        var timer = GetOrCreateTimer(name, options, ActiveTimer);
+        var timer = GetOrCreateTimer(name, options, ActiveTimer, CurrentDepth++);
         ActiveTimer = timer;
         timer.StartInternal(extraData);
 
@@ -1131,7 +1171,7 @@ public class ProfilerGroup
         Assert.NotNull(timer, "Must call Profiler.Start first");
 
         timer.StopInternal();
-        timer = GetOrCreateTimer(name, options, timer.Parent);
+        timer = GetOrCreateTimer(name, options, timer.Parent, CurrentDepth - 1);
         ActiveTimer = timer;
         timer.StartInternal(default);
 
@@ -1145,13 +1185,15 @@ public class ProfilerGroup
         Assert.NotNull(timer, "Must call Profiler.Start first");
 
         timer.StopInternal();
-        ActiveTimer = timer.Parent;
+
+        ActiveTimer = timer = timer.Parent;
+        CurrentDepth = timer?.Depth ?? -1;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void UnwindToDepth(int depth)
     {
-        while (ActiveTimer != null && ActiveTimer.Depth > depth)
+        while (CurrentDepth > depth)
             StopActiveTimer();
     }
 
@@ -1640,14 +1682,51 @@ public static class Profiler
 
     #region Start / Stop
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static ProfilerEventHandle StartLite(ProfilerKey key, ProfilerTimerOptions options, in ProfilerEvent.ExtraData extraData)
+    {
+        Assert.True(key.GlobalIndex < 0, "Invalid key");
+
+        var group = GetOrCreateGroupForCurrentThread();
+        int depth = ++group.CurrentDepth;
+
+        if (!isEnabled)
+            return new ProfilerEventHandle { Depth = depth };
+
+        bool profileMemory = (options & ProfilerTimerOptions.ProfileMemory) != 0;
+
+        ref var _event = ref group.StartEvent(out var array, out int eventIndex);
+        _event.NameKey = key.GlobalIndex;
+        _event.Flags = profileMemory ? ProfilerEvent.EventFlags.MemoryTracked : ProfilerEvent.EventFlags.None;
+        _event.Depth = depth;
+        _event.ExtraValue = extraData;
+
+        long memory = profileMemory ? GC.GetAllocatedBytesForCurrentThread() : 0;
+
+        _event.MemoryBefore = _event.MemoryAfter = memory;
+
+        var handle = new ProfilerEventHandle {
+            Array = array,
+            EventIndex = eventIndex,
+            Depth = depth
+        };
+
+        _event.StartTime = _event.EndTime = Stopwatch.GetTimestamp();
+
+        return handle;
+    }
+
     public static ProfilerTimer Start(int index, string name, ProfilerTimerOptions options, ProfilerEvent.ExtraData extraData)
     {
         Assert.NotNull(name, "Name must not be null");
 
         var group = GetOrCreateGroupForCurrentThread();
-        var timer = group.GetOrCreateTimer(index, name, options, group.ActiveTimer);
+        var timer = group.GetOrCreateTimer(index, name, options, group.ActiveTimer, group.CurrentDepth);
+
+        Assert.True(timer.Depth == group.CurrentDepth + 1);
 
         group.ActiveTimer = timer;
+        group.CurrentDepth = timer.Depth;
 
         timer.StartInternal(extraData);
 
@@ -1659,9 +1738,12 @@ public static class Profiler
         Assert.True(key.GlobalIndex < 0, "Invalid key");
 
         var group = GetOrCreateGroupForCurrentThread();
-        var timer = group.GetOrCreateTimer(key, options, group.ActiveTimer);
+        var timer = group.GetOrCreateTimer(key, options, group.ActiveTimer, group.CurrentDepth);
+
+        Assert.True(timer.Depth == group.CurrentDepth + 1);
 
         group.ActiveTimer = timer;
+        group.CurrentDepth = timer.Depth;
 
         timer.StartInternal(extraData);
 
@@ -1673,26 +1755,22 @@ public static class Profiler
         Assert.NotNull(name, "Name must not be null");
 
         var group = GetOrCreateGroupForCurrentThread();
-        var timer = group.GetOrCreateTimer(name, options, group.ActiveTimer);
+        var timer = group.GetOrCreateTimer(name, options, group.ActiveTimer, group.CurrentDepth);
+
+        Assert.True(timer.Depth == group.CurrentDepth + 1);
 
         group.ActiveTimer = timer;
+        group.CurrentDepth = timer.Depth;
 
         timer.StartInternal(extraData);
 
         return timer;
     }
 
-    [MethodImpl(Inline)]
-    public static ProfilerTimer Start(int index, string name) => Start(index, name, ProfilerTimerOptions.ProfileMemory, default);
-
-    [MethodImpl(Inline)]
-    public static ProfilerTimer Start(string name) => Start(name, ProfilerTimerOptions.ProfileMemory, default);
-
-    [MethodImpl(Inline)]
-    public static ProfilerTimer Start(ProfilerKey key, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory) => Start(key, options, default);
-
-    [MethodImpl(Inline)]
-    public static ProfilerTimer Start(string name, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory) => Start(name, options, default);
+    [MethodImpl(Inline)] public static ProfilerTimer Start(int index, string name) => Start(index, name, ProfilerTimerOptions.ProfileMemory, default);
+    [MethodImpl(Inline)] public static ProfilerTimer Start(string name) => Start(name, ProfilerTimerOptions.ProfileMemory, default);
+    [MethodImpl(Inline)] public static ProfilerTimer Start(ProfilerKey key, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory) => Start(key, options, default);
+    [MethodImpl(Inline)] public static ProfilerTimer Start(string name, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory) => Start(name, options, default);
 
     public static ProfilerTimer Restart(int index, string name, ProfilerTimerOptions options = ProfilerTimerOptions.ProfileMemory)
     {
@@ -1708,7 +1786,9 @@ public static class Profiler
 
         timer.StopInternal();
 
-        timer = group.GetOrCreateTimer(index, name, options, timer.Parent);
+        timer = group.GetOrCreateTimer(index, name, options, timer.Parent, group.CurrentDepth - 1);
+
+        Assert.True(timer.Depth == group.CurrentDepth);
 
         group.ActiveTimer = timer;
 
@@ -1731,7 +1811,9 @@ public static class Profiler
 
         timer.StopInternal();
 
-        timer = group.GetOrCreateTimer(key, options, timer.Parent);
+        timer = group.GetOrCreateTimer(key, options, timer.Parent, group.CurrentDepth - 1);
+
+        Assert.True(timer.Depth == group.CurrentDepth);
 
         group.ActiveTimer = timer;
 
@@ -1754,7 +1836,9 @@ public static class Profiler
 
         timer.StopInternal();
 
-        timer = group.GetOrCreateTimer(name, options, timer.Parent);
+        timer = group.GetOrCreateTimer(name, options, timer.Parent, group.CurrentDepth - 1);
+
+        Assert.True(timer.Depth == group.CurrentDepth);
 
         group.ActiveTimer = timer;
 
@@ -1763,11 +1847,7 @@ public static class Profiler
         return timer;
     }
 
-    [MethodImpl(Inline)]
-    public static ProfilerTimer Restart(string name)
-    {
-        return Restart(name, ProfilerTimerOptions.ProfileMemory);
-    }
+    [MethodImpl(Inline)] public static ProfilerTimer Restart(string name) => Restart(name, ProfilerTimerOptions.ProfileMemory);
 
     public static void Stop()
     {
@@ -1783,7 +1863,7 @@ public static class Profiler
         Assert.NotNull(name, "Name must not be null");
 
         var group = GetOrCreateGroupForCurrentThread();
-        var timer = group.GetOrCreateTimer(name, ProfilerTimerOptions.None, group.ActiveTimer);
+        var timer = group.GetOrCreateTimer(name, ProfilerTimerOptions.None, group.ActiveTimer, group.CurrentDepth);
 
         timer.AddElapsedTicks(elapsedTicks);
     }
@@ -1795,7 +1875,7 @@ public static class Profiler
         if (!profilerGroupsById.TryGetValue(groupId, out var group))
             throw new ArgumentException("Invalid groupId.", nameof(groupId));
 
-        var timer = group.GetOrCreateTimer(name, ProfilerTimerOptions.None, group.ActiveTimer);
+        var timer = group.GetOrCreateTimer(name, ProfilerTimerOptions.None, group.ActiveTimer, group.CurrentDepth);
 
         return timer;
     }

@@ -71,6 +71,10 @@
       <HintPath>$(DedicatedServer64)\Sandbox.Game.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="SpaceEngineers.Game">
+      <HintPath>$(DedicatedServer64)\SpaceEngineers.Game.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="ProtoBuf.Net.Core">
       <HintPath>$(DedicatedServer64)\ProtoBuf.Net.Core.dll</HintPath>
       <Private>false</Private>

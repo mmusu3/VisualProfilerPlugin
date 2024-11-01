@@ -780,6 +780,8 @@ static class ProfilerHelper
                 if (timer.Category == ProfilerEvent.EventCategory.Wait)
                     return;
 
+                var eventInfo = new CombinedEventInfo(timer);
+
                 combinedEvents.Add(new ProfilerEvent {
                     NameKey = timer.NameKey.GlobalIndex,
                     Depth = depth,
@@ -787,7 +789,7 @@ static class ProfilerHelper
                     EndTime = startTime + timer.ElapsedTime,
                     MemoryAfter = timer.AllocatedMemory,
                     Flags = timer.MemoryTracked ? ProfilerEvent.EventFlags.MemoryTracked : ProfilerEvent.EventFlags.None,
-                    ExtraValue = new(timer.Category, new CombinedEventInfo(timer), "{0}")
+                    ExtraValue = timer.Category != ProfilerEvent.EventCategory.Other ? new(timer.Category, eventInfo, "{0}") : new(eventInfo, "{0}")
                 });
 
                 long s = startTime;

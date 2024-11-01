@@ -882,7 +882,7 @@ class ProfilerEventsGraphControl : Control
 
             if (!_event.IsSinglePoint)
             {
-                timeString.AppendFormat("{0:n1}", _event.ElapsedTime.TotalMilliseconds * 1000).Append("µs");
+                timeString.AppendFormat("{0:n1}", _event.ElapsedMcroseconds).Append("µs");
 
                 float timeStringWidth = MeasureString(timeString.ToString(), fontFace, FontSize).X;
 
