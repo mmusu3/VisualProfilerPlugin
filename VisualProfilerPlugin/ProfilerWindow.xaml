@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:VisualProfiler"
         mc:Ignorable="d"
-        Title="Profiler" Width="1000" Height="600"
+        Title="Profiler" Width="1100" Height="750"
         DataContext="{Binding RelativeSource={RelativeSource Self}}">
     <Grid>
         <Grid.RowDefinitions>
@@ -56,76 +56,79 @@
             <CheckBox Content="Combine Frames" VerticalAlignment="Center" Margin="4,0,4,0" IsChecked="{Binding CombineFrames}"/>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,4,0">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="auto"/><!--Statistics-->
-                    <RowDefinition Height="100" MinHeight="27" Name="outlierFramesRow"/><!--Outlier Frames-->
-                    <RowDefinition Height="190" MinHeight="27" Name="physicsClustersRow"/><!--Physics Clsuters-->
-                    <RowDefinition Height="200" MinHeight="27" Name="cubeGridsRow"/><!--Cube Grids-->
-                    <RowDefinition Height="190" MinHeight="27" Name="programmableBlocksRow"/><!--Programmable Blocks-->
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+        <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,4,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="auto"/>
+                <RowDefinition Height="12*" MinHeight="27" Name="outlierFramesRow"/>
+                <RowDefinition Height="20*" MinHeight="27" Name="physicsClustersRow"/>
+                <RowDefinition Height="38*" MinHeight="27" Name="cubeGridsRow"/>
+                <RowDefinition Height="30*" MinHeight="27" Name="programmableBlocksRow"/>
+            </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Orientation="Vertical">
-                    <Label Content="Recording Info" FontWeight="Bold"/>
-                    <Rectangle Height="1" Fill="#FFABADB3"/>
-                    <Label Name="statisticsLabel" Margin="0,-3,0,0"/>
-                    <Rectangle Height="2" Fill="LightGray"/>
-                </StackPanel>
+            <StackPanel Grid.Row="0" Orientation="Vertical">
+                <Label Content="Recording Info" FontWeight="Bold"/>
+                <Rectangle Height="1" Fill="#FFABADB3"/>
+                <Label Name="statisticsLabel" Margin="0,-3,0,0"/>
+                <Rectangle Height="2" Fill="LightGray"/>
+            </StackPanel>
 
-                <Expander ExpandDirection="Down" Grid.Row="1" IsExpanded="True" Margin="0,0,0,4" FontWeight="Bold"
-                          Expanded="OutlierFramesExpander_Expanded" Collapsed="OutlierFramesExpander_Collapsed">
-                    <Expander.Header>
-                        <TextBlock ToolTip="Frames with outlier events.">Outlier Frames</TextBlock>
-                    </Expander.Header>
-                    <ListView Name="outliersList" BorderThickness="0,1,0,0" FontWeight="Regular"/>
-                </Expander>
-                <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
+            <Expander ExpandDirection="Down" Grid.Row="1" IsExpanded="True" Margin="0,0,0,4" FontWeight="Bold"
+                        Expanded="OutlierFramesExpander_Expanded" Collapsed="OutlierFramesExpander_Collapsed">
+                <Expander.Header>
+                    <TextBlock ToolTip="Frames with outlier events.">Outlier Frames</TextBlock>
+                </Expander.Header>
+                <ListView Name="outliersList" BorderThickness="0,1,0,0" FontWeight="Regular"/>
+            </Expander>
+            <GridSplitter Name="outlierListSplitter" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
 
-                <Expander ExpandDirection="Down" Grid.Row="2" IsExpanded="True" Header="Physics Clusters" Margin="0,0,0,4" FontWeight="Bold"
-                          Expanded="PhysicsClustersExpander_Expanded" Collapsed="PhysicsClustersExpander_Collapsed">
-                    <ListView Name="physicsClustersList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" FontWeight="Regular"
-                              GridViewColumnHeader.Click="PhysicsClustersListHeader_Click">
-                        <ListView.View>
-                            <GridView AllowsColumnReorder="True">
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="physicsClusterCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the cluster was timed in."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
-                                    <GridViewColumnHeader Name="physicsClusterAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
-                                    <GridViewColumnHeader Name="physicsClusterTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=ID}">
-                                    <GridViewColumnHeader Name="physicsClusterIdColumn" Content=" ID "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=ObjectCountsForColumn}">
-                                    <GridViewColumnHeader Name="physicsClusterNumObjectsColumn" Content=" Objects " ToolTip="Number of objects (active and inactive) in the cluster.&#10;Shows the min - max values if objects were added/removed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=ActiveObjectCountsForColumn}">
-                                    <GridViewColumnHeader Name="physicsClusterNumActiveObjectsColumn" Content=" Active Objects " ToolTip="Number of active (simulated) objects in the cluster.&#10;Shows the min - max values if objects were woken / put to sleep over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=CharacterCountsForColumn}">
-                                    <GridViewColumnHeader Name="physicsClusterNumCharactersColumn" Content=" Characters " ToolTip="Number of characters in the cluster.&#10;Shows the min - max values if characters were added/removed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=SizeForColumn}">
-                                    <GridViewColumnHeader Name="physicsClusterSizeColumn" Content=" Size km " ToolTip="Dimensions of the cluster in kilometers.&#10;Shows the min - max values if the size changed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
-                                    <GridViewColumnHeader Name="physicsClusterPositionColumn" Content=" Avg. Position " ToolTip="Average position of the cluster over all the recorded frames."/>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </Expander>
-                <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
+            <Expander ExpandDirection="Down" Grid.Row="2" IsExpanded="True" Header="Physics Clusters" Margin="0,0,0,4" FontWeight="Bold"
+                        Expanded="PhysicsClustersExpander_Expanded" Collapsed="PhysicsClustersExpander_Collapsed">
+                <ListView Name="physicsClustersList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" FontWeight="Regular"
+                            GridViewColumnHeader.Click="PhysicsClustersListHeader_Click">
+                    <ListView.View>
+                        <GridView AllowsColumnReorder="True">
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                <GridViewColumnHeader Name="physicsClusterCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the cluster was timed in."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
+                                <GridViewColumnHeader Name="physicsClusterAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N2}">
+                                <GridViewColumnHeader Name="physicsClusterTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=ID}">
+                                <GridViewColumnHeader Name="physicsClusterIdColumn" Content=" ID "/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=ObjectCountsForColumn}">
+                                <GridViewColumnHeader Name="physicsClusterNumObjectsColumn" Content=" Objects " ToolTip="Number of objects (active and inactive) in the cluster.&#10;Shows the min - max values if objects were added/removed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=ActiveObjectCountsForColumn}">
+                                <GridViewColumnHeader Name="physicsClusterNumActiveObjectsColumn" Content=" Active Objects " ToolTip="Number of active (simulated) objects in the cluster.&#10;Shows the min - max values if objects were woken / put to sleep over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=CharacterCountsForColumn}">
+                                <GridViewColumnHeader Name="physicsClusterNumCharactersColumn" Content=" Characters " ToolTip="Number of characters in the cluster.&#10;Shows the min - max values if characters were added/removed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=SizeForColumn}">
+                                <GridViewColumnHeader Name="physicsClusterSizeColumn" Content=" Size km " ToolTip="Dimensions of the cluster in kilometers.&#10;Shows the min - max values if the size changed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
+                                <GridViewColumnHeader Name="physicsClusterPositionColumn" Content=" Avg. Position " ToolTip="Average position of the cluster over all the recorded frames."/>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Expander>
+            <GridSplitter Name="clusterListSplitter" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
 
-                <Expander ExpandDirection="Down" Grid.Row="3" IsExpanded="True" Header="Cube Grids" Margin="0,0,0,4" FontWeight="Bold"
-                          Expanded="CubeGridsExpander_Expanded" Collapsed="CubeGridsExpander_Collapsed">
+            <Expander Name="gridListExpander" ExpandDirection="Down" Grid.Row="3" IsExpanded="True" Header="Cube Grids" Margin="0,0,0,4" FontWeight="Bold"
+                        Expanded="CubeGridsExpander_Expanded" Collapsed="CubeGridsExpander_Collapsed">
+                <DockPanel VerticalAlignment="Top">
+                    <DockPanel DockPanel.Dock="Top"  HorizontalAlignment="Stretch">
+                        <Label DockPanel.Dock="Left" Content="Filter:" FontWeight="Regular"/>
+                        <TextBox Name="gridListFilterTextBox" VerticalContentAlignment="Center" BorderThickness="1,1,0,0" FontWeight="Regular" TextChanged="GridListFilterTextBox_TextChanged"/>
+                    </DockPanel>
                     <ListView Name="gridsList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" FontWeight="Regular"
-                              GridViewColumnHeader.Click="CubeGridsListHeader_Click">
+                                GridViewColumnHeader.Click="CubeGridsListHeader_Click">
                         <ListView.View>
                             <GridView AllowsColumnReorder="True">
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
@@ -134,7 +137,7 @@
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
                                     <GridViewColumnHeader Name="gridAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N2}">
                                     <GridViewColumnHeader Name="gridTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=NamesForColumn}">
@@ -173,51 +176,50 @@
                             </GridView>
                         </ListView.View>
                     </ListView>
-                </Expander>
-                <GridSplitter Grid.Row="3" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
+                </DockPanel>
+            </Expander>
+            <GridSplitter Name="gridListSplitter" Grid.Row="3" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
 
-                <Expander ExpandDirection="Down" Grid.Row="4" IsExpanded="True" Header="Programmable Blocks" Margin="0,0,0,4" FontWeight="Bold"
-                          Expanded="ProgrammableBlocksExpander_Expanded" Collapsed="ProgrammableBlocksExpander_Collapsed">
-                    <ListView Name="programmableBlocksList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" FontWeight="Regular"
-                              GridViewColumnHeader.Click="ProgBlocksListHeader_Click">
-                        <ListView.View>
-                            <GridView AllowsColumnReorder="True">
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="blockCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the block was timed in."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
-                                    <GridViewColumnHeader Name="blockAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N1}">
-                                    <GridViewColumnHeader Name="blockTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=CustomNamesForColumn}">
-                                    <GridViewColumnHeader Name="blockCustomNamesColumn" Content=" Block Names " ToolTip="Player assigned names of the block.&#10;Can be multiple values if the name was changed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=CubeSize}">
-                                    <GridViewColumnHeader Name="blockGridSizeColumn" Content=" Cube Size "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=EntityId}">
-                                    <GridViewColumnHeader Name="blockEntityIdColumn" Content=" Entity ID "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=GridIdsForColumn}">
-                                    <GridViewColumnHeader Name="blockGridIdColumn" Content=" Grid IDs " ToolTip="IDs of the parent grid of the block.&#10;Can be multiple values if the block was moved between grids."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerIDsForColumn}">
-                                    <GridViewColumnHeader Name="blockOwnerIdsColumn" Content=" Main Owner IDs " ToolTip="Identity IDs of the players that owned the block.&#10;Will be 0 if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerNamesForColumn}">
-                                    <GridViewColumnHeader Name="blockOwnerNamesColumn" Content=" Main Owner Names " ToolTip="Names of the players that owned the block.&#10;Will be empty if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
-                                    <GridViewColumnHeader Name="blockAveragePositionColumn" Content=" Avg. Position " ToolTip="Average world position of the block over all the recorded frames."/>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View></ListView>
-                </Expander>
-                <GridSplitter Grid.Row="4" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
-            </Grid>
-        </ScrollViewer>
+            <Expander ExpandDirection="Down" Grid.Row="4" IsExpanded="True" Header="Programmable Blocks" Margin="0,0,0,4" FontWeight="Bold"
+                        Expanded="ProgrammableBlocksExpander_Expanded" Collapsed="ProgrammableBlocksExpander_Collapsed">
+                <ListView Name="programmableBlocksList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" FontWeight="Regular"
+                            GridViewColumnHeader.Click="ProgBlocksListHeader_Click">
+                    <ListView.View>
+                        <GridView AllowsColumnReorder="True">
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                <GridViewColumnHeader Name="blockCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the block was timed in."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
+                                <GridViewColumnHeader Name="blockAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N2}">
+                                <GridViewColumnHeader Name="blockTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=CustomNamesForColumn}">
+                                <GridViewColumnHeader Name="blockCustomNamesColumn" Content=" Block Names " ToolTip="Player assigned names of the block.&#10;Can be multiple values if the name was changed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=CubeSize}">
+                                <GridViewColumnHeader Name="blockGridSizeColumn" Content=" Cube Size "/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=EntityId}">
+                                <GridViewColumnHeader Name="blockEntityIdColumn" Content=" Entity ID "/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=GridIdsForColumn}">
+                                <GridViewColumnHeader Name="blockGridIdColumn" Content=" Grid IDs " ToolTip="IDs of the parent grid of the block.&#10;Can be multiple values if the block was moved between grids."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerIDsForColumn}">
+                                <GridViewColumnHeader Name="blockOwnerIdsColumn" Content=" Main Owner IDs " ToolTip="Identity IDs of the players that owned the block.&#10;Will be 0 if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerNamesForColumn}">
+                                <GridViewColumnHeader Name="blockOwnerNamesColumn" Content=" Main Owner Names " ToolTip="Names of the players that owned the block.&#10;Will be empty if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
+                                <GridViewColumnHeader Name="blockAveragePositionColumn" Content=" Avg. Position " ToolTip="Average world position of the block over all the recorded frames."/>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View></ListView>
+            </Expander>
+        </Grid>
 
         <GridSplitter Grid.Column="1" Grid.Row="1" VerticalAlignment="Stretch" Width="4" ShowsPreview="true" Background="LightGray"/>
 

@@ -429,6 +429,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
 
         var gridsContextMenu = new ContextMenu();
+        // TODO: Copy EntityID
         gridsContextMenu.Items.Add(copyLastPosAsGPS);
 
         gridsList.ContextMenu = gridsContextMenu;
@@ -471,54 +472,160 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     void OutlierFramesExpander_Expanded(object sender, RoutedEventArgs e)
     {
+        if (outliersList == null)
+            return;
+
+        var h1 = physicsClustersRow.Height;
+        var h2 = cubeGridsRow.Height;
+        var h3 = programmableBlocksRow.Height;
+
+        double height = 0;
+        int num = 0;
+
+        if (h1.IsAbsolute)
+        {
+            height += h1.Value;
+            num++;
+        }
+
+        if (h2.IsAbsolute)
+        {
+            height += h2.Value;
+            num++;
+        }
+
+        if (h3.IsAbsolute)
+        {
+            height += h3.Value;
+            num++;
+        }
+
+        if (num > 1)
+        {
+            if (h1.IsAbsolute)
+                physicsClustersRow.Height = new GridLength(h1.Value / height, GridUnitType.Star);
+
+            if (h2.IsAbsolute)
+                cubeGridsRow.Height = new GridLength(h2.Value / height, GridUnitType.Star);
+
+            if (h3.IsAbsolute)
+                programmableBlocksRow.Height = new GridLength(h3.Value / height, GridUnitType.Star);
+        }
+
         var expander = (Expander)sender;
 
-        if (outliersList != null)
-            outlierFramesRow.Height = new GridLength(expander.ActualHeight + outliersList.ActualHeight + 4);
+        outlierFramesRow.Height = new GridLength(expander.ActualHeight + outliersList.ActualHeight + 4);
+        outlierFramesRow.MinHeight = 60;
+        outlierListSplitter.IsEnabled = true;
     }
 
     void OutlierFramesExpander_Collapsed(object sender, RoutedEventArgs e)
     {
         outlierFramesRow.Height = GridLength.Auto;
+        outlierFramesRow.MinHeight = 27;
+        outlierListSplitter.IsEnabled = false;
     }
 
     void PhysicsClustersExpander_Expanded(object sender, RoutedEventArgs e)
     {
+        if (physicsClustersList == null)
+            return;
+
+        var h1 = cubeGridsRow.Height;
+        var h2 = programmableBlocksRow.Height;
+
+        double height = 0;
+        int num = 0;
+
+        if (h1.IsAbsolute)
+        {
+            height += h1.Value;
+            num++;
+        }
+
+        if (h2.IsAbsolute)
+        {
+            height += h2.Value;
+            num++;
+        }
+
+        if (num > 1)
+        {
+            if (h1.IsAbsolute)
+                cubeGridsRow.Height = new GridLength(h1.Value / height, GridUnitType.Star);
+
+            if (h2.IsAbsolute)
+                programmableBlocksRow.Height = new GridLength(h2.Value / height, GridUnitType.Star);
+        }
+
         var expander = (Expander)sender;
 
-        if (physicsClustersList != null)
-            physicsClustersRow.Height = new GridLength(expander.ActualHeight + physicsClustersList.ActualHeight + 4);
+        physicsClustersRow.Height = new GridLength(expander.ActualHeight + physicsClustersList.ActualHeight + 4);
+        physicsClustersRow.MinHeight = 80;
+        clusterListSplitter.IsEnabled = true;
     }
 
     void PhysicsClustersExpander_Collapsed(object sender, RoutedEventArgs e)
     {
         physicsClustersRow.Height = GridLength.Auto;
+        physicsClustersRow.MinHeight = 27;
+        clusterListSplitter.IsEnabled = false;
     }
 
     void CubeGridsExpander_Expanded(object sender, RoutedEventArgs e)
     {
+        if (gridsList == null)
+            return;
+
+        if (programmableBlocksRow.Height.IsAbsolute)
+            programmableBlocksRow.Height = new GridLength(1, GridUnitType.Star);
+
         var expander = (Expander)sender;
 
-        if (gridsList != null)
-            cubeGridsRow.Height = new GridLength(expander.ActualHeight + gridsList.ActualHeight + 4);
+        cubeGridsRow.Height = new GridLength(expander.ActualHeight + gridListFilterTextBox.ActualHeight + gridsList.ActualHeight + 4);
+        cubeGridsRow.MinHeight = 110;
+        gridListSplitter.IsEnabled = true;
     }
 
     void CubeGridsExpander_Collapsed(object sender, RoutedEventArgs e)
     {
         cubeGridsRow.Height = GridLength.Auto;
+        cubeGridsRow.MinHeight = 27;
+        gridListSplitter.IsEnabled = false;
     }
 
     void ProgrammableBlocksExpander_Expanded(object sender, RoutedEventArgs e)
     {
+        if (programmableBlocksList == null)
+            return;
+
         var expander = (Expander)sender;
 
-        if (programmableBlocksList != null)
+        programmableBlocksRow.MinHeight = 80;
+
+        if (outlierFramesRow.Height.IsAbsolute || physicsClustersRow.Height.IsAbsolute || cubeGridsRow.Height.IsAbsolute)
             programmableBlocksRow.Height = new GridLength(expander.ActualHeight + programmableBlocksList.ActualHeight + 4);
+        else
+            programmableBlocksRow.Height = new GridLength(1, GridUnitType.Star);
+
+        gridListSplitter.IsEnabled = gridListExpander.IsExpanded;
     }
 
     void ProgrammableBlocksExpander_Collapsed(object sender, RoutedEventArgs e)
     {
         programmableBlocksRow.Height = GridLength.Auto;
+
+        if (outlierFramesRow.Height.IsStar)
+            outlierFramesRow.Height = new GridLength(outlierFramesRow.ActualHeight, GridUnitType.Pixel);
+
+        if (physicsClustersRow.Height.IsStar)
+            physicsClustersRow.Height = new GridLength(physicsClustersRow.ActualHeight, GridUnitType.Pixel);
+
+        if (cubeGridsRow.Height.IsAbsolute)
+            cubeGridsRow.Height = new GridLength(1, GridUnitType.Star);
+
+        programmableBlocksRow.MinHeight = 27;
+        gridListSplitter.IsEnabled = false;
     }
 
     #endregion
@@ -527,7 +634,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     void PhysicsClustersListHeader_Click(object sender, RoutedEventArgs args)
     {
-        var header = (GridViewColumnHeader)args.OriginalSource;
+        if (args.OriginalSource is not GridViewColumnHeader header)
+            return;
 
         string propName = "";
         var defaultDir = ListSortDirection.Ascending;
@@ -604,7 +712,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     void CubeGridsListHeader_Click(object sender, RoutedEventArgs args)
     {
-        var header = (GridViewColumnHeader)args.OriginalSource;
+        if (args.OriginalSource is not GridViewColumnHeader header)
+            return;
 
         string propName = "";
         var defaultDir = ListSortDirection.Ascending;
@@ -906,7 +1015,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     void ProgBlocksListHeader_Click(object sender, RoutedEventArgs args)
     {
-        var header = (GridViewColumnHeader)args.OriginalSource;
+        if (args.OriginalSource is not GridViewColumnHeader header)
+            return;
 
         string propName = "";
         var defaultDir = ListSortDirection.Ascending;
