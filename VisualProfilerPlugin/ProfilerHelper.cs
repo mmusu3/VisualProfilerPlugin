@@ -475,42 +475,39 @@ static class ProfilerHelper
         var grids = new Dictionary<long, CubeGridAnalysisInfo.Builder>();
         var progBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
 
-        foreach (var group in recording.Groups)
+        foreach (var (groupId, group) in recording.Groups)
         {
-            int groupId = group.Key;
-            var events = group.Value;
-
-            if (events.FrameStartEventIndices.Length == 0
-                || events.FrameEndEventIndices.Length == 0)
+            if (group.FrameStartEventIndices.Length == 0
+                || group.FrameEndEventIndices.Length == 0)
                 continue;
 
-            for (int f = 0; f < events.FrameStartEventIndices.Length; f++)
+            for (int f = 0; f < group.FrameStartEventIndices.Length; f++)
             {
-                if (f >= events.FrameStartEventIndices.Length
-                    || f >= events.FrameEndEventIndices.Length)
+                if (f >= group.FrameStartEventIndices.Length
+                    || f >= group.FrameEndEventIndices.Length)
                     break;
 
-                int startEventIndex = events.FrameStartEventIndices[f];
-                int endEventIndex = events.FrameEndEventIndices[f];
+                int startEventIndex = group.FrameStartEventIndices[f];
+                int endEventIndex = group.FrameEndEventIndices[f];
 
                 if (endEventIndex < startEventIndex)
                     continue;
 
-                int startSegmentIndex = startEventIndex / events.SegmentSize;
-                int endSegmentIndex = endEventIndex / events.SegmentSize;
+                int startSegmentIndex = startEventIndex / group.SegmentSize;
+                int endSegmentIndex = endEventIndex / group.SegmentSize;
 
                 {
-                    var firstSegment = events.EventSegments[startSegmentIndex].Events;
-                    int startIndex = Math.Max(0, startEventIndex - startSegmentIndex * events.SegmentSize);
+                    var firstSegment = group.EventSegments[startSegmentIndex].Events;
+                    int startIndex = Math.Max(0, startEventIndex - startSegmentIndex * group.SegmentSize);
 
-                    var lastSegment = events.EventSegments[endSegmentIndex].Events;
-                    int endIndex = Math.Min(lastSegment.Length - 1, endEventIndex - endSegmentIndex * events.SegmentSize);
+                    var lastSegment = group.EventSegments[endSegmentIndex].Events;
+                    int endIndex = Math.Min(lastSegment.Length - 1, endEventIndex - endSegmentIndex * group.SegmentSize);
 
                     long startTime = firstSegment[startIndex].StartTime;
                     long endTime = lastSegment[endIndex].EndTime;
                     long frameTime = endTime - startTime;
 
-                    if (frameTimes.Count <= f)
+                    while (frameTimes.Count <= f)
                         frameTimes.Add(0);
 
                     frameTimes[f] = Math.Max(frameTimes[f], frameTime);
@@ -518,9 +515,9 @@ static class ProfilerHelper
 
                 for (int s = startSegmentIndex; s <= endSegmentIndex; s++)
                 {
-                    var segment = events.EventSegments[s].Events;
-                    int startIndexInSegment = Math.Max(0, startEventIndex - s * events.SegmentSize);
-                    int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - s * events.SegmentSize);
+                    var segment = group.EventSegments[s].Events;
+                    int startIndexInSegment = Math.Max(0, startEventIndex - s * group.SegmentSize);
+                    int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - s * group.SegmentSize);
 
                     for (int e = startIndexInSegment; e <= endIndexInSegment; e++)
                     {
@@ -571,8 +568,16 @@ static class ProfilerHelper
             frameTimeInfo.StdDev += frameMilliseconds * frameMilliseconds;
         }
 
-        frameTimeInfo.Mean /= frameTimes.Count;
-        frameTimeInfo.StdDev = Math.Sqrt(frameTimeInfo.StdDev / frameTimes.Count - frameTimeInfo.Mean * frameTimeInfo.Mean);
+        if (frameTimes.Count > 0)
+        {
+            frameTimeInfo.Mean /= frameTimes.Count;
+            frameTimeInfo.StdDev = Math.Sqrt(frameTimeInfo.StdDev / frameTimes.Count - frameTimeInfo.Mean * frameTimeInfo.Mean);
+        }
+        else
+        {
+            frameTimeInfo.Min = 0;
+            frameTimeInfo.StdDev = 0;
+        }
 
         foreach (var item in clusters)
             item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
