@@ -28,6 +28,8 @@ public class ProfilerGroup
     public string? SortingGroup;
     public int OrderInSortingGroup;
 
+    internal bool IsWaitingForFirstUse;
+
     public ProfilerGroup(string name, Thread thread)
     {
         Name = name;

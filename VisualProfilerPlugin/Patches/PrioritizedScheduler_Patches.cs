@@ -4,18 +4,83 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using ParallelTasks;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
 
 namespace VisualProfiler.Patches;
 
-// Just doesn't want to work
-//[PatchShim]
 static class PrioritizedScheduler_Patches
 {
+    #region Worker Init
+
+    // Hold a reference here
+    static MethodRewritePattern initWorkersPattern = null!;
+
+    public static void Patch()
+    {
+        Plugin.Log.Info("Begining early patch of PrioritizedScheduler.InitializeWorkerArrays");
+
+        var source = typeof(PrioritizedScheduler).GetNonPublicInstanceMethod("InitializeWorkerArrays");
+        var suffix = typeof(PrioritizedScheduler_Patches).GetNonPublicStaticMethod(nameof(Suffix_InitializeWorkerArrays));
+
+        initWorkersPattern = PatchHelper.CreateRewritePattern(source);
+        initWorkersPattern.Suffixes.Add(suffix);
+
+        PatchHelper.CommitMethodPatches(initWorkersPattern);
+
+        Plugin.Log.Info("Early patch completed.");
+    }
+
+    static void Suffix_InitializeWorkerArrays(object[] __field_m_workerArrays)
+    {
+        var workerArrayType = typeof(PrioritizedScheduler).GetNestedType("WorkerArray", BindingFlags.NonPublic)!;
+        var workersField = workerArrayType.GetField("m_workers", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        for (int i = 0; i < __field_m_workerArrays.Length; i++)
+        {
+            var array = __field_m_workerArrays[i];
+            var workers = (object[])workersField.GetValue(array)!;
+
+            InitWorkerArray(workers);
+        }
+    }
+
+    static void InitWorkerArray(object[] workers)
+    {
+        var workerType = typeof(PrioritizedScheduler).GetNestedType("Worker", BindingFlags.NonPublic)!;
+        var threadField = workerType.GetField("m_thread", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        for (int i = 0; i < workers.Length; i++)
+        {
+            var worker = workers[i];
+            var thread = (Thread)threadField.GetValue(worker)!;
+
+            InitWorker(thread, i);
+        }
+    }
+
+    static void InitWorker(Thread thread, int workerIndex)
+    {
+        var threadPriority = thread.Priority;
+        var groupName = "Parallel_" + threadPriority;
+
+        Profiler.SetSortingGroupOrderPriority(groupName, 20 + (int)threadPriority);
+
+        var group = Profiler.CreateGroupForThread(thread);
+        group.SortingGroup = groupName;
+        group.OrderInSortingGroup = workerIndex;
+        group.IsWaitingForFirstUse = true;
+
+        if (threadPriority == ThreadPriority.Highest)
+            group.IsRealtimeThread = true;
+    }
+#endregion
+
     static MethodInfo scheduleMethod = null!;
 
+    // Not currently enabled
     public static void Patch(PatchContext ctx)
     {
         var wokerArrayType = typeof(PrioritizedScheduler).GetNestedType("WorkerArray", BindingFlags.NonPublic)!;

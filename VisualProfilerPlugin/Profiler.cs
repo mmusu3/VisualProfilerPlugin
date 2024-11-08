@@ -82,7 +82,7 @@ public static class Profiler
         var group = GetOrCreateGroupForCurrentThread();
         int depth = ++group.CurrentDepth;
 
-        if (!isEnabled)
+        if (!isEnabled) // TODO: Should this check isRecordingEvents?
             return new ProfilerEventHandle { Depth = depth };
 
         bool profileMemory = (options & ProfilerTimerOptions.ProfileMemory) != 0;
@@ -289,6 +289,12 @@ public static class Profiler
 
     #endregion
 
+    public static void SetIsRealtimeThread(bool isRealtime)
+    {
+        var group = GetOrCreateGroupForCurrentThread();
+        group.IsRealtimeThread = isRealtime;
+    }
+
     #region Group sorting
 
     public static void SetSortingGroupForCurrentThread(string sortingGroup, int orderInGroup = 0)
@@ -296,12 +302,6 @@ public static class Profiler
         var group = GetOrCreateGroupForCurrentThread();
         group.SortingGroup = sortingGroup;
         group.OrderInSortingGroup = orderInGroup;
-    }
-
-    public static void SetIsRealtimeThread(bool isRealtime)
-    {
-        var group = GetOrCreateGroupForCurrentThread();
-        group.IsRealtimeThread = isRealtime;
     }
 
     public static void SetSortingGroupOrderPriority(string sortingGroup, int priority)
@@ -429,18 +429,35 @@ public static class Profiler
     [MethodImpl(MethodImplOptions.NoInlining)]
     static ProfilerGroup CreateGroupForCurrentThread()
     {
-        var currentThread = Thread.CurrentThread;
-        var tg = new ProfilerGroup(currentThread.Name!, currentThread);
+        var thread = Thread.CurrentThread;
 
-        ThreadGroup = tg;
+        ProfilerGroup? group;
 
         lock (profilerGroupsById)
+        {
             // NOTE: This can replace old entries from threads that have stopped and had
             // their ID reused. Thread ID's are only unique among running threads not over
             // all threads that have run during an application cycle.
-            profilerGroupsById[tg.ID] = tg;
 
-        return tg;
+            if (profilerGroupsById.TryGetValue(thread.ManagedThreadId, out group) && group.IsWaitingForFirstUse)
+                group.IsWaitingForFirstUse = false;
+            else
+                profilerGroupsById[thread.ManagedThreadId] = group = new ProfilerGroup(thread.Name!, thread);
+        }
+
+        ThreadGroup = group;
+
+        return group;
+    }
+
+    internal static ProfilerGroup CreateGroupForThread(Thread thread)
+    {
+        var group = new ProfilerGroup(thread.Name!, thread);
+
+        lock (profilerGroupsById)
+            profilerGroupsById[group.ID] = group;
+
+        return group;
     }
 
     [MethodImpl(Inline)]

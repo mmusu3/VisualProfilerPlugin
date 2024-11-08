@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Torch.Managers.PatchManager.MSIL;
@@ -44,7 +45,7 @@ static class TranspileHelper
         return instruction;
     }
 
-    public static bool MatchOpCodes(MsilInstruction[] instructions, int start, OpCode[] opcodes)
+    public static bool MatchOpCodes(MsilInstruction[] instructions, int start, ReadOnlySpan<OpCode> opcodes)
     {
         if (instructions.Length < start + opcodes.Length)
             return false;

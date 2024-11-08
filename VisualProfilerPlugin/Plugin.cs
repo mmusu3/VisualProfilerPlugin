@@ -40,7 +40,7 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 #if NETFRAMEWORK
         Patches.Torch_MethodContext_Patches.Patch();
 #endif
-        Patches.Worker_WorkerLoop_Patch.Patch();
+        Patches.PrioritizedScheduler_Patches.Patch();
     }
 
     public UserControl GetControl() => new ConfigView(new()/*configVM.Data*/);
