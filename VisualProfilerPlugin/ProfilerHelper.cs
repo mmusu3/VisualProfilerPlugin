@@ -959,6 +959,7 @@ static class GeneralStringCache
 {
     static readonly Dictionary<string, int> stringsToIds = [];
     static readonly Dictionary<int, string> idsToStrings = [];
+    static readonly object lockObj = new();
     static int idGenerator = 1;
 
     public static void Init(Dictionary<int, string> values)
@@ -984,11 +985,14 @@ static class GeneralStringCache
 
         int id;
 
-        if (!stringsToIds.TryGetValue(value, out id))
+        lock (lockObj)
         {
-            id = idGenerator++;
-            stringsToIds.Add(value, id);
-            idsToStrings.Add(id, value);
+            if (!stringsToIds.TryGetValue(value, out id))
+            {
+                id = idGenerator++;
+                stringsToIds.Add(value, id);
+                idsToStrings.Add(id, value);
+            }
         }
 
         return new StringId(id);
@@ -998,10 +1002,13 @@ static class GeneralStringCache
     {
         int index;
 
-        if (!stringsToIds.TryGetValue(value, out index))
+        lock (lockObj)
         {
-            id = default;
-            return false;
+            if (!stringsToIds.TryGetValue(value, out index))
+            {
+                id = default;
+                return false;
+            }
         }
 
         id = new StringId(index);
@@ -1013,7 +1020,8 @@ static class GeneralStringCache
         if (id.ID == 0)
             return null;
 
-        return idsToStrings[id.ID];
+        lock (lockObj)
+            return idsToStrings[id.ID];
     }
 
     public static string? Intern(string? value)
@@ -1021,12 +1029,15 @@ static class GeneralStringCache
         if (value == null)
             return null;
 
-        if (stringsToIds.TryGetValue(value, out int id))
-            return idsToStrings[id];
+        lock (lockObj)
+        {
+            if (stringsToIds.TryGetValue(value, out int id))
+                return idsToStrings[id];
 
-        id = idGenerator++;
-        stringsToIds.Add(value, id);
-        idsToStrings.Add(id, value);
+            id = idGenerator++;
+            stringsToIds.Add(value, id);
+            idsToStrings.Add(id, value);
+        }
 
         return value;
     }
