@@ -122,61 +122,55 @@
 
             <Expander Name="gridListExpander" ExpandDirection="Down" Grid.Row="3" IsExpanded="True" Header="Cube Grids" Margin="0,0,0,4" FontWeight="Bold"
                         Expanded="CubeGridsExpander_Expanded" Collapsed="CubeGridsExpander_Collapsed">
-                <DockPanel VerticalAlignment="Top">
-                    <DockPanel DockPanel.Dock="Top"  HorizontalAlignment="Stretch">
-                        <Label DockPanel.Dock="Left" Content="Filter:" FontWeight="Regular"/>
-                        <TextBox Name="gridListFilterTextBox" VerticalContentAlignment="Center" BorderThickness="1,1,0,0" FontWeight="Regular" TextChanged="GridListFilterTextBox_TextChanged"/>
-                    </DockPanel>
-                    <ListView Name="gridsList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" FontWeight="Regular"
-                                GridViewColumnHeader.Click="CubeGridsListHeader_Click">
-                        <ListView.View>
-                            <GridView AllowsColumnReorder="True">
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
-                                    <GridViewColumnHeader Name="gridCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the grid was timed in."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
-                                    <GridViewColumnHeader Name="gridAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N2}">
-                                    <GridViewColumnHeader Name="gridTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=NamesForColumn}">
-                                    <GridViewColumnHeader Name="gridNamesColumn" Content=" Grid Names " ToolTip="Player assigned names of the grid.&#10;Can be multiple values if the name was changed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=GridTypeForColumn}">
-                                    <GridViewColumnHeader Name="gridTypeColumn" Content=" Grid Type "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=EntityId}">
-                                    <GridViewColumnHeader Name="gridEntityIdColumn" Content=" Entity ID "/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerIDsForColumn}">
-                                    <GridViewColumnHeader Name="gridOwnerIdsColumn" Content=" Main Owner IDs " ToolTip="Identity IDs of the players that own the most blocks on the grid (BigOwner).&#10;Will be 0 if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerNamesForColumn}">
-                                    <GridViewColumnHeader Name="gridOwnerNamesColumn" Content=" Main Owner Names " ToolTip="Names of the players that own the most blocks on the grid (BigOwner).&#10;Will be empty if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=BlockCountsForColumn}">
-                                    <GridViewColumnHeader Name="gridBlockCountsColumn" Content=" Block Counts " ToolTip="Number of blocks on the grid.&#10;Can be multiple values if blocks were added/removed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=PCUsForColumn}">
-                                    <GridViewColumnHeader Name="gridPCUsColumn" Content=" PCUs " ToolTip="Total PCU of the grid.&#10;Can be multiple values if blocks were added/removed or [de]constructed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=SizesForColumn}">
-                                    <GridViewColumnHeader Name="gridSizesColumn" Content=" Sizes " ToolTip="Dimensions of the grid in blocks.&#10;Can be multiple values if blocks were added/removed or [de]constructed over time."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
-                                    <GridViewColumnHeader Name="gridAveragePositionColumn" Content=" Avg. Position " ToolTip="Average position of the grid over all the recorded frames."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=AverageSpeedForColumn}">
-                                    <GridViewColumnHeader Name="gridAverageSpeedColumn" Content=" Avg. Speed " ToolTip="Average speed of the grid over all the recorded frames."/>
-                                </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=IsPoweredForColumn}">
-                                    <GridViewColumnHeader Name="gridIsPoweredColumn" Content=" Is Powered " ToolTip="Whether the grid is marked as being powered.&#10;Will be * if the value changed over time."/>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </DockPanel>
+                <ListView Name="gridsList" ScrollViewer.CanContentScroll="False" BorderThickness="0,1,0,0" FontWeight="Regular"
+                            GridViewColumnHeader.Click="CubeGridsListHeader_Click">
+                    <ListView.View>
+                        <GridView AllowsColumnReorder="True">
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
+                                <GridViewColumnHeader Name="gridCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the grid was timed in."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
+                                <GridViewColumnHeader Name="gridAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N2}">
+                                <GridViewColumnHeader Name="gridTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=NamesForColumn}">
+                                <GridViewColumnHeader Name="gridNamesColumn" Content=" Grid Names " ToolTip="Player assigned names of the grid.&#10;Can be multiple values if the name was changed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=GridTypeForColumn}">
+                                <GridViewColumnHeader Name="gridTypeColumn" Content=" Grid Type "/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=EntityId}">
+                                <GridViewColumnHeader Name="gridEntityIdColumn" Content=" Entity ID "/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerIDsForColumn}">
+                                <GridViewColumnHeader Name="gridOwnerIdsColumn" Content=" Main Owner IDs " ToolTip="Identity IDs of the players that own the most blocks on the grid (BigOwner).&#10;Will be 0 if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerNamesForColumn}">
+                                <GridViewColumnHeader Name="gridOwnerNamesColumn" Content=" Main Owner Names " ToolTip="Names of the players that own the most blocks on the grid (BigOwner).&#10;Will be empty if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=BlockCountsForColumn}">
+                                <GridViewColumnHeader Name="gridBlockCountsColumn" Content=" Block Counts " ToolTip="Number of blocks on the grid.&#10;Can be multiple values if blocks were added/removed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=PCUsForColumn}">
+                                <GridViewColumnHeader Name="gridPCUsColumn" Content=" PCUs " ToolTip="Total PCU of the grid.&#10;Can be multiple values if blocks were added/removed or [de]constructed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=SizesForColumn}">
+                                <GridViewColumnHeader Name="gridSizesColumn" Content=" Sizes " ToolTip="Dimensions of the grid in blocks.&#10;Can be multiple values if blocks were added/removed or [de]constructed over time."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
+                                <GridViewColumnHeader Name="gridAveragePositionColumn" Content=" Avg. Position " ToolTip="Average position of the grid over all the recorded frames."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=AverageSpeedForColumn}">
+                                <GridViewColumnHeader Name="gridAverageSpeedColumn" Content=" Avg. Speed " ToolTip="Average speed of the grid over all the recorded frames."/>
+                            </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=IsPoweredForColumn}">
+                                <GridViewColumnHeader Name="gridIsPoweredColumn" Content=" Is Powered " ToolTip="Whether the grid is marked as being powered.&#10;Will be * if the value changed over time."/>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
             </Expander>
             <GridSplitter Name="gridListSplitter" Grid.Row="3" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
 
