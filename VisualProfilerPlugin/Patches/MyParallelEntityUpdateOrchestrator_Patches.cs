@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using ParallelTasks;
 using Sandbox.Game.Entities;
@@ -21,6 +22,8 @@ namespace VisualProfiler.Patches;
 [PatchShim]
 static class MyParallelEntityUpdateOrchestrator_Patches
 {
+    static bool useLiteProfiling = true;
+
     public static void Patch(PatchContext ctx)
     {
         Keys.Init();
@@ -33,7 +36,8 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         Transpile(ctx, "UpdateBeforeSimulation", _public: false, _static: false);
         Transpile(ctx, "UpdateBeforeSimulation10", _public: false, _static: false);
         Transpile(ctx, "UpdateBeforeSimulation100", _public: false, _static: false);
-        PatchPrefixSuffixPair(ctx, nameof(MyParallelEntityUpdateOrchestrator.DispatchSimulate), _public: true, _static: false);
+        //PatchPrefixSuffixPair(ctx, nameof(MyParallelEntityUpdateOrchestrator.DispatchSimulate), _public: true, _static: false);
+        Transpile(ctx, "DispatchSimulate", _public: true, _static: false);
         PatchPrefixSuffixPair(ctx, nameof(MyParallelEntityUpdateOrchestrator.DispatchAfterSimulation), _public: true, _static: false);
         //PatchPrefixSuffixPair(ctx, "UpdateAfterSimulation", _public: false, _static: false);
         //PatchPrefixSuffixPair(ctx, "UpdateAfterSimulation10", _public: false, _static: false);
@@ -104,6 +108,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         internal static ProfilerKey EntityUpdateBeforeSim;
         internal static ProfilerKey EntityUpdateBeforeSim10;
         internal static ProfilerKey EntityUpdateBeforeSim100;
+        internal static ProfilerKey EntitySimulate;
         internal static ProfilerKey EntityUpdateAfterSim;
         internal static ProfilerKey EntityUpdateAfterSim10;
         internal static ProfilerKey EntityUpdateAfterSim100;
@@ -126,6 +131,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
             EntityUpdateBeforeSim = ProfilerKeyCache.GetOrAdd("MyEntity.UpdateBeforeSimulation");
             EntityUpdateBeforeSim10 = ProfilerKeyCache.GetOrAdd("MyEntity.UpdateBeforeSimulation10");
             EntityUpdateBeforeSim100 = ProfilerKeyCache.GetOrAdd("MyEntity.UpdateBeforeSimulation100");
+            EntitySimulate = ProfilerKeyCache.GetOrAdd("MyEntity.Simulate");
             EntityUpdateAfterSim = ProfilerKeyCache.GetOrAdd("MyEntity.UpdateAfterSimulation");
             EntityUpdateAfterSim10 = ProfilerKeyCache.GetOrAdd("MyEntity.UpdateAfterSimulation10");
             EntityUpdateAfterSim100 = ProfilerKeyCache.GetOrAdd("MyEntity.UpdateAfterSimulation100");
@@ -178,6 +184,145 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
     [MethodImpl(Inline)] static bool Prefix_DispatchSimulate(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.DispatchSimulate); return true; }
+
+    static IEnumerable<Instn> Transpile_DispatchSimulate(IEnumerable<Instn> instructionStream, Func<Type, MsilLocal> __localCreator)
+    {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<Instn>((int)(instructions.Length * 1.1f));
+
+        void Emit(Instn ins) => newInstructions.Add(ins);
+
+        Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.DispatchSimulate)}.");
+
+        int expectedParts = 3;
+        int patchedParts = 0;
+
+        var keyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
+        var extraDataCtor1 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null)!;
+        var extraDataCtor2 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null)!;
+        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop))!;
+        var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
+        var startLiteMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.StartLite), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData).MakeByRefType()])!;
+        var disposeMethod2 = typeof(ProfilerEventHandle).GetPublicInstanceMethod(nameof(ProfilerEventHandle.Dispose))!;
+
+        var applyChangesMethod = typeof(MyParallelEntityUpdateOrchestrator).GetNonPublicInstanceMethod("ApplyChanges");
+        var entitiesForSimulateField = typeof(MyParallelEntityUpdateOrchestrator).GetField("m_entitiesForSimulate", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var getCountMethod = typeof(List<MyEntity>).GetProperty(nameof(List<MyEntity>.Count), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
+        var simulateMethod = typeof(MyEntity).GetPublicInstanceMethod(nameof(MyEntity.Simulate))!;
+        var getTypeMethod = typeof(object).GetPublicInstanceMethod(nameof(GetType))!;
+        var nameGetter = typeof(MemberInfo).GetProperty(nameof(MemberInfo.Name), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
+        var processInvokeLaterMethod = typeof(MyParallelEntityUpdateOrchestrator).GetPublicInstanceMethod(nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater));
+
+        var timerLocal1 = __localCreator(typeof(ProfilerTimer));
+
+        MsilLocal timerLocal2;
+        MsilLocal dataLocal;
+        MsilLocal handleLocal;
+
+        if (useLiteProfiling)
+        {
+            timerLocal2 = null!;
+            dataLocal = __localCreator(typeof(ProfilerEvent.ExtraData));
+            handleLocal = __localCreator(typeof(ProfilerEventHandle));
+        }
+        else
+        {
+            timerLocal2 = __localCreator(typeof(ProfilerTimer));
+            dataLocal = null!;
+            handleLocal = null!;
+        }
+
+        for (int i = 0; i < instructions.Length; i++)
+        {
+            var ins = instructions[i];
+
+            if (ins.OpCode == Ldloc_1 && instructions[i + 1].OpCode == Callvirt
+                && instructions[i + 1].Operand is MsilOperandInline<MethodBase> call1 && call1.Value == simulateMethod)
+            {
+                if (useLiteProfiling)
+                {
+                    Emit(new Instn(Ldc_I4).InlineValue(Keys.EntitySimulate.GlobalIndex));
+                    Emit(NewObj(keyCtor));
+                    Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
+                    Emit(new Instn(ins.OpCode)); // entity
+                    Emit(new Instn(Ldnull)); // data format
+                    Emit(NewObj(extraDataCtor2));
+                    Emit(dataLocal.AsValueStore());
+                    Emit(dataLocal.AsReferenceLoad());
+                    Emit(Call(startLiteMethod));
+                    Emit(handleLocal.AsValueStore());
+
+                    // Original call
+                    Emit(ins);
+                    Emit(instructions[++i]);
+
+                    Emit(handleLocal.AsReferenceLoad());
+                    Emit(Call(disposeMethod2));
+                }
+                else
+                {
+                    Emit(new Instn(ins.OpCode)); // entity
+                    Emit(CallVirt(getTypeMethod));
+                    Emit(CallVirt(nameGetter));
+                    Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
+                    Emit(new Instn(ins.OpCode)); // entity
+                    Emit(new Instn(Ldnull)); // data format
+                    Emit(NewObj(extraDataCtor2));
+                    Emit(Call(startMethod2));
+                    Emit(timerLocal2.AsValueStore());
+
+                    // Original call
+                    Emit(ins);
+                    Emit(instructions[++i]);
+
+                    Emit(timerLocal2.AsValueLoad());
+                    Emit(Call(disposeMethod));
+                }
+
+                patchedParts++;
+                continue;
+            }
+            else if (ins.OpCode == Ldarg_0 && instructions[i + 1].OpCode == OpCodes.Call
+                && instructions[i + 1].Operand is MsilOperandInline<MethodBase> call2 && call2.Value == processInvokeLaterMethod)
+            {
+                Emit(timerLocal1.AsValueLoad().SwapLabelsAndTryCatchOperations(instructions[^1]));
+                Emit(Call(stopMethod));
+                patchedParts++;
+            }
+
+            Emit(ins);
+
+            if (i > 0 && instructions[i - 1].OpCode == Ldarg_0 && ins.OpCode == OpCodes.Call
+                && ins.Operand is MsilOperandInline<MethodBase> call3 && call3.Value == applyChangesMethod)
+            {
+                Emit(new Instn(Ldc_I4).InlineValue(Keys.DispatchSimulate.GlobalIndex));
+                Emit(NewObj(keyCtor));
+                Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
+                Emit(new Instn(Ldarg_0));
+                Emit(LoadField(entitiesForSimulateField));
+                Emit(CallVirt(getCountMethod));
+                Emit(new Instn(Conv_I8));
+                Emit(LoadString("Num entities: {0:n0}"));
+                Emit(NewObj(extraDataCtor1));
+                Emit(Call(startMethod1));
+                Emit(timerLocal1.AsValueStore());
+                patchedParts++;
+            }
+        }
+
+        if (patchedParts != expectedParts)
+        {
+            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.DispatchSimulate)}. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
+        else
+        {
+            Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
+    }
 
     #region After
 
@@ -358,23 +503,23 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var getTypeMethod = typeof(object).GetPublicInstanceMethod(nameof(GetType))!;
         var nameGetter = typeof(MemberInfo).GetProperty(nameof(MemberInfo.Name), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
 
-        const bool useLiteProfiling = true;
-
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
 
         MsilLocal timerLocal2;
         MsilLocal dataLocal;
         MsilLocal handleLocal;
 
-#pragma warning disable CS0162 // Unreachable code detected
         if (useLiteProfiling)
         {
+            timerLocal2 = null!;
             dataLocal = __localCreator(typeof(ProfilerEvent.ExtraData));
             handleLocal = __localCreator(typeof(ProfilerEventHandle));
         }
         else
         {
             timerLocal2 = __localCreator(typeof(ProfilerTimer));
+            dataLocal = null!;
+            handleLocal = null!;
         }
 
         Emit(new Instn(Ldc_I4).InlineValue(key.GlobalIndex));
@@ -443,7 +588,6 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
             Emit(ins);
         }
-#pragma warning restore CS0162 // Unreachable code detected
 
         Emit(timerLocal1.AsValueLoad().SwapLabelsAndTryCatchOperations(instructions[^1]));
         Emit(Call(stopMethod));
