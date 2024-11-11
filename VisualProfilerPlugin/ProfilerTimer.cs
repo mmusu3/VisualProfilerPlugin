@@ -158,9 +158,9 @@ public sealed class ProfilerTimer : IDisposable
         StartInternal(default);
     }
 
-    internal void StartInternal(ProfilerEvent.ExtraData extraData)
+    internal void StartInternal(in ProfilerEvent.ExtraData extraData)
     {
-        if (!Profiler.IsEnabled)
+        if (!Profiler.IsEnabled || (Parent != null && Parent.state == State.StartedDisabled))
         {
             state = State.StartedDisabled;
             return;
@@ -225,7 +225,7 @@ public sealed class ProfilerTimer : IDisposable
 
     public void StartOrSplit()
     {
-        if (!Profiler.IsEnabled)
+        if (!Profiler.IsEnabled || (Parent != null && Parent.state == State.StartedDisabled))
         {
             state = State.StartedDisabled;
             return;
@@ -446,7 +446,7 @@ public sealed class ProfilerTimer : IDisposable
             hasOutliers |= outliers;
         }
 
-        Assert.True(WasRun || !subTimerWasRun);
+        Assert.True(!subTimerWasRun || WasRun);
         //Assert.True(elapsedTicks >= subTimerTicks);
 
         //TimeExclusive -= subTimerTicks;
