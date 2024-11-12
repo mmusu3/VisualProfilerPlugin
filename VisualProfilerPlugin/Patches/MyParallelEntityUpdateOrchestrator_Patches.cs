@@ -66,9 +66,11 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         //typeof(MyParallelEntityUpdateOrchestrator).GetField("m_parallelUpdateHandlerAfterSimulation", BindingFlags.NonPublic | BindingFlags.Instance)!
         //    .SetValue(MyEntities.Orchestrator, deleg);
 
-        source = typeof(MyParallelEntityUpdateOrchestrator).GetPublicInstanceMethod(nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater));
-        prefix = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod(nameof(Prefix_ProcessInvokeLater));
-        ctx.GetPattern(source).Prefixes.Add(prefix);
+        //source = typeof(MyParallelEntityUpdateOrchestrator).GetPublicInstanceMethod(nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater));
+        //prefix = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod(nameof(Prefix_ProcessInvokeLater));
+        //ctx.GetPattern(source).Prefixes.Add(prefix);
+
+        Transpile(ctx, nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater), _public: true, _static: false);
     }
 
     static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
@@ -287,7 +289,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
             else if (ins.OpCode == Ldarg_0 && instructions[i + 1].OpCode == OpCodes.Call
                 && instructions[i + 1].Operand is MsilOperandInline<MethodBase> call2 && call2.Value == processInvokeLaterMethod)
             {
-                Emit(timerLocal1.AsValueLoad().SwapLabelsAndTryCatchOperations(instructions[^1]));
+                Emit(timerLocal1.AsValueLoad());
                 Emit(Call(stopMethod));
                 patchedParts++;
             }
@@ -589,7 +591,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
             Emit(ins);
         }
 
-        Emit(timerLocal1.AsValueLoad().SwapLabelsAndTryCatchOperations(instructions[^1]));
+        Emit(timerLocal1.AsValueLoad().CopyLabelsAndTryCatchOperations(instructions[^1]));
         Emit(Call(stopMethod));
         Emit(new Instn(Ret));
 
@@ -791,7 +793,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         if (__field_m_callbacksPendingExecution.IsEmpty)
             return false;
 
-        using var t = Profiler.Start(Keys.ProcessInvokeLater, ProfilerTimerOptions.ProfileMemory, new(__field_m_callbacksPendingExecutionSwap.Count));
+        using var t = Profiler.Start(Keys.ProcessInvokeLater, ProfilerTimerOptions.ProfileMemory, new(__field_m_callbacksPendingExecution.Count));
 
         using (__field_m_lockInvokeLater.EnterUnique())
             MyUtils.Swap(ref __field_m_callbacksPendingExecution, ref __field_m_callbacksPendingExecutionSwap);
@@ -805,5 +807,103 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         while (__field_m_callbacksPendingExecutionSwap.TryDequeue(out _)) { }
 
         return false;
+    }
+
+    static IEnumerable<Instn> Transpile_ProcessInvokeLater(IEnumerable<Instn> instructionStream, Func<Type, MsilLocal> __localCreator)
+    {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<Instn>((int)(instructions.Length * 1.1f));
+
+        void Emit(Instn ins) => newInstructions.Add(ins);
+
+        Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater)}.");
+
+        const int expectedParts = 2;
+        int patchedParts = 0;
+
+        var keyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
+        var extraDataLongCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null)!;
+        var extraDataObjCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null)!;
+        var startKeyMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        var startStringMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
+        var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop))!;
+
+        var lockField = typeof(MyParallelEntityUpdateOrchestrator).GetField("m_lockInvokeLater", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var callbacksPendingField = typeof(MyParallelEntityUpdateOrchestrator).GetField("m_callbacksPendingExecution", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var getCountMethod = typeof(ConcurrentQueue<(Action, string)>).GetProperty(nameof(ConcurrentQueue<(Action, string)>.Count), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
+        var getMethodMethod = typeof(Action).GetProperty(nameof(Action.Method))!.GetMethod!;
+        var nameGetter = typeof(MemberInfo).GetProperty(nameof(MemberInfo.Name), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
+        var invokeMethod = typeof(Action).GetPublicInstanceMethod(nameof(Action.Invoke));
+
+        var timerLocal1 = __localCreator(typeof(ProfilerTimer));
+        var timerLocal2 = __localCreator(typeof(ProfilerTimer));
+        var actionLocal = __localCreator(typeof(Action));
+
+        ReadOnlySpan<OpCode> pattern1 = [Ret, Ldarg_0, Ldfld];
+
+        for (int i = 0; i < instructions.Length; i++)
+        {
+            var ins = instructions[i];
+
+            if (MatchOpCodes(instructions, i, pattern1)
+                && instructions[i + 2].Operand is MsilOperandInline<FieldInfo> ldField && ldField.Value == lockField)
+            {
+                Emit(ins);
+                ins = instructions[++i];
+                Emit(new Instn(Ldc_I4).InlineValue(Keys.ProcessInvokeLater.GlobalIndex).SwapLabels(ref ins));
+                Emit(NewObj(keyCtor));
+                Emit(new(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
+                Emit(new(Ldarg_0));
+                Emit(LoadField(callbacksPendingField));
+                Emit(Call(getCountMethod));
+                Emit(new(Conv_I8));
+                Emit(new(Ldnull));
+                Emit(NewObj(extraDataLongCtor));
+                Emit(Call(startKeyMethod));
+                Emit(timerLocal1.AsValueStore());
+                patchedParts++;
+            }
+            else if (ins.OpCode == Callvirt && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod)
+            {
+                Emit(new(Dup));
+                Emit(actionLocal.AsValueStore());
+                Emit(CallVirt(getMethodMethod));
+                Emit(CallVirt(nameGetter));
+                Emit(new(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
+                Emit(actionLocal.AsValueLoad());
+                Emit(new(Ldnull));
+                Emit(NewObj(extraDataObjCtor));
+                Emit(Call(startStringMethod));
+                Emit(timerLocal2.AsValueStore());
+                Emit(actionLocal.AsValueLoad());
+                Emit(ins);
+                Emit(timerLocal2.AsValueLoad());
+                Emit(Call(disposeMethod));
+                patchedParts++;
+                continue;
+            }
+            else if (ins.OpCode == Ret && i == instructions.Length - 1)
+            {
+                break;
+            }
+
+            Emit(ins);
+        }
+
+        Emit(timerLocal1.AsValueLoad());
+        Emit(Call(stopMethod));
+        Emit(new(Ret));
+
+        if (patchedParts != expectedParts)
+        {
+            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater)}. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
+        else
+        {
+            Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 }

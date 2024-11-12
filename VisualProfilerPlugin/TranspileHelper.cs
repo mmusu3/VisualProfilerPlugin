@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Torch.Managers.PatchManager.MSIL;
@@ -8,12 +7,42 @@ namespace VisualProfiler;
 
 static class TranspileHelper
 {
-    public static MsilInstruction WithTryCatchOperations(this MsilInstruction instruction, IEnumerable<MsilTryCatchOperation> operations)
+    static readonly FieldInfo instructionOffsetField = typeof(MsilInstruction).GetField("<Offset>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+    static MsilInstruction CloneInstruction(MsilInstruction instruction)
     {
-        instruction.TryCatchOperations.AddRange(operations);
+        var newI = instruction.CopyWith(instruction.OpCode);
+        instructionOffsetField.SetValue(newI, instruction.Offset);
+
+        return newI;
+    }
+
+    public static MsilInstruction CopyTryCatchOperations(this MsilInstruction instruction, MsilInstruction sourceInstruction)
+    {
+        instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);
+
         return instruction;
     }
 
+    public static MsilInstruction CopyLabels(this MsilInstruction instruction, MsilInstruction sourceInstruction)
+    {
+        foreach (var label in sourceInstruction.Labels)
+            instruction.Labels.Add(label);
+
+        return instruction;
+    }
+
+    public static MsilInstruction CopyLabelsAndTryCatchOperations(this MsilInstruction instruction, MsilInstruction sourceInstruction)
+    {
+        foreach (var label in sourceInstruction.Labels)
+            instruction.Labels.Add(label);
+
+        instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);
+
+        return instruction;
+    }
+
+    [Obsolete("Use overload with byref source instead.")]
     public static MsilInstruction SwapTryCatchOperations(this MsilInstruction instruction, MsilInstruction sourceInstruction)
     {
         instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);
@@ -22,6 +51,7 @@ static class TranspileHelper
         return instruction;
     }
 
+    [Obsolete("Use overload with byref source instead.")]
     public static MsilInstruction SwapLabels(this MsilInstruction instruction, MsilInstruction sourceInstruction)
     {
         foreach (var label in sourceInstruction.Labels)
@@ -32,6 +62,7 @@ static class TranspileHelper
         return instruction;
     }
 
+    [Obsolete("Use overload with byref source instead.")]
     public static MsilInstruction SwapLabelsAndTryCatchOperations(this MsilInstruction instruction, MsilInstruction sourceInstruction)
     {
         foreach (var label in sourceInstruction.Labels)
@@ -41,6 +72,47 @@ static class TranspileHelper
 
         instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);
         sourceInstruction.TryCatchOperations.Clear();
+
+        return instruction;
+    }
+
+    public static MsilInstruction SwapTryCatchOperations(this MsilInstruction instruction, ref MsilInstruction sourceInstruction)
+    {
+        instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);
+
+        var newSource = CloneInstruction(sourceInstruction);
+        newSource.TryCatchOperations.Clear();
+
+        sourceInstruction = newSource;
+
+        return instruction;
+    }
+
+    public static MsilInstruction SwapLabels(this MsilInstruction instruction, ref MsilInstruction sourceInstruction)
+    {
+        foreach (var label in sourceInstruction.Labels)
+            instruction.Labels.Add(label);
+
+        var newSource = CloneInstruction(sourceInstruction);
+        newSource.Labels.Clear();
+
+        sourceInstruction = newSource;
+
+        return instruction;
+    }
+
+    public static MsilInstruction SwapLabelsAndTryCatchOperations(this MsilInstruction instruction, ref MsilInstruction sourceInstruction)
+    {
+        foreach (var label in sourceInstruction.Labels)
+            instruction.Labels.Add(label);
+
+        instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);
+
+        var newSource = CloneInstruction(sourceInstruction);
+        newSource.Labels.Clear();
+        newSource.TryCatchOperations.Clear();
+
+        sourceInstruction = newSource;
 
         return instruction;
     }
