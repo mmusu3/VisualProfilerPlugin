@@ -278,15 +278,42 @@ public class ProfilerGroup
 
         timer.StopInternal();
 
-        ActiveTimer = timer = timer.Parent;
-        CurrentDepth = timer?.Depth ?? -1;
+        Assert.True(CurrentDepth == timer.Depth);
+
+        ActiveTimer = timer.Parent;
+        CurrentDepth--;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void UnwindToDepth(int depth)
     {
-        while (CurrentDepth > depth)
-            StopActiveTimer();
+        var timer = ActiveTimer;
+
+        if (timer != null)
+        {
+            Assert.True(CurrentDepth == timer.Depth);
+
+            while (timer.Depth > depth)
+            {
+                Assert.NotNull(timer, "Must call Profiler.Start first");
+
+                timer.StopInternal();
+                timer = timer.Parent;
+
+                if (timer != null)
+                {
+                    CurrentDepth = timer.Depth;
+                }
+                else
+                {
+                    CurrentDepth = -1;
+                    break;
+                }
+            }
+
+            ActiveTimer = timer;
+        }
+
+        Assert.True(CurrentDepth == depth);
     }
 
     #endregion

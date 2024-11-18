@@ -294,6 +294,21 @@ public sealed class ProfilerTimer : IDisposable
 
         Assert.NotNull(group);
         Assert.True(group.ActiveTimer == this);
+        Assert.True(group.CurrentDepth == Depth);
+
+        group.ActiveTimer = Parent;
+        group.CurrentDepth--;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Dispose()
+    {
+        Assert.NotNull(group);
+
+        group.UnwindToDepth(Depth); // In case of exceptions
+        StopInternal();
+
+        Assert.True(group.ActiveTimer == this);
 
         group.ActiveTimer = Parent;
         group.CurrentDepth--;
@@ -627,20 +642,6 @@ public sealed class ProfilerTimer : IDisposable
             else
                 timer = null;
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose()
-    {
-        Assert.NotNull(group);
-
-        group.UnwindToDepth(Depth); // In case of exceptions
-        StopInternal();
-
-        Assert.True(group.ActiveTimer == this);
-
-        group.ActiveTimer = Parent;
-        group.CurrentDepth--;
     }
 
     public override string ToString() => $"Timer: {Name}, Profile Memory: {ProfileMemory}";
