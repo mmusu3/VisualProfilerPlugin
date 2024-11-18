@@ -26,31 +26,31 @@ static class MySimpleProfiler_Patches
     }
 
     [ThreadStatic]
-    static Stack<bool>? state;
+    static Stack<ProfilerTimer?>? timerStack;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void Suffix_Begin(string key, MySimpleProfiler.ProfilingBlockType type)
     {
-        var s = state ??= [];
+        var s = timerStack ??= [];
 
         if (type == MySimpleProfiler.ProfilingBlockType.MOD)
         {
-            Profiler.Start(key, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.Mods));
-            s.Push(true);
+            var timer = Profiler.Start(key, ProfilerTimerOptions.ProfileMemory, new(ProfilerEvent.EventCategory.Mods));
+            s.Push(timer);
         }
         else
         {
-            s.Push(false);
+            s.Push(null);
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_End()
     {
-        var s = state;
+        var s = timerStack;
 
-        if (s != null && s.Pop())
-            Profiler.Stop();
+        if (s != null && s.Pop() is { } t)
+            t.Stop();
 
         return true;
     }
