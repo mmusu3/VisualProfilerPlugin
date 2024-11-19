@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Torch.Managers.PatchManager.MSIL;
@@ -136,4 +137,40 @@ static class TranspileHelper
     public static MsilInstruction Call(MethodInfo method) => new MsilInstruction(OpCodes.Call).InlineValue(method);
     public static MsilInstruction CallVirt(MethodInfo method) => new MsilInstruction(OpCodes.Callvirt).InlineValue(method);
     public static MsilInstruction NewObj(ConstructorInfo ctor) => new MsilInstruction(OpCodes.Newobj).InlineValue(ctor);
+
+    static class ProfilerMembers
+    {
+        internal static readonly ConstructorInfo KeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
+        internal static readonly ConstructorInfo ExtraDataLongCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null)!;
+        internal static readonly MethodInfo StartKeyExtraMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        internal static readonly MethodInfo StopTimerMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop))!;
+    }
+
+    public static void EmitProfilerStartLongExtra(List<MsilInstruction> instructions, ProfilerKey key, ProfilerTimerOptions timerOptions,
+        string formatString, ReadOnlySpan<MsilInstruction> dataInstructions)
+    {
+        void Emit(MsilInstruction ins) => instructions.Add(ins);
+
+        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(key.GlobalIndex));
+        Emit(NewObj(ProfilerMembers.KeyCtor));
+        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue((int)timerOptions));
+
+        for (int i = 0; i < dataInstructions.Length; i++)
+            Emit(dataInstructions[i]);
+
+        Emit(LoadString(formatString));
+        Emit(NewObj(ProfilerMembers.ExtraDataLongCtor));
+        Emit(Call(ProfilerMembers.StartKeyExtraMethod));
+    }
+
+    public static void EmitStopProfilerTimer(List<MsilInstruction> instructions)
+    {
+        instructions.Add(Call(ProfilerMembers.StopTimerMethod));
+    }
+
+    public static void EmitStopProfilerTimer(List<MsilInstruction> instructions, MsilLocal timerLocal)
+    {
+        instructions.Add(timerLocal.AsValueLoad());
+        instructions.Add(Call(ProfilerMembers.StopTimerMethod));
+    }
 }

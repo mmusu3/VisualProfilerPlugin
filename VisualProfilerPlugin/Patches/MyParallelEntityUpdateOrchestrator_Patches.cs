@@ -5,7 +5,6 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using ParallelTasks;
 using Sandbox.Game.Entities;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
@@ -46,11 +45,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         Transpile(ctx, "UpdateAfterSimulation10", _public: false, _static: false);
         Transpile(ctx, "UpdateAfterSimulation100", _public: false, _static: false);
         //PatchPrefixSuffixPair(ctx, "PerformParallelUpdate", _public: false, _static: false);
-
-        var source = typeof(MyParallelEntityUpdateOrchestrator).GetNonPublicInstanceMethod("PerformParallelUpdate");
-        var prefix = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod(nameof(Prefix_PerformParallelUpdate));
-        ctx.GetPattern(source).Prefixes.Add(prefix);
-
+        Transpile(ctx, "PerformParallelUpdate", _public: false, _static: false);
         Transpile(ctx, "ParallelUpdateHandlerBeforeSimulation", _public: false, _static: false);
         Transpile(ctx, "ParallelUpdateHandlerAfterSimulation", _public: false, _static: false);
 
@@ -73,7 +68,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         Transpile(ctx, nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater), _public: true, _static: false);
     }
 
-    static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
+    static MethodRewritePattern PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
     {
         var source = typeof(MyParallelEntityUpdateOrchestrator).GetMethod(methodName, _public, _static);
         var prefix = typeof(MyParallelEntityUpdateOrchestrator_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
@@ -82,6 +77,8 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var pattern = patchContext.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
+
+        return pattern;
     }
 
     static void Transpile(PatchContext patchContext, string methodName, bool _public, bool _static)
@@ -607,40 +604,89 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         }
     }
 
-    //[MethodImpl(Inline)]
-    //static bool Prefix_PerformParallelUpdate(ref ProfilerTimer __local_timer,
-    //    HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelFirst, HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelLast)
-    //{
-    //    __local_timer = Profiler.Start("PerformParallelUpdate", ProfilerTimerOptions.ProfileMemory,
-    //        new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}"));
-
-    //    return true;
-    //}
-
-    // There is some weird issue with using prefix + suffix that causes a long pause at
-    // the end of the function so this is used instead as a workaround.
-    //
-    static bool Prefix_PerformParallelUpdate(Action<IMyParallelUpdateable> updateFunction, IEnumerable<IMyParallelUpdateable> __field_m_helper,
+    [MethodImpl(Inline)]
+    static bool Prefix_PerformParallelUpdate(ref ProfilerTimer __local_timer,
         HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelFirst, HashSet<IMyParallelUpdateable> __field_m_entitiesForUpdateParallelLast)
     {
-        using var stateToken = Havok.HkAccessControl.PushState(Havok.HkAccessControl.AccessState.SharedRead);
+        __local_timer = Profiler.Start(Keys.PerformParallelUpdate, ProfilerTimerOptions.ProfileMemory,
+            new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}"));
 
-        using (Profiler.Start(Keys.PerformParallelUpdate, ProfilerTimerOptions.ProfileMemory,
-            new(__field_m_entitiesForUpdateParallelFirst.Count + __field_m_entitiesForUpdateParallelLast.Count, "Num entities: {0:n0}")))
+        return true;
+    }
+
+    static IEnumerable<Instn> Transpile_PerformParallelUpdate(IEnumerable<Instn> instructionStream, Func<Type, MsilLocal> __localCreator)
+    {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<Instn>((int)(instructions.Length * 1.1f));
+
+        void Emit(Instn ins) => newInstructions.Add(ins);
+
+        Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.PerformParallelUpdate.");
+
+        const int expectedParts = 1;
+        int patchedParts = 0;
+
+        var helperField = typeof(MyParallelEntityUpdateOrchestrator).GetField("m_helper", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var firstEntitiesField = typeof(MyParallelEntityUpdateOrchestrator).GetField("m_entitiesForUpdateParallelFirst", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var lastEntitiesField = typeof(MyParallelEntityUpdateOrchestrator).GetField("m_entitiesForUpdateParallelLast", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var countGetMethod = typeof(HashSet<IMyParallelUpdateable>).GetProperty(nameof(HashSet<IMyParallelUpdateable>.Count))!.GetMethod!;
+
+        var timerLocal = __localCreator(typeof(ProfilerTimer));
+
+        ReadOnlySpan<OpCode> pattern1 = [Ldarg_0, Ldfld, Callvirt];
+        var endLabel = instructions[^1].Labels.First();
+
+        EmitProfilerStartLongExtra(newInstructions, Keys.PerformParallelUpdate,
+            ProfilerTimerOptions.ProfileMemory, "Num entities: {0:n0}", [
+                new(Ldarg_0),
+                LoadField(firstEntitiesField),
+                CallVirt(countGetMethod),
+                new(Ldarg_0),
+                LoadField(lastEntitiesField),
+                CallVirt(countGetMethod),
+                new(Add),
+                new(Conv_I8)
+            ]
+        );
+
+        Emit(timerLocal.AsValueStore());
+
+        for (int i = 0; i < instructions.Length; i++)
         {
-            if (MyParallelEntityUpdateOrchestrator.ForceSerialUpdate)
+            var ins = instructions[i];
+
+            if (MatchOpCodes(instructions, i, pattern1)
+                && instructions[i + 1].Operand is MsilOperandInline<FieldInfo> ldField && ldField.Value == helperField)
             {
-                foreach (var updatable in __field_m_helper)
-                    updateFunction(updatable);
+                // There is an issue with patching PerformParallelUpdate due to limitations with
+                // ILGenerator that the Torch code patcher uses. The issue manifests in
+                // PerformParallelUpdate by making the serial update branch always run after the
+                // parallel one. This is the workaround.
+                Emit(new Instn(Leave).InlineTarget(endLabel).SwapTryCatchOperations(ref ins));
+                patchedParts++;
             }
-            else
+            else if (ins.OpCode == Ret && i == instructions.Length - 1)
             {
-                using (MyEntities.StartAsyncUpdateBlock())
-                    Parallel.ForEach(__field_m_helper, updateFunction, MyParallelEntityUpdateOrchestrator.WorkerPriority, blocking: true);
+                break;
             }
+
+            Emit(ins);
         }
 
-        return false;
+        Emit(timerLocal.AsValueLoad().CopyLabelsAndTryCatchOperations(instructions[^1]));
+        EmitStopProfilerTimer(newInstructions);
+        Emit(new(Ret));
+
+        if (patchedParts != expectedParts)
+        {
+            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.PerformParallelUpdate. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
+        else
+        {
+            Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
+        }
     }
 
     static void ParallelUpdateHandlerBeforeSimulation(IMyParallelUpdateable entity)
