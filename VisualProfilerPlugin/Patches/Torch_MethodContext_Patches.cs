@@ -1,22 +1,33 @@
-﻿#if NETFRAMEWORK
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Security.Cryptography;
 using Torch.Managers.PatchManager.MSIL;
 
 namespace VisualProfiler.Patches;
 
-// Fix Torch exception
+// Fix exception in Torch code patcher
+// TODO: Submit fix to Torch
 static class Torch_MethodContext_Patches
 {
     public static void Patch()
     {
+        var targetType = Type.GetType("Torch.Managers.PatchManager.Transpile.MethodContext, Torch")!;
+        var source = targetType.GetNonPublicInstanceMethod("AddEhHandler");
+        var originalIL = source.GetMethodBody()!.GetILAsByteArray()!;
+
+        uint hash;
+
+        using (var md5 = MD5.Create())
+            hash = BitConverter.ToUInt32(md5.ComputeHash(originalIL), 0);
+
+        if (hash != 605020245)
+            return;
+
         Plugin.Log.Info("Begining early patch of MethodContext.AddEhHandler");
 
-        var targetType = Type.GetType("Torch.Managers.PatchManager.Transpile.MethodContext, Torch");
-        var source = targetType.GetNonPublicInstanceMethod("AddEhHandler");
         var transpiler = typeof(Torch_MethodContext_Patches).GetNonPublicStaticMethod(nameof(Transpile_AddEhHandler));
 
         var pattern = PatchHelper.CreateRewritePattern(source);
@@ -36,7 +47,7 @@ static class Torch_MethodContext_Patches
 
         Plugin.Log.Debug($"Patching MethodContext.AddEhHandler.");
 
-        var targetType = Type.GetType("Torch.Managers.PatchManager.Transpile.MethodContext, Torch");
+        var targetType = Type.GetType("Torch.Managers.PatchManager.Transpile.MethodContext, Torch")!;
         var findInstructionMethod = targetType.GetPublicInstanceMethod("FindInstruction");
         var instructionsField = targetType.GetField("_instructions", BindingFlags.Instance | BindingFlags.NonPublic);
         var eomIfNullMethod = typeof(Torch_MethodContext_Patches).GetNonPublicStaticMethod("GetEndOfMethodNopIfNull");
@@ -83,4 +94,3 @@ static class Torch_MethodContext_Patches
         return instruction;
     }
 }
-#endif
