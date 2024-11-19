@@ -159,23 +159,22 @@ static class MySandboxGame_Patches
         Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod1));
         Emit(timerLocal1.AsValueStore());
 
+        ReadOnlySpan<OpCode> pattern1 = [OpCodes.Ldloc_0, OpCodes.Ldfld, OpCodes.Brfalse_S];
+        ReadOnlySpan<OpCode> pattern2 = [OpCodes.Callvirt, OpCodes.Ldloc_0];
+
         for (int i = 0; i < instructions.Length; i++)
         {
             var ins = instructions[i];
-            var nextIns = i < instructions.Length - 1 ? instructions[i + 1] : null;
 
-            if (ins.OpCode == OpCodes.Ldloc_0 && nextIns != null && nextIns.OpCode == OpCodes.Ldfld)
+            if (TranspileHelper.MatchOpCodes(instructions, i, pattern1))
             {
-                if (nextIns.Operand is MsilOperandInline<FieldInfo> ldField && ldField.Value == actionField)
+                if (instructions[i + 1].Operand is MsilOperandInline<FieldInfo> ldField && ldField.Value == actionField)
                 {
-                    if (i < instructions.Length - 2 && instructions[i + 2].OpCode == OpCodes.Brfalse_S)
-                    {
-                        Emit(new MsilInstruction(OpCodes.Ldloc_0).SwapLabels(ins));
-                        Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(invokerField));
-                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
-                        Emit(timerLocal2.AsValueStore());
-                        patchedParts++;
-                    }
+                    Emit(new MsilInstruction(OpCodes.Ldloc_0).SwapLabels(ref ins));
+                    Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(invokerField));
+                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
+                    Emit(timerLocal2.AsValueStore());
+                    patchedParts++;
                 }
             }
             else if (ins.OpCode == OpCodes.Ret)
@@ -185,11 +184,13 @@ static class MySandboxGame_Patches
 
             Emit(ins);
 
-            if (ins.OpCode == OpCodes.Callvirt && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod
-                && nextIns != null && nextIns.OpCode == OpCodes.Ldloc_0)
+            if (TranspileHelper.MatchOpCodes(instructions, i, pattern2)
+                && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod)
             {
-                Emit(timerLocal2.AsValueLoad().SwapLabels(nextIns));
+                var nextIns = instructions[++i];
+                Emit(timerLocal2.AsValueLoad().SwapLabels(ref nextIns));
                 Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
+                Emit(nextIns);
                 patchedParts++;
             }
         }

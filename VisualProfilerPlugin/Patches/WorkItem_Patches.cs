@@ -75,7 +75,7 @@ static class WorkItem_Patches
             {
                 if (call2.Value == stackPopMethod)
                 {
-                    Emit(timerLocal.AsValueLoad().SwapTryCatchOperations(ins));
+                    Emit(timerLocal.AsValueLoad().SwapTryCatchOperations(ref ins));
                     Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerDisposeMethod));
                     patchedParts++;
                 }
@@ -155,7 +155,7 @@ static class WorkItem_Patches
 
             if (ins.OpCode == OpCodes.Endfinally)
             {
-                Emit(timerLocal.AsValueLoad().SwapTryCatchOperations(ins));
+                Emit(timerLocal.AsValueLoad().SwapTryCatchOperations(ref ins));
                 Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
                 patchedParts++;
             }

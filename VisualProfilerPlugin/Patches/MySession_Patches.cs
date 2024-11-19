@@ -240,13 +240,13 @@ static class MySession_Patches
             {
                 if (instructions[i + 1].Operand is MsilOperandInline<MethodBase> call && call.Value == updateBeforeSimMethod)
                 {
-                    Emit(new Instn(Ldloc_2).SwapLabels(ins));
+                    Emit(new Instn(Ldloc_2).SwapLabels(ref ins));
                     Emit(LoadField(debugNameField));
                     Emit(Call(profilerStart3Method));
                     Emit(timerLocal.AsValueStore());
                     // Move past existing ops
-                    Emit(instructions[i++]);
-                    Emit(instructions[i]);
+                    Emit(ins);
+                    Emit(instructions[++i]);
                     // Dispose timer
                     Emit(timerLocal.AsValueLoad());
                     Emit(Call(timerDisposeMethod));
@@ -259,7 +259,7 @@ static class MySession_Patches
                 if (instructions[i + 1].Operand is MsilOperandInline<FieldInfo> field && field.Value == compsField
                     && instructions[i + 4].Operand is MsilOperandInline<MethodBase> call && call.Value == tryGetValueMethod)
                 {
-                    Emit(new Instn(Ldc_I4_1).SwapLabelsAndTryCatchOperations(ins));
+                    Emit(new Instn(Ldc_I4_1).SwapLabelsAndTryCatchOperations(ref ins));
                     Emit(LoadString("Simulate"));
                     Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
                     Emit(Call(profilerRestartMethod));
@@ -271,13 +271,13 @@ static class MySession_Patches
             {
                 if (instructions[i + 1].Operand is MsilOperandInline<MethodBase> call && call.Value == simulateMethod)
                 {
-                    Emit(new Instn(Ldloc_3).SwapLabels(ins));
+                    Emit(new Instn(Ldloc_3).SwapLabels(ref ins));
                     Emit(LoadField(debugNameField));
                     Emit(Call(profilerStart3Method));
                     Emit(timerLocal.AsValueStore());
                     // Move past existing ops
-                    Emit(instructions[i++]);
-                    Emit(instructions[i]);
+                    Emit(ins);
+                    Emit(instructions[++i]);
                     // Dispose timer
                     Emit(timerLocal.AsValueLoad());
                     Emit(Call(timerDisposeMethod));
@@ -290,7 +290,7 @@ static class MySession_Patches
                 if (instructions[i + 1].Operand is MsilOperandInline<FieldInfo> field && field.Value == compsField
                     && instructions[i + 4].Operand is MsilOperandInline<MethodBase> call && call.Value == tryGetValueMethod)
                 {
-                    Emit(new Instn(Ldc_I4_2).SwapLabelsAndTryCatchOperations(ins));
+                    Emit(new Instn(Ldc_I4_2).SwapLabelsAndTryCatchOperations(ref ins));
                     Emit(LoadString("After Simulation"));
                     Emit(new Instn(Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
                     Emit(Call(profilerRestartMethod));
@@ -302,13 +302,13 @@ static class MySession_Patches
             {
                 if (instructions[i + 1].Operand is MsilOperandInline<MethodBase> call && call.Value == updateAfterSimMethod)
                 {
-                    Emit(new Instn(Ldloc_S).InlineValue(new MsilLocal(4)).SwapLabels(ins));
+                    Emit(new Instn(Ldloc_S).InlineValue(new MsilLocal(4)).SwapLabels(ref ins));
                     Emit(LoadField(debugNameField));
                     Emit(Call(profilerStart3Method));
                     Emit(timerLocal.AsValueStore());
                     // Move past existing ops
-                    Emit(instructions[i++]);
-                    Emit(instructions[i]);
+                    Emit(ins);
+                    Emit(instructions[++i]);
                     // Dispose timer
                     Emit(timerLocal.AsValueLoad());
                     Emit(Call(timerDisposeMethod));
@@ -324,7 +324,7 @@ static class MySession_Patches
             Emit(ins);
         }
 
-        Emit(Call(profilerStopMethod).SwapLabelsAndTryCatchOperations(instructions[^1]));
+        Emit(Call(profilerStopMethod).CopyLabelsAndTryCatchOperations(instructions[^1]));
         Emit(Call(profilerStopMethod));
         Emit(new Instn(Ret));
 

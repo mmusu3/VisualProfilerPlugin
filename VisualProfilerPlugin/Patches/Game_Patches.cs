@@ -118,7 +118,7 @@ static class Game_Patches
             {
                 if (instructions[i - 1].OpCode == OpCodes.Endfinally)
                 {
-                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ins));
+                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ref ins));
                     Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("UpdateInternal::Update"));
                     Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
                     Emit(timerLocal2.AsValueStore());

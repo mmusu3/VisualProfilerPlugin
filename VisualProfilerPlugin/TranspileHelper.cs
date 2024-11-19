@@ -43,40 +43,6 @@ static class TranspileHelper
         return instruction;
     }
 
-    [Obsolete("Use overload with byref source instead.")]
-    public static MsilInstruction SwapTryCatchOperations(this MsilInstruction instruction, MsilInstruction sourceInstruction)
-    {
-        instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);
-        sourceInstruction.TryCatchOperations.Clear();
-
-        return instruction;
-    }
-
-    [Obsolete("Use overload with byref source instead.")]
-    public static MsilInstruction SwapLabels(this MsilInstruction instruction, MsilInstruction sourceInstruction)
-    {
-        foreach (var label in sourceInstruction.Labels)
-            instruction.Labels.Add(label);
-
-        sourceInstruction.Labels.Clear();
-
-        return instruction;
-    }
-
-    [Obsolete("Use overload with byref source instead.")]
-    public static MsilInstruction SwapLabelsAndTryCatchOperations(this MsilInstruction instruction, MsilInstruction sourceInstruction)
-    {
-        foreach (var label in sourceInstruction.Labels)
-            instruction.Labels.Add(label);
-
-        sourceInstruction.Labels.Clear();
-
-        instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);
-        sourceInstruction.TryCatchOperations.Clear();
-
-        return instruction;
-    }
-
     public static MsilInstruction SwapTryCatchOperations(this MsilInstruction instruction, ref MsilInstruction sourceInstruction)
     {
         instruction.TryCatchOperations.AddRange(sourceInstruction.TryCatchOperations);

@@ -326,7 +326,7 @@ static class MyPhysics_Patches
             {
                 if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call && call.Value == waitPolicySetter)
                 {
-                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ins)); // Block 1
+                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ref ins)); // Block 1
                     Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Process jobs"));
                     Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2));
                     Emit(timerLocal2.AsValueStore());
@@ -380,7 +380,7 @@ static class MyPhysics_Patches
             }
         }
 
-        Emit(timerLocal1.AsValueLoad().SwapLabelsAndTryCatchOperations(instructions[^1]));
+        Emit(timerLocal1.AsValueLoad().CopyLabelsAndTryCatchOperations(instructions[^1]));
         Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
         Emit(new MsilInstruction(OpCodes.Ret));
 
