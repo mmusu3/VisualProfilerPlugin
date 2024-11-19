@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using ParallelTasks;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -37,6 +38,7 @@ static class Parallel_RunCallbacks_Patch
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var e = newInstructions;
 
         void Emit(MsilInstruction ins) => newInstructions.Add(ins);
 
@@ -45,12 +47,8 @@ static class Parallel_RunCallbacks_Patch
         const int expectedParts = 4;
         int patchedParts = 0;
 
-        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)]);
         var startCallbackMethod = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(StartCallback));
         var startDataCallbackMethod = typeof(Parallel_RunCallbacks_Patch).GetNonPublicStaticMethod(nameof(StartDataCallback));
-        var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
-        var profilerDisposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
 
         var invokeMethod = typeof(Action).GetPublicInstanceMethod(nameof(Action.Invoke));
         var getCallbackMethod = typeof(WorkItem).GetProperty(nameof(WorkItem.Callback))!.GetMethod!;
@@ -61,10 +59,7 @@ static class Parallel_RunCallbacks_Patch
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.RunCallbacks.GlobalIndex));
-        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod));
+        e.EmitProfilerStart(Keys.RunCallbacks, ProfilerTimerOptions.ProfileMemory);
         Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
@@ -77,8 +72,8 @@ static class Parallel_RunCallbacks_Patch
                 {
                     if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call2 && call2.Value == invokeMethod)
                     {
-                        Emit(new MsilInstruction(OpCodes.Ldloc_1));
-                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startCallbackMethod));
+                        Emit(new(OpCodes.Ldloc_1));
+                        Emit(Call(startCallbackMethod));
                         Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
@@ -87,8 +82,8 @@ static class Parallel_RunCallbacks_Patch
                 {
                     if (instructions[i + 2].OpCode == OpCodes.Ldloc_1)
                     {
-                        Emit(new MsilInstruction(OpCodes.Ldloc_1));
-                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startDataCallbackMethod));
+                        Emit(new(OpCodes.Ldloc_1));
+                        Emit(Call(startDataCallbackMethod));
                         Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
@@ -104,16 +99,14 @@ static class Parallel_RunCallbacks_Patch
             {
                 if (call3.Value == setCallbackMethod || call3.Value == setDataCallbackMethod)
                 {
-                    Emit(timerLocal2.AsValueLoad());
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerDisposeMethod));
+                    e.EmitDisposeProfilerTimer(timerLocal2);
                     patchedParts++;
                 }
             }
         }
 
-        Emit(timerLocal1.AsValueLoad());
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
-        Emit(new MsilInstruction(OpCodes.Ret));
+        e.EmitStopProfilerTimer(timerLocal1);
+        Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {

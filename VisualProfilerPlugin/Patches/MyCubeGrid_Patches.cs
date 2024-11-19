@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using Sandbox.Game.Entities;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -89,6 +90,7 @@ static class MyCubeGrid_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var e = newInstructions;
 
         void Emit(MsilInstruction ins) => newInstructions.Add(ins);
 
@@ -97,28 +99,21 @@ static class MyCubeGrid_Patches
         const int expectedParts = 1;
         int patchedParts = 0;
 
-        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var startMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)]);
-        var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
-
         var invokeMethod = typeof(MyCubeGrid).GetNonPublicInstanceMethod("Invoke");
         var updateStruct = typeof(MyCubeGrid).GetNestedType("Update", BindingFlags.NonPublic)!;
         var callbackField = updateStruct.GetField("Callback")!;
         var newInvokeMethod = typeof(MyCubeGrid_Patches).GetNonPublicStaticMethod("Invoke");
 
-        var pattern1 = new OpCode[] { OpCodes.Ldarg_0, OpCodes.Ldloca_S, OpCodes.Ldarg_1, OpCodes.Call };
+        ReadOnlySpan<OpCode> pattern1 = [OpCodes.Ldarg_0, OpCodes.Ldloca_S, OpCodes.Ldarg_1, OpCodes.Call];
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
-        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.Dispatch.GlobalIndex));
-        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod));
+        e.EmitProfilerStart(Keys.Dispatch, ProfilerTimerOptions.ProfileMemory);
         Emit(timerLocal.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
-            if (TranspileHelper.MatchOpCodes(instructions, i, pattern1)
+            if (MatchOpCodes(instructions, i, pattern1)
                 && instructions[i + 1].Operand is MsilOperandInline<MsilLocal> local && local.Value.Index == 4
                 && instructions[i + 3].OpCode == OpCodes.Call && instructions[i + 3].Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod)
             {
@@ -130,9 +125,9 @@ static class MyCubeGrid_Patches
                 }
                 else
                 {
-                    Emit(new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(updateLocal.LocalIndex)));
-                    Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(callbackField));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(newInvokeMethod));
+                    Emit(LoadLocal(updateLocal));
+                    Emit(LoadField(callbackField));
+                    Emit(Call(newInvokeMethod));
                     patchedParts++;
                     i += pattern1.Length - 1;
                     continue;
@@ -146,9 +141,8 @@ static class MyCubeGrid_Patches
             Emit(instructions[i]);
         }
 
-        Emit(timerLocal.AsValueLoad());
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(disposeMethod));
-        Emit(new MsilInstruction(OpCodes.Ret));
+        e.EmitDisposeProfilerTimer(timerLocal);
+        Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {

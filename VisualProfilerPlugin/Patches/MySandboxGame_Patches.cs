@@ -10,6 +10,7 @@ using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
 using VRage.Collections;
 using VRage.Profiler;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -123,6 +124,7 @@ static class MySandboxGame_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var e = newInstructions;
 
         void Emit(MsilInstruction ins) => newInstructions.Add(ins);
 
@@ -131,32 +133,22 @@ static class MySandboxGame_Patches
         const int expectedParts = 2;
         int patchedParts = 0;
 
-        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var profilerEventExtraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
-        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)]);
-        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)]);
-        var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
-
-        var invokeQueueField = typeof(MySandboxGame).GetField("m_invokeQueue", BindingFlags.Instance | BindingFlags.NonPublic);
+        var invokeQueueField = typeof(MySandboxGame).GetField("m_invokeQueue", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var invokeDataType = typeof(MySandboxGame).GetNestedType("MyInvokeData", BindingFlags.NonPublic)!;
-        var countGetter = typeof(MyConcurrentQueue<>).MakeGenericType(invokeDataType).GetProperty("Count", BindingFlags.Instance | BindingFlags.Public)!.GetMethod;
-        var actionField = invokeDataType.GetField("Action", BindingFlags.Instance | BindingFlags.Public);
-        var invokerField = invokeDataType.GetField("Invoker", BindingFlags.Instance | BindingFlags.Public);
+        var countGetter = typeof(MyConcurrentQueue<>).MakeGenericType(invokeDataType).GetProperty("Count", BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
+        var actionField = invokeDataType.GetField("Action", BindingFlags.Instance | BindingFlags.Public)!;
+        var invokerField = invokeDataType.GetField("Invoker", BindingFlags.Instance | BindingFlags.Public)!;
         var invokeMethod = typeof(Action<object>).GetPublicInstanceMethod(nameof(Action<object>.Invoke));
 
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.ProcessInvoke.GlobalIndex));
-        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
-        Emit(new MsilInstruction(OpCodes.Ldarg_0));
-        Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(invokeQueueField));
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(countGetter));
-        Emit(new MsilInstruction(OpCodes.Conv_I8));
-        Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Queue Count: {0}"));
-        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor)); // new ProfilerEvent.ExtraData(count, format)
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod1));
+        e.EmitProfilerStartLongExtra(Keys.ProcessInvoke, ProfilerTimerOptions.ProfileMemory, "Queue Count: {0}", [
+            new(OpCodes.Ldarg_0),
+            LoadField(invokeQueueField),
+            Call(countGetter),
+            new(OpCodes.Conv_I8)
+        ]);
         Emit(timerLocal1.AsValueStore());
 
         ReadOnlySpan<OpCode> pattern1 = [OpCodes.Ldloc_0, OpCodes.Ldfld, OpCodes.Brfalse_S];
@@ -166,13 +158,14 @@ static class MySandboxGame_Patches
         {
             var ins = instructions[i];
 
-            if (TranspileHelper.MatchOpCodes(instructions, i, pattern1))
+            if (MatchOpCodes(instructions, i, pattern1))
             {
                 if (instructions[i + 1].Operand is MsilOperandInline<FieldInfo> ldField && ldField.Value == actionField)
                 {
-                    Emit(new MsilInstruction(OpCodes.Ldloc_0).SwapLabels(ref ins));
-                    Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(invokerField));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
+                    e.EmitProfilerStartName([
+                        LoadLocal(0).SwapLabels(ref ins),
+                        LoadField(invokerField)
+                    ]);
                     Emit(timerLocal2.AsValueStore());
                     patchedParts++;
                 }
@@ -184,20 +177,18 @@ static class MySandboxGame_Patches
 
             Emit(ins);
 
-            if (TranspileHelper.MatchOpCodes(instructions, i, pattern2)
+            if (MatchOpCodes(instructions, i, pattern2)
                 && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod)
             {
                 var nextIns = instructions[++i];
-                Emit(timerLocal2.AsValueLoad().SwapLabels(ref nextIns));
-                Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
+                e.EmitStopProfilerTimer(timerLocal2)[0].SwapLabels(ref nextIns);
                 Emit(nextIns);
                 patchedParts++;
             }
         }
 
-        Emit(timerLocal1.AsValueLoad());
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
-        Emit(new MsilInstruction(OpCodes.Ret));
+        e.EmitStopProfilerTimer(timerLocal1);
+        Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {

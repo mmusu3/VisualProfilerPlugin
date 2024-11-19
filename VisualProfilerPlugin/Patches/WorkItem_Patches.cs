@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using ParallelTasks;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -42,6 +43,7 @@ static class WorkItem_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var e = newInstructions;
 
         void Emit(MsilInstruction ins) => newInstructions.Add(ins);
 
@@ -51,7 +53,6 @@ static class WorkItem_Patches
         int patchedParts = 0;
 
         var taskStartedMethod = typeof(WorkItem_Patches).GetNonPublicStaticMethod(nameof(OnTaskStarted));
-        var profilerDisposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
         var stackPushMethod = typeof(Stack<Task>).GetPublicInstanceMethod(nameof(Stack<Task>.Push));
         var stackPopMethod = typeof(Stack<Task>).GetPublicInstanceMethod(nameof(Stack<Task>.Pop));
 
@@ -65,8 +66,8 @@ static class WorkItem_Patches
             {
                 if (call1.Value == stackPushMethod)
                 {
-                    Emit(new MsilInstruction(OpCodes.Ldarg_0));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(taskStartedMethod));
+                    Emit(new(OpCodes.Ldarg_0));
+                    Emit(Call(taskStartedMethod));
                     Emit(timerLocal.AsValueStore());
                     patchedParts++;
                 }
@@ -75,8 +76,7 @@ static class WorkItem_Patches
             {
                 if (call2.Value == stackPopMethod)
                 {
-                    Emit(timerLocal.AsValueLoad().SwapTryCatchOperations(ref ins));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerDisposeMethod));
+                    e.EmitDisposeProfilerTimer(timerLocal)[0].SwapTryCatchOperations(ref ins);
                     patchedParts++;
                 }
             }
@@ -135,6 +135,7 @@ static class WorkItem_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var e = newInstructions;
 
         void Emit(MsilInstruction ins) => newInstructions.Add(ins);
 
@@ -142,10 +143,6 @@ static class WorkItem_Patches
 
         const int expectedParts = 2;
         int patchedParts = 0;
-
-        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)]);
-        var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
@@ -155,8 +152,7 @@ static class WorkItem_Patches
 
             if (ins.OpCode == OpCodes.Endfinally)
             {
-                Emit(timerLocal.AsValueLoad().SwapTryCatchOperations(ref ins));
-                Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
+                e.EmitStopProfilerTimer(timerLocal)[0].SwapTryCatchOperations(ref ins);
                 patchedParts++;
             }
 
@@ -164,10 +160,7 @@ static class WorkItem_Patches
 
             if (ins.OpCode == OpCodes.Nop && instructions[i - 1].OpCode == OpCodes.Ret)
             {
-                Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.WaitTask.GlobalIndex));
-                Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-                Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
-                Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod)); // OnTaskStarted(MyProfiler.TaskType.SyncWait, "WaitTask");
+                e.EmitProfilerStart(Keys.WaitTask, ProfilerTimerOptions.ProfileMemory); // OnTaskStarted(MyProfiler.TaskType.SyncWait, "WaitTask");
                 Emit(timerLocal.AsValueStore());
                 patchedParts++;
             }

@@ -14,6 +14,7 @@ using Torch.Utils;
 using VRage;
 using VRage.Library.Utils;
 using VRageMath.Spatial;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -223,6 +224,7 @@ static class MyPhysics_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var e = newInstructions;
 
         void Emit(MsilInstruction ins) => newInstructions.Add(ins);
 
@@ -231,17 +233,9 @@ static class MyPhysics_Patches
         const int expectedParts = 7;
         int patchedParts = 0;
 
-        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var profilerStartMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)]);
-        var profilerStartMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)]);
-        var profilerStartMethod3 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)]);
-        var profilerStopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
-        var profilerEventExtraDataCtor1 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
-        var profilerEventExtraDataCtor2 = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null);
-
-        var clustersField = typeof(MyPhysics).GetField(nameof(MyPhysics.Clusters));
-        var clustersField2 = typeof(MyClusterTree).GetField("m_clusters", BindingFlags.Instance | BindingFlags.NonPublic);
-        var listCountGetter = typeof(List<MyClusterTree.MyCluster>).GetProperty(nameof(List<MyClusterTree.MyCluster>.Count), BindingFlags.Instance | BindingFlags.Public)!.GetMethod;
+        var clustersField = typeof(MyPhysics).GetField(nameof(MyPhysics.Clusters))!;
+        var clustersField2 = typeof(MyClusterTree).GetField("m_clusters", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var listCountGetter = typeof(List<MyClusterTree.MyCluster>).GetProperty(nameof(List<MyClusterTree.MyCluster>.Count), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
         var executePendingCriticalOperationsMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.ExecutePendingCriticalOperations));
         var initMTStepMethod = typeof(HkWorld).GetPublicInstanceMethod(nameof(HkWorld.InitMtStep));
         var waitPolicySetter = typeof(HkJobQueue).GetProperty(nameof(HkJobQueue.WaitPolicy), BindingFlags.Instance | BindingFlags.Public)?.SetMethod;
@@ -253,16 +247,12 @@ static class MyPhysics_Patches
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.StepWorldsParallel.GlobalIndex));
-        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
-        Emit(new MsilInstruction(OpCodes.Ldsfld).InlineValue(clustersField));
-        Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(clustersField2));
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(listCountGetter));
-        Emit(new MsilInstruction(OpCodes.Conv_I8));
-        Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Clusters: {0}"));
-        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor1));
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod));
+        e.EmitProfilerStartLongExtra(Keys.StepWorldsParallel, ProfilerTimerOptions.ProfileMemory, "Clusters: {0}", [
+            LoadStaticField(clustersField),
+            LoadField(clustersField2),
+            Call(listCountGetter),
+            new(OpCodes.Conv_I8)
+        ]);
         Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
@@ -284,13 +274,9 @@ static class MyPhysics_Patches
                         }
                         else
                         {
-                            Emit(new MsilInstruction(OpCodes.Ldc_I4_0)); // Block 0
-                            Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Init HKWorld update"));
-                            Emit(new MsilInstruction(OpCodes.Ldc_I4_0)); // profileMemory: false
-                            Emit(new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex)));
-                            Emit(new MsilInstruction(OpCodes.Ldnull));
-                            Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor2));
-                            Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3));
+                            e.EmitProfilerStartObjExtra(0, "Init HKWorld update", ProfilerTimerOptions.None, null, [
+                                LoadLocal(clusterLocal)
+                            ]);
                             Emit(timerLocal2.AsValueStore());
                             patchedParts++;
                         }
@@ -308,13 +294,9 @@ static class MyPhysics_Patches
                         }
                         else
                         {
-                            Emit(new MsilInstruction(OpCodes.Ldc_I4_3)); // Block 3
-                            Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Finish HKWorld update"));
-                            Emit(new MsilInstruction(OpCodes.Ldc_I4_0)); // profileMemory: false
-                            Emit(new MsilInstruction(OpCodes.Ldloc_S).InlineValue(new MsilLocal(clusterLocal.LocalIndex)));
-                            Emit(new MsilInstruction(OpCodes.Ldnull));
-                            Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerEventExtraDataCtor2));
-                            Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod3));
+                            e.EmitProfilerStartObjExtra(3, "Finish HKWorld update", ProfilerTimerOptions.None, null, [
+                                LoadLocal(clusterLocal)
+                            ]);
                             Emit(timerLocal2.AsValueStore());
                             patchedParts++;
                         }
@@ -326,9 +308,7 @@ static class MyPhysics_Patches
             {
                 if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call && call.Value == waitPolicySetter)
                 {
-                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ref ins)); // Block 1
-                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Process jobs"));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2));
+                    e.EmitProfilerStart(1, "Process jobs")[0].SwapTryCatchOperations(ref ins);
                     Emit(timerLocal2.AsValueStore());
                     patchedParts++;
                 }
@@ -344,8 +324,7 @@ static class MyPhysics_Patches
             {
                 if (instructions[i - 1].Operand is MsilOperandInline<MethodBase> call && call.Value == initMTStepMethod)
                 {
-                    Emit(timerLocal2.AsValueLoad());
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
+                    e.EmitStopProfilerTimer(timerLocal2);
                     patchedParts++;
                 }
             }
@@ -355,34 +334,24 @@ static class MyPhysics_Patches
                 {
                     if (call.Value == processAllJobsMethod)
                     {
-                        Emit(timerLocal2.AsValueLoad());
-                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
+                        e.EmitStopProfilerTimer(timerLocal2);
                         // Start next
-                        Emit(new MsilInstruction(OpCodes.Ldc_I4_2)); // Block 2
-                        Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Wait for Havok thread pool"));
-                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStartMethod2));
+                        e.EmitProfilerStart(2, "Wait for Havok thread pool");
                         Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
-                    else if (call.Value == waitForCompletionMethod)
+                    else if (call.Value == waitForCompletionMethod
+                        || call.Value == markForWriteMethod)
                     {
-                        Emit(timerLocal2.AsValueLoad());
-                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
-                        patchedParts++;
-                    }
-                    else if (call.Value == markForWriteMethod)
-                    {
-                        Emit(timerLocal2.AsValueLoad());
-                        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
+                        e.EmitStopProfilerTimer(timerLocal2);
                         patchedParts++;
                     }
                 }
             }
         }
 
-        Emit(timerLocal1.AsValueLoad().CopyLabelsAndTryCatchOperations(instructions[^1]));
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(profilerStopMethod));
-        Emit(new MsilInstruction(OpCodes.Ret));
+        e.EmitStopProfilerTimer(timerLocal1)[0].CopyLabelsAndTryCatchOperations(instructions[^1]);
+        Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {

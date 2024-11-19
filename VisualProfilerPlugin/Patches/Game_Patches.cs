@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using Sandbox.Engine.Platform;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -62,6 +63,7 @@ static class Game_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var e = newInstructions;
 
         void Emit(MsilInstruction ins) => newInstructions.Add(ins);
 
@@ -71,30 +73,24 @@ static class Game_Patches
         int patchedParts = 0;
 
         var beginFrameMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(BeginFrame));
-        var profilerKeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null);
-        var extraDataCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null);
-        var startMethod1 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)]);
-        var startMethod2 = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)]);
-        var stopMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop));
-        var disposeMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose));
         var endMethod = typeof(Game_Patches).GetNonPublicStaticMethod(nameof(EndFrame));
 
-        var updateCounterField = typeof(Game).GetField("m_updateCounter", BindingFlags.NonPublic | BindingFlags.Instance);
+        var updateCounterField = typeof(Game).GetField("m_updateCounter", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var updateMethod = typeof(Game).GetNonPublicInstanceMethod("Update");
 
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(beginFrameMethod));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4).InlineValue(Keys.UpdateFrame.GlobalIndex));
-        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(profilerKeyCtor));
-        Emit(new MsilInstruction(OpCodes.Ldc_I4_1)); // ProfilerTimerOptions.ProfileMemory
-        Emit(new MsilInstruction(OpCodes.Ldarg_0));
-        Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(updateCounterField));
-        Emit(new MsilInstruction(OpCodes.Conv_I8));
-        Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("Sim Frame Index: {0}"));
-        Emit(new MsilInstruction(OpCodes.Newobj).InlineValue(extraDataCtor));
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod1));
+        Emit(Call(beginFrameMethod));
+
+        e.EmitProfilerStartLongExtra(Keys.UpdateFrame,
+            ProfilerTimerOptions.ProfileMemory, "Sim Frame Index: {0}", [
+                new(OpCodes.Ldarg_0),
+                LoadField(updateCounterField),
+                new(OpCodes.Conv_I8)
+            ]
+        );
+
         Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
@@ -108,8 +104,7 @@ static class Game_Patches
                 if (callMethod == updateMethod)
                 {
                     Emit(ins);
-                    Emit(timerLocal2.AsValueLoad());
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(stopMethod));
+                    e.EmitStopProfilerTimer(timerLocal2);
                     patchedParts++;
                     continue;
                 }
@@ -118,9 +113,7 @@ static class Game_Patches
             {
                 if (instructions[i - 1].OpCode == OpCodes.Endfinally)
                 {
-                    Emit(new MsilInstruction(OpCodes.Ldc_I4_1).SwapTryCatchOperations(ref ins));
-                    Emit(new MsilInstruction(OpCodes.Ldstr).InlineValue("UpdateInternal::Update"));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(startMethod2));
+                    e.EmitProfilerStart(1, "UpdateInternal::Update")[0].SwapTryCatchOperations(ref ins);
                     Emit(timerLocal2.AsValueStore());
                     patchedParts++;
                 }
@@ -133,10 +126,9 @@ static class Game_Patches
             Emit(ins);
         }
 
-        Emit(timerLocal1.AsValueLoad());
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(disposeMethod));
-        Emit(new MsilInstruction(OpCodes.Call).InlineValue(endMethod));
-        Emit(new MsilInstruction(OpCodes.Ret));
+        e.EmitDisposeProfilerTimer(timerLocal1);
+        Emit(Call(endMethod));
+        Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {
