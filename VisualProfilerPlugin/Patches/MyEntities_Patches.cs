@@ -2,7 +2,6 @@
 using System.Runtime.CompilerServices;
 using Sandbox.Game.Entities;
 using Torch.Managers.PatchManager;
-using Torch.Utils;
 using VRage.Game.Entity;
 using VRage.ObjectBuilders;
 
@@ -11,11 +10,13 @@ namespace VisualProfiler.Patches;
 [PatchShim]
 static class MyEntities_Patches
 {
-    [ReflectedGetter(Name = "_invocationList", Type = typeof(MulticastDelegate))]
+#if !NET9_0_OR_GREATER
+    [Torch.Utils.ReflectedGetter(Name = "_invocationList", Type = typeof(MulticastDelegate))]
     static Func<MulticastDelegate, object> InvocationListGetter = null!;
 
-    [ReflectedGetter(Name = "_invocationCount", Type = typeof(MulticastDelegate))]
+    [Torch.Utils.ReflectedGetter(Name = "_invocationCount", Type = typeof(MulticastDelegate))]
     static Func<MulticastDelegate, IntPtr> InvocationCountGetter = null!;
+#endif
 
     public static void Patch(PatchContext ctx)
     {
@@ -84,6 +85,13 @@ static class MyEntities_Patches
     {
         __local_timer = Profiler.Start(Keys.RaiseEntityAdd, ProfilerTimerOptions.ProfileMemory, new(entity, "{0}"));
 
+#if NET9_0_OR_GREATER
+        foreach (var action in Delegate.EnumerateInvocationList(__field_OnEntityAdd))
+        {
+            using (Profiler.Start(action.Method.Name, ProfilerTimerOptions.ProfileMemory, new(action.Target?.GetType() ?? action.Method.DeclaringType)))
+                action.Invoke(entity);
+        }
+#else
         var obj = InvocationListGetter(__field_OnEntityAdd);
         int count = (int)InvocationCountGetter(__field_OnEntityAdd);
 
@@ -108,7 +116,15 @@ static class MyEntities_Patches
 
                 break;
             }
+        default:
+            {
+                using (Profiler.Start(__field_OnEntityAdd.Method.Name, ProfilerTimerOptions.ProfileMemory, new(__field_OnEntityAdd.Target?.GetType() ?? __field_OnEntityAdd.Method.DeclaringType)))
+                    __field_OnEntityAdd.Invoke(entity);
+
+                break;
+            }
         }
+#endif
 
         return false;
     }
