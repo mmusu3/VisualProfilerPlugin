@@ -1191,25 +1191,27 @@ class PhysicsClusterInfoProxy
 [ProtoContract]
 class CubeGridInfoProxy
 {
+    // NOTE: ProtoMember IDs must be preserved. Fields are in display
+    // order so Proto IDs are not sequential due to field additions.
     [ProtoMember(1)] public long EntityId;
     [ProtoMember(2)] public MyCubeSize GridSize;
-    // Must preserve field member IDs
     [ProtoMember(4)] public bool IsNPC;
+    [ProtoMember(5)] public bool IsPreview;
     [ProtoMember(3)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
 
     [ProtoContract]
     public class Snapshot
     {
+        // NOTE: ProtoMember IDs must be preserved. Fields are in display
+        // order so Proto IDs are not sequential due to field additions.
         [ProtoMember(1, AsReference = true)] public CubeGridInfoProxy Grid;
         [ProtoMember(2)] public ulong FrameIndex;
-        // Must preserve field member IDs
         [ProtoMember(8)] public bool IsStatic;
         [ProtoMember(3)] public string Name;
         [ProtoMember(4)] public long OwnerId;
         [ProtoMember(5)] public StringId OwnerName;
         [ProtoMember(6)] public int BlockCount;
         [ProtoMember(7)] public Vector3D Position;
-        // Must preserve field member IDs
         [ProtoMember(9)] public float Speed;
         [ProtoMember(10)] public Vector3I Size;
         [ProtoMember(11)] public int PCU;
@@ -1260,19 +1262,43 @@ class CubeGridInfoProxy
 
         public override string ToString()
         {
+            var sb = new StringBuilder();
+
+            if (IsStatic && Grid.GridSize == MyCubeSize.Large)
+                sb.Append("Static");
+            else
+                sb.Append(Grid.GridSize);
+
+            sb.AppendLine($" Grid, ID: {Grid.EntityId}");
+
+            if (Grid.IsNPC)
+                sb.AppendLine("    IsNPC: True");
+
             var idPart = OwnerName.String != null ? $", ID: " : null;
 
-            return $"""
-                {(IsStatic && Grid.GridSize == MyCubeSize.Large ? "Static" : Grid.GridSize)} Grid, ID: {Grid.EntityId}{(Grid.IsNPC ? "\n   IsNPC: True" : "")}
-                   Name: {Name}
-                   Owner: {OwnerName}{idPart}{OwnerId}
-                   Blocks: {BlockCount}
-                   PCU: {PCU}
-                   Size: {Size}
-                   Position: {Vector3D.Round(Position, 0)}
-                   Speed: {Math.Round(Speed, 1)}
-                   IsPowered: {IsPowered}
-                """;
+            sb.AppendLine($"    Name: {Name}");
+            sb.AppendLine($"    Owner: {OwnerName}{idPart}{OwnerId}");
+            sb.AppendLine($"    Blocks: {BlockCount}");
+            sb.AppendLine($"    PCU: {PCU}");
+            sb.AppendLine($"    Size: {Size}");
+            sb.AppendLine($"    Position: {Vector3D.Round(Position, 0)}");
+
+            float roundSpeed = (float)Math.Round(Speed, 1);
+
+            if (roundSpeed > 0)
+            {
+                if (Speed < 0.1f)
+                    sb.AppendLine($"    Speed: <0.1");
+                else
+                    sb.AppendLine($"    Speed: {roundSpeed}");
+            }
+
+            sb.AppendLine($"    IsPowered: {IsPowered}");
+
+            if (Grid.IsPreview)
+                sb.AppendLine($"    IsPreview: {Grid.IsPreview}");
+
+            return sb.ToString();
         }
     }
 
@@ -1281,6 +1307,7 @@ class CubeGridInfoProxy
         EntityId = grid.EntityId;
         GridSize = grid.GridSizeEnum;
         IsNPC = grid.IsNpcSpawnedGrid;
+        IsPreview = grid.IsPreview;
     }
 
     public CubeGridInfoProxy()
@@ -1766,6 +1793,7 @@ class CubeGridAnalysisInfo
         public long EntityId;
         public MyCubeSize GridSize;
         public bool IsNPC;
+        public bool IsPreview;
         public bool? IsStatic; // Null value means mixed
         public HashSet<string> Names = [];
         public Dictionary<long, string?> Owners = [];
@@ -1785,8 +1813,9 @@ class CubeGridAnalysisInfo
         {
             EntityId = info.Grid.EntityId;
             GridSize = info.Grid.GridSize;
-            IsStatic = info.IsStatic;
             IsNPC = info.Grid.IsNPC;
+            IsPreview = info.Grid.IsPreview;
+            IsStatic = info.IsStatic;
             IsPowered = info.IsPowered;
 
             Add(info);
@@ -1811,7 +1840,7 @@ class CubeGridAnalysisInfo
 
         public CubeGridAnalysisInfo Finish()
         {
-            return new CubeGridAnalysisInfo(EntityId, GridSize, IsStatic, IsNPC, Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
+            return new CubeGridAnalysisInfo(EntityId, GridSize, IsNPC, IsPreview, IsStatic, Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
                 BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), Speeds.ToArray(), IsPowered,
                 TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
@@ -1819,8 +1848,9 @@ class CubeGridAnalysisInfo
 
     public long EntityId { get; set; }
     public MyCubeSize GridSize;
-    public bool? IsStatic;
     public bool IsNPC;
+    public bool IsPreview;
+    public bool? IsStatic;
     public string[] Names;
     public (long ID, string? Name)[] Owners;
     public int[] BlockCounts;
@@ -1893,7 +1923,7 @@ class CubeGridAnalysisInfo
     public string IsPoweredForColumn => IsPowered == null ? "*" : IsPowered.Value.ToString();
 
     public CubeGridAnalysisInfo(
-        long entityId, MyCubeSize gridSize, bool? isStatic, bool isNpc,
+        long entityId, MyCubeSize gridSize, bool isNpc, bool isPreview, bool? isStatic,
         string[] names, (long ID, string? Name)[] owners,
         int[] blockCounts, int[] pcus, Vector3I[] sizes,
         Vector3D[] positions, float[] speeds, bool? isPowered,
@@ -1902,8 +1932,8 @@ class CubeGridAnalysisInfo
     {
         EntityId = entityId;
         GridSize = gridSize;
+        IsPreview = isPreview;
         IsStatic = isStatic;
-        IsNPC = isNpc;
         Names = names;
         Owners = owners;
         BlockCounts = blockCounts;
@@ -1921,20 +1951,61 @@ class CubeGridAnalysisInfo
 
     public override string ToString()
     {
-        return $"""
-                {(IsStatic == true && GridSize == MyCubeSize.Large ? "Static" : GridSize)} Grid, ID: {EntityId}{(IsNPC ? "\n    IsNPC: True" : "")}
-                    {(Names.Length == 1 ? $"Name: {Names[0]}" : $"Names: {string.Join(", ", Names)}")}
-                    Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null)}{o.ID})"))}
-                    {(BlockCounts.Length == 1 ? $"Block Count: {BlockCounts[0]}" : $"Block Counts: {string.Join(", ", BlockCounts)}")}
-                    {(PCUs.Length == 1 ? $"PCU: {PCUs[0]}" : $"PCUs: {string.Join(", ", PCUs)}")}
-                    {(Sizes.Length == 1 ? $"Size: {Sizes[0]}" : $"Sizes: {string.Join(", ", Sizes)}")}
-                    Avg. Position{Vector3D.Round(AveragePosition, 0)}
-                    {(Speeds.Length == 1 ? $"Speed: {Speeds[0]}" : $"Speeds: {string.Join(", ", Speeds)}")}
-                    IsPowered: {(IsPowered != null ? IsPowered : "*")}
-                Total Time: {TotalTime:N1}ms
-                Average Time: {AverageTimePerFrame:N2}ms
-                Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
-                """;
+        var sb = new StringBuilder();
+
+        if (IsStatic == true && GridSize == MyCubeSize.Large)
+            sb.Append("Static");
+        else
+            sb.Append(GridSize);
+
+        sb.AppendLine($" Grid, ID: {EntityId}");
+
+        if (IsNPC)
+            sb.AppendLine("    IsNPC: True");
+
+        if (IsPreview)
+            sb.AppendLine("    IsPreview: True");
+
+        if (Names.Length == 1)
+            sb.AppendLine($"    Name: {Names[0]}");
+        else
+            sb.AppendLine($"    Names: {string.Join(", ", Names)}");
+
+        sb.AppendLine($"    Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null)}{o.ID})"))}");
+
+        if (BlockCounts.Length == 1)
+            sb.AppendLine($"    Block Count: {BlockCounts[0]}");
+        else
+            sb.AppendLine($"    Block Counts: {string.Join(", ", BlockCounts)}");
+
+        if (PCUs.Length == 1)
+            sb.AppendLine($"    PCU: {PCUs[0]}");
+        else
+            sb.AppendLine($"    PCUs: {string.Join(", ", PCUs)}");
+
+        if (Sizes.Length == 1)
+            sb.AppendLine($"    Size: {Sizes[0]}");
+        else
+            sb.AppendLine($"    Sizes: {string.Join(", ", Sizes)}");
+
+        sb.AppendLine($"    Avg. Position{Vector3D.Round(AveragePosition, 0)}");
+
+        if (Speeds.Length == 1)
+        {
+            if (Speeds[0] != 0)
+                sb.AppendLine($"    Speed: {Speeds[0]}");
+        }
+        else
+        {
+            sb.AppendLine($"    Speeds: {string.Join(", ", Speeds)}");
+        }
+
+        sb.AppendLine($"    IsPowered: {(IsPowered != null ? IsPowered : "*")}");
+        sb.AppendLine($"Total Time: {TotalTime:N1}ms");
+        sb.AppendLine($"Average Time: {AverageTimePerFrame:N2}ms");
+        sb.AppendLine($"Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}");
+
+        return sb.ToString();
     }
 }
 
