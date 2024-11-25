@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Threading;
@@ -62,52 +63,69 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         return serializedRecording;
     }
 
-    internal static void SaveRecording(ProfilerEventsRecording recording, bool showDiag)
+    // TODO: Async
+    internal static bool SaveRecording(ProfilerEventsRecording recording)
     {
-        SaveRecording(recording, showDiag, out _, out _);
+        return SaveRecording(recording, out _, out _);
     }
 
-    internal static void SaveRecording(ProfilerEventsRecording recording, bool showDiag, out byte[] serializedRecording, out string? filePath)
+    // TODO: Async
+    internal static bool SaveRecording(ProfilerEventsRecording recording, out byte[] serializedRecording, [NotNullWhen(true)] out string? filePath)
     {
-        filePath = null;
-
         var folderPath = Path.Combine(Instance.StoragePath, "VisualProfiler", "Recordings");
 
         Directory.CreateDirectory(folderPath);
 
         var sessionName = GetRecordingFileName(recording);
 
-        if (showDiag)
-        {
-            var diag = new SaveFileDialog {
-                InitialDirectory = folderPath,
-                FileName = sessionName,
-                DefaultExt = ".prec",
-                Filter = "Profiler Recordings (.prec)|*.prec"
-            };
+        filePath = Path.Combine(folderPath, sessionName) + ".prec";
 
-            bool? result = diag.ShowDialog();
+        return SaveRecording(recording, filePath, out serializedRecording);
+    }
 
-            if (result == true)
-                filePath = diag.FileName;
-        }
-        else
-        {
-            filePath = Path.Combine(folderPath, sessionName) + ".prec";
-        }
+    // TODO: Async
+    internal static bool SaveRecordingDialog(ProfilerEventsRecording recording)
+    {
+        var folderPath = Path.Combine(Instance.StoragePath, "VisualProfiler", "Recordings");
 
+        Directory.CreateDirectory(folderPath);
+
+        var sessionName = GetRecordingFileName(recording);
+
+        var diag = new SaveFileDialog {
+            InitialDirectory = folderPath,
+            FileName = sessionName,
+            DefaultExt = ".prec",
+            Filter = "Profiler Recordings (.prec)|*.prec"
+        };
+
+        bool? result = diag.ShowDialog();
+
+        if (result != true)
+            return false;
+
+        var filePath = diag.FileName;
+
+        return SaveRecording(recording, filePath, out _);
+    }
+
+    // TODO: Async
+    internal static bool SaveRecording(ProfilerEventsRecording recording, string? filePath, out byte[] serializedRecording)
+    {
+        // TODO: Do on dedicated thread
         serializedRecording = SerializeRecording(recording);
 
         if (filePath == null)
-            return;
+            return false;
 
         try
         {
             File.WriteAllBytes(filePath, serializedRecording);
+            return true;
         }
-        catch
+        catch // TODO: Log
         {
-            filePath = null;
+            return false;
         }
     }
 
@@ -323,7 +341,8 @@ public class Commands : CommandModule
 
             if (saveToFile)
             {
-                Plugin.SaveRecording(recording, showDiag: false, out serializedRecording, out var filePath);
+                // TODO: Handle return
+                Plugin.SaveRecording(recording, out serializedRecording, out var filePath);
 
                 Context.Torch.Invoke(() =>
                 {
@@ -397,7 +416,8 @@ public class Commands : CommandModule
 
             if (saveToFile)
             {
-                Plugin.SaveRecording(recording, showDiag: false, out serializedRecording, out var filePath);
+                // TODO: Handle return
+                Plugin.SaveRecording(recording, out serializedRecording, out var filePath);
 
                 var msg = $"Saved profiler recording file as {Path.GetFileName(filePath)}.";
 

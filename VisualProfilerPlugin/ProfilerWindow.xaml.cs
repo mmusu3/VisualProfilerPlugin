@@ -298,7 +298,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             recording.SessionName = session.Name;
 
         if (AutoSaveRecording)
-            Plugin.SaveRecording(recording, showDiag: false);
+            Plugin.SaveRecording(recording);
 
         SetCurrentRecording(recording);
         currentIsSaved = false;
@@ -311,8 +311,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (currentRecording == null)
             return;
 
-        Plugin.SaveRecording(currentRecording, showDiag: true);
-        currentIsSaved = true;
+        if (Plugin.SaveRecordingDialog(currentRecording))
+            currentIsSaved = true;
 
         OnPropertyChanged(nameof(CanSave));
     }
