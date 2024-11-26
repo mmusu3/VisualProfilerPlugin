@@ -1276,7 +1276,10 @@ class CubeGridInfoProxy
             sb.AppendLine($" Grid, ID: {Grid.EntityId}");
 
             if (Grid.IsNPC)
-                sb.AppendLine("    IsNPC: True");
+                sb.AppendLine("    Is NPC: True");
+
+            if (Grid.IsPreview)
+                sb.AppendLine($"    Is Preview: {Grid.IsPreview}");
 
             var idPart = OwnerName.String != null ? $", ID: " : null;
 
@@ -1286,7 +1289,7 @@ class CubeGridInfoProxy
             sb.AppendLine($"    PCU: {PCU}");
             sb.AppendLine($"    Size: {Size}");
             sb.AppendLine($"    Position: {Vector3D.Round(Position, 0)}");
-            sb.AppendLine($"    PhysicsCluster: {PhysicsCluster}");
+            sb.AppendLine($"    Physics Cluster: {PhysicsCluster}");
 
             float roundSpeed = (float)Math.Round(Speed, 1);
 
@@ -1298,10 +1301,7 @@ class CubeGridInfoProxy
                     sb.AppendLine($"    Speed: {roundSpeed}");
             }
 
-            sb.AppendLine($"    IsPowered: {IsPowered}");
-
-            if (Grid.IsPreview)
-                sb.AppendLine($"    IsPreview: {Grid.IsPreview}");
+            sb.AppendLine($"    Is Powered: {IsPowered}");
 
             return sb.ToString();
         }
@@ -1761,18 +1761,27 @@ class PhysicsClusterAnalysisInfo
         int minCharacters = NumCharacters.Min();
         int maxCharacters = NumCharacters.Max();
 
-        return $"""
-                Physics Cluster, ID: {ID}
-                    {(AABBs.Length == 1
-                        ? ToString(Round(AABBs[0]))
-                        : $"AABBs: {string.Join(", ", AABBs.Select(Round).Distinct().Select(ToString2))}")}
-                    Num Objects{(minObjects == maxObjects ? $": {maxObjects}" : $", Min: {minObjects}, Max: {maxObjects}")}
-                    Num Active Objects{(minActiveObjects == maxActiveObjects ? $": {maxActiveObjects}" : $", Min: {minActiveObjects}, Max: {maxActiveObjects}")}
-                    Num Characters{(minCharacters == maxCharacters ? $": {maxCharacters}" : $", Min: {minCharacters}, Max: {maxCharacters}")}
-                Total Time: {TotalTime:N1}ms
-                Average Time: {AverageTimePerFrame:N2}ms
-                Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
-                """;
+        var sb = new StringBuilder();
+
+        sb.AppendLine($" Physics Cluster, ID: {ID}");
+
+        if (AABBs.Length == 1)
+            sb.AppendLine($"    {ToString(Round(AABBs[0]))}");
+        else
+            sb.AppendLine($"    AABBs: {string.Join(", ", AABBs.Select(Round).Distinct().Select(ToString2))}");
+
+        sb.AppendLine($"    Num Objects{(minObjects == maxObjects ? $": {maxObjects}" : $", Min: {minObjects}, Max: {maxObjects}")}");
+        sb.AppendLine($"    Num Active Objects{(minActiveObjects == maxActiveObjects ? $": {maxActiveObjects}" : $", Min: {minActiveObjects}, Max: {maxActiveObjects}")}");
+        sb.AppendLine($"    Num Characters{(minCharacters == maxCharacters ? $": {maxCharacters}" : $", Min: {minCharacters}, Max: {maxCharacters}")}");
+
+        sb.AppendLine($"Total Time: {TotalTime:N1}ms");
+        sb.AppendLine($"Average Time: {AverageTimePerFrame:N2}ms");
+        sb.AppendLine($"Counted Frames: {NumFramesCounted}");
+
+        if (IncludedInNumGroups > 1)
+            sb.AppendLine($"Processed over {IncludedInNumGroups} threads");
+
+        return sb.ToString();
 
         static BoundingBoxD Round(BoundingBoxD box) => new BoundingBoxD(Vector3D.Round(box.Min, 0), Vector3D.Round(box.Max, 0));
 
@@ -1856,7 +1865,7 @@ class CubeGridAnalysisInfo
     public long EntityId { get; set; }
     public MyCubeSize GridSize;
     public bool IsNPC;
-    public bool IsPreview;
+    public bool IsPreview { get; set; }
     public bool? IsStatic;
     public string[] Names;
     public (long ID, string? Name)[] Owners;
@@ -1917,6 +1926,7 @@ class CubeGridAnalysisInfo
     }
 
     public string AveragePositionForColumn => Vector3D.Round(AveragePosition, 0).ToString();
+    public string PhysicsClustersForColumn => PhysicsClusters.Length == 1 ? PhysicsClusters[0].ToString() : string.Join(",\n", PhysicsClusters);
 
     public string AverageSpeedForColumn
     {
@@ -1940,6 +1950,7 @@ class CubeGridAnalysisInfo
     {
         EntityId = entityId;
         GridSize = gridSize;
+        IsNPC = isNpc;
         IsPreview = isPreview;
         IsStatic = isStatic;
         Names = names;
@@ -1970,10 +1981,10 @@ class CubeGridAnalysisInfo
         sb.AppendLine($" Grid, ID: {EntityId}");
 
         if (IsNPC)
-            sb.AppendLine("    IsNPC: True");
+            sb.AppendLine("    Is NPC: True");
 
         if (IsPreview)
-            sb.AppendLine("    IsPreview: True");
+            sb.AppendLine("    Is Preview: True");
 
         if (Names.Length == 1)
             sb.AppendLine($"    Name: {Names[0]}");
@@ -2000,9 +2011,9 @@ class CubeGridAnalysisInfo
         sb.AppendLine($"    Avg. Position{Vector3D.Round(AveragePosition, 0)}");
 
         if (PhysicsClusters.Length == 1)
-            sb.AppendLine($"    PhysicsCluster: {PhysicsClusters[0]}");
+            sb.AppendLine($"    Physics Cluster: {PhysicsClusters[0]}");
         else
-            sb.AppendLine($"    PhysicsClusters: {string.Join(", ", PhysicsClusters)}");
+            sb.AppendLine($"    Physics Clusters: {string.Join(", ", PhysicsClusters)}");
 
         if (Speeds.Length == 1)
         {
@@ -2017,7 +2028,10 @@ class CubeGridAnalysisInfo
         sb.AppendLine($"    IsPowered: {(IsPowered != null ? IsPowered : "*")}");
         sb.AppendLine($"Total Time: {TotalTime:N1}ms");
         sb.AppendLine($"Average Time: {AverageTimePerFrame:N2}ms");
-        sb.AppendLine($"Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}");
+        sb.AppendLine($"Counted Frames: {NumFramesCounted}");
+
+        if (IncludedInNumGroups > 1)
+            sb.AppendLine($"Processed over {IncludedInNumGroups} threads");
 
         return sb.ToString();
     }
@@ -2120,15 +2134,46 @@ class CubeBlockAnalysisInfo
 
     public override string ToString()
     {
-        return $"""
-                {BlockType.Name}, ID: {EntityId}
-                    {(GridIds.Length == 1 ? $"Grid ID: {GridIds[0]}" : $"Grid IDs: {string.Join(", ", GridIds)}")}
-                    {(CustomNames.Length == 1 ? $"Custom Name: {CustomNames[0]}" : $"Custom Names: {string.Join(", ", CustomNames)}")}
-                    Owner{(Owners.Length > 1 ? "s" : "")}: {string.Join(", ", Owners.Select(o => $"({o.Name}{(o.Name != null ? $", ID: " : null) + o.ID.ToString()})"))}
-                    Avg. Position{Vector3D.Round(AveragePosition, 0)}
-                Total Time: {TotalTime:N1}ms
-                Average Time: {AverageTimePerFrame:N2}ms
-                Counted Frames: {NumFramesCounted}{(IncludedInNumGroups > 1 ? $"\r\nProcessed over {IncludedInNumGroups} threads" : "")}
-                """;
+        var sb = new StringBuilder();
+
+        sb.AppendLine($" {BlockType.Name}, ID: {EntityId}");
+
+        if (GridIds.Length == 1)
+            sb.AppendLine($"    Grid ID: {GridIds[0]}");
+        else
+            sb.AppendLine($"    Grid IDs: {string.Join(", ", GridIds)}");
+
+        if (CustomNames.Length == 1)
+            sb.AppendLine($"    Custom Name: {CustomNames[0]}");
+        else
+            sb.AppendLine($"    Custom Names: {string.Join(", ", CustomNames)}");
+
+        if (Owners.Length == 1)
+        {
+            var owner = Owners[0];
+
+            if (owner.Name != null)
+                sb.AppendLine($"    Owner: {owner.Name}, ID: {Owners[0].ID}");
+            else
+                sb.AppendLine($"    Owner: {Owners[0].ID}");
+        }
+        else
+        {
+            sb.AppendLine($"    Owners: {string.Join(", ", Owners.Select(o => OwnerToString(o)))}");
+
+            static string OwnerToString((long ID, string? Name) owner)
+                => $"({owner.Name}{(owner.Name != null ? $", ID: " : null)}{owner.ID})";
+        }
+
+        sb.AppendLine($"    Avg. Position{Vector3D.Round(AveragePosition, 0)}");
+
+        sb.AppendLine($"Total Time: {TotalTime:N1}ms");
+        sb.AppendLine($"Average Time: {AverageTimePerFrame:N2}ms");
+        sb.AppendLine($"Counted Frames: {NumFramesCounted}");
+
+        if (IncludedInNumGroups > 1)
+            sb.AppendLine($"Processed over {IncludedInNumGroups} threads");
+
+        return sb.ToString();
     }
 }

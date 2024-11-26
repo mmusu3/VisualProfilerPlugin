@@ -461,6 +461,18 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         programmableBlocksList.ItemsSource = analysis.ProgrammableBlocks;
         programmableBlocksList.Items.SortDescriptions.Clear();
         programmableBlocksList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeBlockAnalysisInfo.TotalTime), ListSortDirection.Descending));
+
+        FixColumnWidth(physicsClusterCountedFramesColumn.Column);
+        FixColumnWidth(gridCountedFramesColumn.Column);
+        FixColumnWidth(blockCountedFramesColumn.Column);
+    }
+
+    static void FixColumnWidth(GridViewColumn column)
+    {
+        if (double.IsNaN(column.Width))
+            column.Width = column.ActualWidth;
+
+        column.Width = double.NaN;
     }
 
     void OutlierItem_MouseDoubleClick(object sender, MouseButtonEventArgs args)
@@ -797,6 +809,13 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         case nameof(gridIsPoweredColumn):
             propName = nameof(CubeGridAnalysisInfo.IsPoweredForColumn);
             break;
+        case nameof(gridPhysicsClustersColumn):
+            propName = nameof(CubeGridAnalysisInfo.PhysicsClustersForColumn);
+            comparers = CubeGridPhysicsClustersComparer.Instances;
+            break;
+        case nameof(gridIsPreviewColumn):
+            propName = nameof(CubeGridAnalysisInfo.IsPreview);
+            break;
         default:
             break;
         }
@@ -917,13 +936,11 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         }
     }
 
-    class CubeGridPCUsComparer(ListSortDirection sortDirection) : IComparer
+    abstract class CubeGridIntArrayComparer(ListSortDirection sortDirection) : IComparer
     {
-        public static readonly CubeGridPCUsComparer Ascending = new(ListSortDirection.Ascending);
-        public static readonly CubeGridPCUsComparer Descending = new(ListSortDirection.Descending);
-        public static readonly CubeGridPCUsComparer[] Instances = [Ascending, Descending];
-
         public ListSortDirection SortDirection = sortDirection;
+
+        protected abstract int[] GetArray(CubeGridAnalysisInfo gridInfo);
 
         public int Compare(object? x, object? y)
         {
@@ -933,8 +950,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             if (gridX == null || gridY == null)
                 return 0;
 
-            var countsX = gridX.PCUs;
-            var countsY = gridY.PCUs;
+            var countsX = GetArray(gridX);
+            var countsY = GetArray(gridY);
 
             if (countsX.Length == 1)
             {
@@ -959,6 +976,24 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
                     return countsY.Length.CompareTo(countsX.Length);
             }
         }
+    }
+
+    class CubeGridPCUsComparer(ListSortDirection sortDirection) : CubeGridIntArrayComparer(sortDirection)
+    {
+        public static readonly CubeGridPCUsComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridPCUsComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridPCUsComparer[] Instances = [Ascending, Descending];
+
+        protected override int[] GetArray(CubeGridAnalysisInfo gridInfo) => gridInfo.PCUs;
+    }
+
+    class CubeGridPhysicsClustersComparer(ListSortDirection sortDirection) : CubeGridIntArrayComparer(sortDirection)
+    {
+        public static readonly CubeGridPhysicsClustersComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridPhysicsClustersComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridPhysicsClustersComparer[] Instances = [Ascending, Descending];
+
+        protected override int[] GetArray(CubeGridAnalysisInfo gridInfo) => gridInfo.PhysicsClusters;
     }
 
     class CubeGridSizesComparer(ListSortDirection sortDirection) : IComparer
