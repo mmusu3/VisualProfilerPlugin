@@ -3,7 +3,6 @@ using System.Collections;
 using System.ComponentModel;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -450,6 +449,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         gridsList.ItemsSource = analysis.Grids;
         gridsList.Items.SortDescriptions.Clear();
         gridsList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeGridAnalysisInfo.TotalTime), ListSortDirection.Descending));
+        gridsList.Items.Filter = FilterCubeGridItem;
 
         copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
         copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
@@ -1032,6 +1032,60 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     }
 
     #endregion
+
+    bool FilterCubeGridItem(object obj)
+    {
+        if (obj is not CubeGridAnalysisInfo gridInfo)
+            return false;
+
+        var filter = gridListFilterTextBox.Text;
+
+        if (string.IsNullOrWhiteSpace(filter))
+            return true;
+
+        foreach (var name in gridInfo.Names)
+        {
+            if (name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        foreach (var owner in gridInfo.Owners)
+        {
+            if (owner.Name != null && owner.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        if (gridInfo.IsStatic != false)
+        {
+            if ("station".Contains(filter, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if ("static".Contains(filter, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        switch (gridInfo.GridSize)
+        {
+        case VRage.Game.MyCubeSize.Large:
+            if ("large".Contains(filter, StringComparison.OrdinalIgnoreCase))
+                return true;
+            break;
+        case VRage.Game.MyCubeSize.Small:
+            if ("small".Contains(filter, StringComparison.OrdinalIgnoreCase))
+                return true;
+            break;
+        }
+
+        if (gridInfo.EntityId.ToString().Contains(filter, StringComparison.Ordinal))
+            return true;
+
+        return false;
+    }
+
+    void GridListFilterTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        CollectionViewSource.GetDefaultView(gridsList.ItemsSource).Refresh();
+    }
 
     #region PB list sorting
 
