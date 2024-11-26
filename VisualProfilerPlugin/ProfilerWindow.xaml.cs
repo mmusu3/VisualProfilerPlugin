@@ -248,6 +248,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
             startStopButton.Content = "Stop Recording";
             statisticsLabel.Content = "";
+            frameTimesLabel.Content = "";
+            objectCountsLabel.Content = "";
             outliersList.Items.Clear();
             physicsClustersList.ItemsSource = null;
             gridsList.ItemsSource = null;
@@ -387,11 +389,23 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             Session Name: {recording.SessionName}
             Recording Start Time: {recording.StartTime.ToLocalTime():yyyy/MM/d hh:mm:ss tt}
             Recorded {recording.NumFrames} frames
+            """;
+
+        frameTimesLabel.Content =
+            $"""
             Frame Times:
-                Min: {Math.Round(analysis.FrameTimes.Min, 2)}ms
-                Max: {Math.Round(analysis.FrameTimes.Max, 2)}ms
-                Mean: {Math.Round(analysis.FrameTimes.Mean, 2)}ms
+                Min:    {Math.Round(analysis.FrameTimes.Min, 2)}ms
+                Max:    {Math.Round(analysis.FrameTimes.Max, 2)}ms
+                Mean:   {Math.Round(analysis.FrameTimes.Mean, 2)}ms
                 StdDev: {Math.Round(analysis.FrameTimes.StdDev, 2)}ms
+            """;
+
+        objectCountsLabel.Content =
+            $"""
+            Object Counts:
+                Clusters: {analysis.PhysicsClusters.Length}
+                Grids: {analysis.Grids.Length}
+                Programable Blocks: {analysis.ProgrammableBlocks.Length}
             """;
 
         var outliers = recording.GetOutlierFrames();
@@ -449,8 +463,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         programmableBlocksList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeBlockAnalysisInfo.TotalTime), ListSortDirection.Descending));
     }
 
-    #region List expanders
-
     void OutlierItem_MouseDoubleClick(object sender, MouseButtonEventArgs args)
     {
         var item = (ListViewItem)sender;
@@ -468,6 +480,16 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
             eventsGraph.ZoomToFrame(index);
         }
+    }
+
+    #region List expanders
+
+    void RecordingInfoExpander_Expanded(object sender, RoutedEventArgs e)
+    {
+    }
+
+    void RecordingInfoExpander_Collapsed(object sender, RoutedEventArgs e)
+    {
     }
 
     void OutlierFramesExpander_Expanded(object sender, RoutedEventArgs e)

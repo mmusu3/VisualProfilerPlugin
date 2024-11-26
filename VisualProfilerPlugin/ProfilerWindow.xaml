@@ -65,19 +65,28 @@
                 <RowDefinition Height="30*" MinHeight="27" Name="programmableBlocksRow"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Orientation="Vertical">
-                <Label Content="Recording Info" FontWeight="Bold"/>
-                <Rectangle Height="1" Fill="#FFABADB3"/>
-                <Label Name="statisticsLabel" Margin="0,-3,0,0"/>
-                <Rectangle Height="2" Fill="LightGray"/>
-            </StackPanel>
+            <Expander ExpandDirection="Down" Grid.Row="0" IsExpanded="True" Margin="0,0,0,4"
+                        Expanded="RecordingInfoExpander_Expanded" Collapsed="RecordingInfoExpander_Collapsed">
+                <Expander.Header>
+                    <TextBlock FontWeight="Bold">Recording Info</TextBlock>
+                </Expander.Header>
+                <StackPanel Orientation="Vertical">
+                    <Rectangle Height="1" Fill="#FFABADB3"/>
+                    <Label Name="statisticsLabel" Margin="0,-3,0,0"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Label Name="frameTimesLabel"/>
+                        <Label Name="objectCountsLabel"/>
+                    </StackPanel>
+                    <Rectangle Height="2" Fill="LightGray"/>
+                </StackPanel>
+            </Expander>
 
-            <Expander ExpandDirection="Down" Grid.Row="1" IsExpanded="True" Margin="0,0,0,4" FontWeight="Bold"
+            <Expander ExpandDirection="Down" Grid.Row="1" IsExpanded="True" Margin="0,0,0,4"
                         Expanded="OutlierFramesExpander_Expanded" Collapsed="OutlierFramesExpander_Collapsed">
                 <Expander.Header>
-                    <TextBlock ToolTip="Frames with outlier events.">Outlier Frames</TextBlock>
+                    <TextBlock ToolTip="Frames with outlier events." FontWeight="Bold">Outlier Frames</TextBlock>
                 </Expander.Header>
-                <ListView Name="outliersList" BorderThickness="0,1,0,0" FontWeight="Regular"/>
+                <ListView Name="outliersList" BorderThickness="0,1,0,0"/>
             </Expander>
             <GridSplitter Name="outlierListSplitter" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Height="4" Background="LightGray"/>
 
