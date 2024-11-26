@@ -417,11 +417,13 @@ public class ProfilerGroup
 
             frameStartEventIndex = -1;
 
-            if (endIndex >= startIndex)
-            {
-                var eventObjectResolver = Profiler.EventObjectResolver;
+            var eventObjectResolver = Profiler.EventObjectResolver;
 
-                if (eventObjectResolver != null && (Profiler.IsRecordingEvents || (hasOutliers && Profiler.IsRecordingOutliers)))
+            if (eventObjectResolver != null)
+            {
+                Monitor.Enter(eventObjectResolver);
+
+                if (endIndex >= startIndex && (Profiler.IsRecordingEvents || (hasOutliers && Profiler.IsRecordingOutliers)))
                     ResolveObjects(events, startIndex, endIndex, eventObjectResolver);
             }
 
@@ -429,6 +431,9 @@ public class ProfilerGroup
             {
                 if (hasOutliers && frameStartEventIndices.Count > 0)
                     outlierFrameIndices.Add(frameStartEventIndices.Count - 1);
+
+                if (eventObjectResolver != null)
+                    Monitor.Exit(eventObjectResolver);
 
                 return;
             }
@@ -463,7 +468,11 @@ public class ProfilerGroup
                 ClearEventsData();
             }
 
-            Profiler.EventObjectResolver?.ClearCache();
+            if (eventObjectResolver != null)
+            {
+                eventObjectResolver.ClearCache();
+                Monitor.Exit(eventObjectResolver);
+            }
 
             prevFrameEndEventIndex = -1;
             events.NextIndex = 0;
@@ -522,10 +531,13 @@ public class ProfilerGroup
 
             if (eventObjectResolver != null)
             {
-                if (endIndex >= startIndex)
-                    ResolveObjects(recordedEvents, startIndex, endIndex, eventObjectResolver);
+                lock (eventObjectResolver)
+                {
+                    if (endIndex >= startIndex)
+                        ResolveObjects(recordedEvents, startIndex, endIndex, eventObjectResolver);
 
-                eventObjectResolver.ClearCache();
+                    eventObjectResolver.ClearCache();
+                }
             }
 
             ProfilerEventsRecordingGroup? recording = null;
