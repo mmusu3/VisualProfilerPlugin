@@ -182,6 +182,9 @@
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=IsPoweredForColumn}">
                                     <GridViewColumnHeader Name="gridIsPoweredColumn" Content=" Is Powered " ToolTip="Whether the grid is marked as being powered.&#10;Will be * if the value changed over time."/>
                                 </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=ConnectedGridsForColumn}">
+                                    <GridViewColumnHeader Name="gridConnectedGridsColumn" Content=" Connected Grids " ToolTip="Number of connected grids (by connector, rotor, etc).&#10;Can be multiple values if grids were connected/disconnected over time."/>
+                                </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=PhysicsClustersForColumn}">
                                     <GridViewColumnHeader Name="gridPhysicsClustersColumn" Content=" Cluster IDs " ToolTip="IDs of physics clusters that the grids were in.&#10;Can be multiple values if grids moved between clsuters over time."/>
                                 </GridViewColumn>

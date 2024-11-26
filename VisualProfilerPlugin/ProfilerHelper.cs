@@ -1217,6 +1217,7 @@ class CubeGridInfoProxy
         [ProtoMember(10)] public Vector3I Size;
         [ProtoMember(11)] public int PCU;
         [ProtoMember(12)] public bool IsPowered;
+        [ProtoMember(14)] public int ConnectedGrids;
 
         public Snapshot(CubeGridInfoProxy gridInfo, MyCubeGrid grid)
         {
@@ -1237,6 +1238,7 @@ class CubeGridInfoProxy
             PhysicsCluster = PhysicsHelper.GetClusterIdForObject(grid.Physics);
             Speed = grid.LinearVelocity.Length();
             IsPowered = grid.IsPowered;
+            ConnectedGrids = MyCubeGridGroups.Static.Physical.GetNode(grid).LinkCount;
         }
 
         public Snapshot()
@@ -1261,7 +1263,8 @@ class CubeGridInfoProxy
                 && Vector3D.Round(Position, 1) == Vector3D.Round(grid.PositionComp.GetPosition(), 1)
                 && PhysicsCluster == PhysicsHelper.GetClusterIdForObject(grid.Physics)
                 && Math.Round(Speed, 1) == Math.Round(grid.LinearVelocity.Length(), 1)
-                && IsPowered == grid.IsPowered;
+                && IsPowered == grid.IsPowered
+                && ConnectedGrids == MyCubeGridGroups.Static.Physical.GetNode(grid).LinkCount;
         }
 
         public override string ToString()
@@ -1302,6 +1305,9 @@ class CubeGridInfoProxy
             }
 
             sb.AppendLine($"    Is Powered: {IsPowered}");
+
+            if (ConnectedGrids != 0)
+                sb.AppendLine($"    Connected Grids: {ConnectedGrids}");
 
             return sb.ToString();
         }
@@ -1818,6 +1824,7 @@ class CubeGridAnalysisInfo
         public HashSet<int> PhysicsClusters = [];
         public HashSet<float> Speeds = [];
         public bool? IsPowered; // Null value means mixed
+        public HashSet<int> ConnectedGrids = [];
         public HashSet<int> IncludedInGroups = [];
         public HashSet<int> FramesCounted = [];
 
@@ -1852,12 +1859,14 @@ class CubeGridAnalysisInfo
 
             if (IsPowered != null && info.IsPowered != IsPowered)
                 IsPowered = null;
+
+            ConnectedGrids.Add(info.ConnectedGrids);
         }
 
         public CubeGridAnalysisInfo Finish()
         {
             return new CubeGridAnalysisInfo(EntityId, GridSize, IsNPC, IsPreview, IsStatic, Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
-                BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), PhysicsClusters.ToArray(), Speeds.ToArray(), IsPowered,
+                BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), PhysicsClusters.ToArray(), Speeds.ToArray(), IsPowered, ConnectedGrids.ToArray(),
                 TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
     }
@@ -1876,6 +1885,7 @@ class CubeGridAnalysisInfo
     public int[] PhysicsClusters;
     public float[] Speeds;
     public bool? IsPowered;
+    public int[] ConnectedGrids;
 
     public double TotalTime { get; set; }
     public double AverageTimePerFrame { get; set; }
@@ -1939,12 +1949,13 @@ class CubeGridAnalysisInfo
     }
 
     public string IsPoweredForColumn => IsPowered == null ? "*" : IsPowered.Value.ToString();
+    public string ConnectedGridsForColumn => ConnectedGrids.Length == 1 ? ConnectedGrids[0].ToString() : string.Join(",\n", ConnectedGrids);
 
     public CubeGridAnalysisInfo(
         long entityId, MyCubeSize gridSize, bool isNpc, bool isPreview, bool? isStatic,
         string[] names, (long ID, string? Name)[] owners,
         int[] blockCounts, int[] pcus, Vector3I[] sizes,
-        Vector3D[] positions, int[] physicsClusters, float[] speeds, bool? isPowered,
+        Vector3D[] positions, int[] physicsClusters, float[] speeds, bool? isPowered, int[] connectedGrids,
         double totalTime, double averageTimePerFrame,
         int includedInNumGroups, int numFramesCounted)
     {
@@ -1962,6 +1973,7 @@ class CubeGridAnalysisInfo
         PhysicsClusters = physicsClusters;
         Speeds = speeds;
         IsPowered = isPowered;
+        ConnectedGrids = connectedGrids;
 
         TotalTime = totalTime;
         AverageTimePerFrame = averageTimePerFrame;
@@ -2023,6 +2035,16 @@ class CubeGridAnalysisInfo
         else
         {
             sb.AppendLine($"    Speeds: {string.Join(", ", Speeds)}");
+        }
+
+        if (ConnectedGrids.Length == 1)
+        {
+            if (ConnectedGrids[0] != 0)
+                sb.AppendLine($"    Connected Grids: {ConnectedGrids[0]}");
+        }
+        else
+        {
+            sb.AppendLine($"    Connected Grids: {string.Join(", ", ConnectedGrids)}");
         }
 
         sb.AppendLine($"    IsPowered: {(IsPowered != null ? IsPowered : "*")}");

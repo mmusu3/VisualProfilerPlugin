@@ -809,6 +809,11 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         case nameof(gridIsPoweredColumn):
             propName = nameof(CubeGridAnalysisInfo.IsPoweredForColumn);
             break;
+        case nameof(gridConnectedGridsColumn):
+            propName = nameof(CubeGridAnalysisInfo.ConnectedGridsForColumn);
+            defaultDir = ListSortDirection.Descending;
+            comparers = CubeGridConnectedGridsComparer.Instances;
+            break;
         case nameof(gridPhysicsClustersColumn):
             propName = nameof(CubeGridAnalysisInfo.PhysicsClustersForColumn);
             comparers = CubeGridPhysicsClustersComparer.Instances;
@@ -985,6 +990,15 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         public static readonly CubeGridPCUsComparer[] Instances = [Ascending, Descending];
 
         protected override int[] GetArray(CubeGridAnalysisInfo gridInfo) => gridInfo.PCUs;
+    }
+
+    class CubeGridConnectedGridsComparer(ListSortDirection sortDirection) : CubeGridIntArrayComparer(sortDirection)
+    {
+        public static readonly CubeGridConnectedGridsComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridConnectedGridsComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridConnectedGridsComparer[] Instances = [Ascending, Descending];
+
+        protected override int[] GetArray(CubeGridAnalysisInfo gridInfo) => gridInfo.ConnectedGrids;
     }
 
     class CubeGridPhysicsClustersComparer(ListSortDirection sortDirection) : CubeGridIntArrayComparer(sortDirection)
