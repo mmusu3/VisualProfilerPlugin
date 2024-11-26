@@ -80,20 +80,21 @@ static class PrioritizedScheduler_Patches
 
     static MethodInfo scheduleMethod = null!;
 
-    // Not currently enabled
+    // Not currently enabled. Patching ScheduleOnEachWorker causes
+    // the instance argument to become corrupt somehow.
     public static void Patch(PatchContext ctx)
     {
         var wokerArrayType = typeof(PrioritizedScheduler).GetNestedType("WorkerArray", BindingFlags.NonPublic)!;
         var source = wokerArrayType.GetPublicInstanceMethod("ScheduleOnEachWorker");
-        //var transpiler = typeof(PrioritizedScheduler_Patches).GetNonPublicStaticMethod(nameof(Transpile_WorkerArray_ScheduleOnEachWorker));
+        var pattern = ctx.GetPattern(source);
 
-        //ctx.GetPattern(source).Transpilers.Add(transpiler);
+        //var transpiler = typeof(PrioritizedScheduler_Patches).GetNonPublicStaticMethod(nameof(Transpile_WorkerArray_ScheduleOnEachWorker));
+        //pattern.Transpilers.Add(transpiler);
 
         scheduleMethod = wokerArrayType.GetPublicInstanceMethod("Schedule");
 
-        // Transpiler causes a wierd null ref issue even with a blank transpiler.
         var prefix = typeof(PrioritizedScheduler_Patches).GetNonPublicStaticMethod(nameof(Prefix_ScheduleOnEachWorker));
-        ctx.GetPattern(source).Prefixes.Add(prefix);
+        pattern.Prefixes.Add(prefix);
     }
 
     static IEnumerable<MsilInstruction> Transpile_WorkerArray_ScheduleOnEachWorker(IEnumerable<MsilInstruction> instructionStream)
@@ -172,7 +173,7 @@ static class PrioritizedScheduler_Patches
 
     static bool Prefix_ScheduleOnEachWorker(object __instance, Action action, Array __field_m_workers, ref Task __result)
     {
-        var barrier = new System.Threading.Barrier(__field_m_workers.Length);
+        var barrier = new Barrier(__field_m_workers.Length);
 
         var options = new WorkOptions {
             MaximumThreads = __field_m_workers.Length,
