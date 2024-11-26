@@ -784,12 +784,14 @@ public class ProfilerEventsAllocator
 
     public ref ProfilerEvent Alloc(out ProfilerEvent[] array, out int index)
     {
-        int i = NextIndex++;
+        int i = NextIndex;
         int segmentIndex = i / SegmentSize;
         var segments = Segments;
 
         if (segmentIndex == segments.Length)
             segments = ExpandCapacity();
+
+        NextIndex = i + 1;
 
         array = segments[segmentIndex];
         index = i - segmentIndex * SegmentSize;
@@ -802,12 +804,13 @@ public class ProfilerEventsAllocator
     {
         // TODO: Add event for allocating new segment
 
-        ref var segments = ref Segments;
+        var segments = Segments;
         int newSegCount = segments.Length + 1;
 
         Array.Resize(ref segments, newSegCount);
 
         segments[^1] = new ProfilerEvent[SegmentSize];
+        Segments = segments;
 
         return segments;
     }
