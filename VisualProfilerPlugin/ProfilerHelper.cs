@@ -1212,6 +1212,7 @@ class CubeGridInfoProxy
         [ProtoMember(5)] public StringId OwnerName;
         [ProtoMember(6)] public int BlockCount;
         [ProtoMember(7)] public Vector3D Position;
+        [ProtoMember(13)] public int PhysicsCluster;
         [ProtoMember(9)] public float Speed;
         [ProtoMember(10)] public Vector3I Size;
         [ProtoMember(11)] public int PCU;
@@ -1233,6 +1234,7 @@ class CubeGridInfoProxy
             PCU = grid.BlocksPCU;
             Size = grid.Max - grid.Min + Vector3I.One;
             Position = grid.PositionComp.GetPosition();
+            PhysicsCluster = PhysicsHelper.GetClusterIdForObject(grid.Physics);
             Speed = grid.LinearVelocity.Length();
             IsPowered = grid.IsPowered;
         }
@@ -1241,6 +1243,7 @@ class CubeGridInfoProxy
         {
             Grid = null!;
             Name = "";
+            PhysicsCluster = -1;
         }
 
         public bool Equals(MyCubeGrid grid)
@@ -1256,6 +1259,7 @@ class CubeGridInfoProxy
                 && PCU == grid.BlocksPCU
                 && Size == (grid.Max - grid.Min + Vector3I.One)
                 && Vector3D.Round(Position, 1) == Vector3D.Round(grid.PositionComp.GetPosition(), 1)
+                && PhysicsCluster == PhysicsHelper.GetClusterIdForObject(grid.Physics)
                 && Math.Round(Speed, 1) == Math.Round(grid.LinearVelocity.Length(), 1)
                 && IsPowered == grid.IsPowered;
         }
@@ -1282,6 +1286,7 @@ class CubeGridInfoProxy
             sb.AppendLine($"    PCU: {PCU}");
             sb.AppendLine($"    Size: {Size}");
             sb.AppendLine($"    Position: {Vector3D.Round(Position, 0)}");
+            sb.AppendLine($"    PhysicsCluster: {PhysicsCluster}");
 
             float roundSpeed = (float)Math.Round(Speed, 1);
 
@@ -1801,6 +1806,7 @@ class CubeGridAnalysisInfo
         public HashSet<int> PCUs = [];
         public HashSet<Vector3I> Sizes = [];
         public HashSet<Vector3D> Positions = [];
+        public HashSet<int> PhysicsClusters = [];
         public HashSet<float> Speeds = [];
         public bool? IsPowered; // Null value means mixed
         public HashSet<int> IncludedInGroups = [];
@@ -1832,6 +1838,7 @@ class CubeGridAnalysisInfo
             PCUs.Add(info.PCU);
             Sizes.Add(info.Size);
             Positions.Add(info.Position);
+            PhysicsClusters.Add(info.PhysicsCluster);
             Speeds.Add(info.Speed);
 
             if (IsPowered != null && info.IsPowered != IsPowered)
@@ -1841,7 +1848,7 @@ class CubeGridAnalysisInfo
         public CubeGridAnalysisInfo Finish()
         {
             return new CubeGridAnalysisInfo(EntityId, GridSize, IsNPC, IsPreview, IsStatic, Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
-                BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), Speeds.ToArray(), IsPowered,
+                BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), PhysicsClusters.ToArray(), Speeds.ToArray(), IsPowered,
                 TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
     }
@@ -1857,6 +1864,7 @@ class CubeGridAnalysisInfo
     public int[] PCUs;
     public Vector3I[] Sizes;
     public Vector3D[] Positions;
+    public int[] PhysicsClusters;
     public float[] Speeds;
     public bool? IsPowered;
 
@@ -1926,7 +1934,7 @@ class CubeGridAnalysisInfo
         long entityId, MyCubeSize gridSize, bool isNpc, bool isPreview, bool? isStatic,
         string[] names, (long ID, string? Name)[] owners,
         int[] blockCounts, int[] pcus, Vector3I[] sizes,
-        Vector3D[] positions, float[] speeds, bool? isPowered,
+        Vector3D[] positions, int[] physicsClusters, float[] speeds, bool? isPowered,
         double totalTime, double averageTimePerFrame,
         int includedInNumGroups, int numFramesCounted)
     {
@@ -1940,6 +1948,7 @@ class CubeGridAnalysisInfo
         PCUs = pcus;
         Sizes = sizes;
         Positions = positions;
+        PhysicsClusters = physicsClusters;
         Speeds = speeds;
         IsPowered = isPowered;
 
@@ -1989,6 +1998,11 @@ class CubeGridAnalysisInfo
             sb.AppendLine($"    Sizes: {string.Join(", ", Sizes)}");
 
         sb.AppendLine($"    Avg. Position{Vector3D.Round(AveragePosition, 0)}");
+
+        if (PhysicsClusters.Length == 1)
+            sb.AppendLine($"    PhysicsCluster: {PhysicsClusters[0]}");
+        else
+            sb.AppendLine($"    PhysicsClusters: {string.Join(", ", PhysicsClusters)}");
 
         if (Speeds.Length == 1)
         {
