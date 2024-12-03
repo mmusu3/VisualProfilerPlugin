@@ -1,8 +1,8 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using NLog;
@@ -46,10 +46,28 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
     public UserControl GetControl() => new ConfigView(new()/*configVM.Data*/);
 
+    internal static ProfilerEventsRecording LoadRecording(string filePath)
+    {
+        ProfilerEventsRecording recording;
+
+        using (var stream = File.Open(filePath, FileMode.Open))
+        {
+            using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
+                recording = Serializer.Deserialize<ProfilerEventsRecording>(gzipStream);
+        }
+
+        return recording;
+    }
+
     internal static byte[] SerializeRecording(ProfilerEventsRecording recording)
     {
         ProfilerHelper.PrepareRecordingForSerialization(recording);
 
+        return SerializeRecordingImpl(recording);
+    }
+
+    static byte[] SerializeRecordingImpl(ProfilerEventsRecording recording)
+    {
         byte[] serializedRecording;
 
         using (var stream = new MemoryStream())
@@ -63,14 +81,22 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         return serializedRecording;
     }
 
-    // TODO: Async
-    internal static bool SaveRecording(ProfilerEventsRecording recording)
+    internal static async Task<byte[]> SerializeRecordingAsync(ProfilerEventsRecording recording)
     {
-        return SaveRecording(recording, out _, out _);
+        ProfilerHelper.PrepareRecordingForSerialization(recording);
+
+        // Run on thread pool
+        var serializedRecording = await Task.Run(() => SerializeRecordingImpl(recording)).ConfigureAwait(false);
+
+        return serializedRecording;
     }
 
-    // TODO: Async
-    internal static bool SaveRecording(ProfilerEventsRecording recording, out byte[] serializedRecording, [NotNullWhen(true)] out string? filePath)
+    internal static Task<(bool Written, byte[] SerializedRecording)> SaveRecordingAsync(ProfilerEventsRecording recording)
+    {
+        return SaveRecordingAsync(recording, out _);
+    }
+
+    internal static Task<(bool Written, byte[] SerializedRecording)> SaveRecordingAsync(ProfilerEventsRecording recording, out string filePath)
     {
         var folderPath = Path.Combine(Instance.StoragePath, "VisualProfiler", "Recordings");
 
@@ -80,11 +106,10 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
         filePath = Path.Combine(folderPath, sessionName) + ".prec";
 
-        return SaveRecording(recording, filePath, out serializedRecording);
+        return SaveRecordingAsync(recording, filePath);
     }
 
-    // TODO: Async
-    internal static bool SaveRecordingDialog(ProfilerEventsRecording recording)
+    internal static async Task<bool> SaveRecordingDialogAsync(ProfilerEventsRecording recording)
     {
         var folderPath = Path.Combine(Instance.StoragePath, "VisualProfiler", "Recordings");
 
@@ -106,26 +131,37 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
         var filePath = diag.FileName;
 
-        return SaveRecording(recording, filePath, out _);
+        (bool written, _) = await SaveRecordingAsync(recording, filePath).ConfigureAwait(false);
+
+        return written;
     }
 
-    // TODO: Async
-    internal static bool SaveRecording(ProfilerEventsRecording recording, string? filePath, out byte[] serializedRecording)
+    internal static async Task<(bool Written, byte[] SerializedRecording)> SaveRecordingAsync(ProfilerEventsRecording recording, string? filePath)
     {
-        // TODO: Do on dedicated thread
-        serializedRecording = SerializeRecording(recording);
+        var serializedRecording = await SerializeRecordingAsync(recording).ConfigureAwait(false);
 
         if (filePath == null)
-            return false;
+            return (false, serializedRecording);
 
         try
         {
-            File.WriteAllBytes(filePath, serializedRecording);
-            return true;
+            FileStream stream;
+#if NET
+            await using ((stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true)).ConfigureAwait(false))
+#else
+            using (stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true))
+#endif
+                await stream.WriteAsync(serializedRecording, 0, serializedRecording.Length, CancellationToken.None).ConfigureAwait(false);
+
+            Log.Info($"Saved profiler recording to \"{filePath}\".");
+
+            return (true, serializedRecording);
         }
-        catch // TODO: Log
+        catch (Exception ex)
         {
-            return false;
+            Log.Error(ex, $"Failed to save profiler recording to \"{filePath}\".");
+
+            return (false, serializedRecording);
         }
     }
 
@@ -322,7 +358,7 @@ public class Commands : CommandModule
 
         timer = new Timer(TimerCompleted, null, TimeSpan.FromSeconds(numSeconds), Timeout.InfiniteTimeSpan);
 
-        void TimerCompleted(object? state)
+        async void TimerCompleted(object? state)
         {
             if (timer != null)
             {
@@ -337,38 +373,14 @@ public class Commands : CommandModule
 
             recording.SessionName = sessionName;
 
-            byte[]? serializedRecording = null;
-
-            if (saveToFile)
+            try
             {
-                // TODO: Handle return
-                Plugin.SaveRecording(recording, out serializedRecording, out var filePath);
-
-                Context.Torch.Invoke(() =>
-                {
-                    var msg = $"Saved profiler recording file as {Path.GetFileName(filePath)}.";
-
-                    Context.Respond(msg);
-                    Plugin.Log.Info(msg);
-                });
+                await SaveSendSummarizeAsync(recording, saveToFile, sendToClient);
             }
-
-            if (sendToClient)
+            catch (Exception ex)
             {
-                serializedRecording ??= Plugin.SerializeRecording(recording);
-
-                var fileName = Plugin.GetRecordingFileName(recording);
-
-                Context.Torch.Invoke(() =>
-                {
-                    Plugin.SendRecordingToClient(serializedRecording, fileName, Context.Player.SteamUserId);
-                });
+                Plugin.Log.Error(ex, "Unhandled exception while saving/sending profiler recording summary.");
             }
-
-            var summary = ProfilerHelper.SummarizeRecording(recording);
-
-            if (!string.IsNullOrEmpty(summary))
-                Context.Respond(summary);
         }
     }
 
@@ -408,39 +420,54 @@ public class Commands : CommandModule
 
         Context.Respond($"Started a profiler recording for {numFrames} frames.");
 
-        void OnRecordingCompleted(ProfilerEventsRecording recording)
+        async void OnRecordingCompleted(ProfilerEventsRecording recording)
         {
             recording.SessionName = sessionName;
 
-            byte[]? serializedRecording = null;
-
-            if (saveToFile)
+            try
             {
-                // TODO: Handle return
-                Plugin.SaveRecording(recording, out serializedRecording, out var filePath);
+                await SaveSendSummarizeAsync(recording, saveToFile, sendToClient);
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.Error(ex, "Unhandled exception while saving/sending profiler recording summary.");
+            }
+        }
+    }
 
-                var msg = $"Saved profiler recording file as {Path.GetFileName(filePath)}.";
+    async Task SaveSendSummarizeAsync(ProfilerEventsRecording recording, bool saveToFile, bool sendToClient)
+    {
+        byte[]? serializedRecording = null;
+
+        if (saveToFile)
+        {
+            Context.Torch.Invoke(() => Context.Respond($"Saving profiler recording file."));
+
+            (bool written, serializedRecording) = await Plugin.SaveRecordingAsync(recording, out var filePath).ConfigureAwait(false);
+            var fileName = Path.GetFileName(filePath);
+
+            Context.Torch.Invoke(() =>
+            {
+                var msg = written
+                    ? $"Saved profiler recording file as \"{fileName}\"."
+                    : $"Failed to save profiler recording to file.";
 
                 Context.Respond(msg);
-                Plugin.Log.Info(msg);
-            }
-
-            if (sendToClient)
-            {
-                serializedRecording ??= Plugin.SerializeRecording(recording);
-
-                var fileName = Plugin.GetRecordingFileName(recording);
-
-                Context.Torch.Invoke(() =>
-                {
-                    Plugin.SendRecordingToClient(serializedRecording, fileName, Context.Player.SteamUserId);
-                });
-            }
-
-            var summary = ProfilerHelper.SummarizeRecording(recording);
-
-            if (!string.IsNullOrEmpty(summary))
-                Context.Respond(summary);
+            });
         }
+
+        if (sendToClient)
+        {
+            serializedRecording ??= await Plugin.SerializeRecordingAsync(recording).ConfigureAwait(false);
+
+            var fileName = Plugin.GetRecordingFileName(recording);
+
+            Context.Torch.Invoke(() => Plugin.SendRecordingToClient(serializedRecording, fileName, Context.Player.SteamUserId));
+        }
+
+        var summary = ProfilerHelper.SummarizeRecording(recording);
+
+        if (!string.IsNullOrEmpty(summary))
+            Context.Torch.Invoke(() => Context.Respond(summary));
     }
 }

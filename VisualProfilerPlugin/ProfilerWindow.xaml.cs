@@ -2,7 +2,6 @@
 using System.Collections;
 using System.ComponentModel;
 using System.IO;
-using System.IO.Compression;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -299,7 +298,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             recording.SessionName = session.Name;
 
         if (AutoSaveRecording)
-            Plugin.SaveRecording(recording);
+            _ = Plugin.SaveRecordingAsync(recording);
 
         SetCurrentRecording(recording);
         currentIsSaved = false;
@@ -307,12 +306,12 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(CanSave));
     }
 
-    void SaveButton_Click(object sender, RoutedEventArgs args)
+    async void SaveButton_Click(object sender, RoutedEventArgs args)
     {
         if (currentRecording == null)
             return;
 
-        if (Plugin.SaveRecordingDialog(currentRecording))
+        if (await Plugin.SaveRecordingDialogAsync(currentRecording))
             currentIsSaved = true;
 
         OnPropertyChanged(nameof(CanSave));
@@ -345,11 +344,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         try
         {
-            using (var stream = File.Open(path, FileMode.Open))
-            {
-                using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
-                    recording = ProtoBuf.Serializer.Deserialize<ProfilerEventsRecording>(gzipStream);
-            }
+            recording = Plugin.LoadRecording(path);
         }
         catch (Exception ex)
         {
