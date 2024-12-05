@@ -38,7 +38,7 @@ class ProfilerEventsGraphControl : Control
     const double maxZoom = 1000 * 50; // 50px per µs
 
     ProfilerEventsRecording? recordedEvents;
-    (long Time, (int GroupId, ProfilerEventsSegment Group)[] Groups)? combinedFramesEvents;
+    CombinedFrameEvents? combinedFramesEvents;
     Dictionary<int, int> groupMaxDepths = [];
 
     long startTime;
@@ -291,9 +291,9 @@ class ProfilerEventsGraphControl : Control
 
         if (combineFrames && combinedFramesEvents != null)
         {
-            foreach (var (groupId, group) in combinedFramesEvents.Value.Groups)
+            foreach (var group in combinedFramesEvents.Groups)
             {
-                GetHoveredEvents(group, 0, y);
+                GetHoveredEvents(group.Segment, 0, y);
 
                 if (hoverEvents.Count > 0)
                 {
@@ -304,13 +304,13 @@ class ProfilerEventsGraphControl : Control
                         || hoverEvents.Count != hoverIndices.Count)
                         reDraw = true;
 
-                    hoverGroup = [group];
+                    hoverGroup = [group.Segment];
                     hoverIndices = (segmentIndex, eventIndex, hoverEvents.Count);
                     hoverY = y;
                     break;
                 }
 
-                if (groupMaxDepths.TryGetValue(groupId, out int maxDepth))
+                if (groupMaxDepths.TryGetValue(group.ID, out int maxDepth))
                     y += barHeight * maxDepth + threadGroupPadding;
             }
         }
@@ -391,24 +391,7 @@ class ProfilerEventsGraphControl : Control
             if (segment.StartTime - startTicks > -shiftX + (long)PixelsToTicks(graphWidth))
                 break;
 
-            for (int j = 0; j <= endIndexInSegment; j++)
-            {
-                ref var _event = ref segment.Events[j];
-                double startX = TicksToPixels(_event.StartTime - startTicks + shiftX);
-                double width = _event.IsSinglePoint ? 4 : TicksToPixels(_event.EndTime - _event.StartTime);
-
-                if (startX + width < 0 || startX > graphWidth)
-                    continue;
-
-                float barY = startY + _event.Depth * barHeight;
-                double floorX = Math.Floor(startX);
-
-                if (mousePos.X >= floorX && mousePos.X < floorX + Math.Max(minBarWidth, width)
-                    && mousePos.Y >= barY && mousePos.Y < barY + barHeight)
-                {
-                    hoverEvents.Add((i, j));
-                }
-            }
+            GetHoveredEvents(segment.Events.AsSpan(0, endIndexInSegment + 1), i, startTicks, startY, graphWidth);
         }
     }
 
@@ -425,9 +408,14 @@ class ProfilerEventsGraphControl : Control
         if (group.StartTime - startTicks > -shiftX + (long)PixelsToTicks(graphWidth))
             return;
 
-        for (int i = 0; i < group.Events.Length; i++)
+        GetHoveredEvents(group.Events, 0, startTicks, startY, graphWidth);
+    }
+
+    void GetHoveredEvents(ReadOnlySpan<ProfilerEvent> events, int segmentIndex, long startTicks, float startY, double graphWidth)
+    {
+        for (int i = 0; i < events.Length; i++)
         {
-            ref var _event = ref group.Events[i];
+            ref readonly var _event = ref events[i];
             double startX = TicksToPixels(_event.StartTime - startTicks + shiftX);
             double width = _event.IsSinglePoint ? 4 : TicksToPixels(_event.EndTime - _event.StartTime);
 
@@ -440,7 +428,7 @@ class ProfilerEventsGraphControl : Control
             if (mousePos.X >= floorX && mousePos.X < floorX + Math.Max(minBarWidth, width)
                 && mousePos.Y >= barY && mousePos.Y < barY + barHeight)
             {
-                hoverEvents.Add((0, i));
+                hoverEvents.Add((segmentIndex, i));
             }
         }
     }
@@ -590,7 +578,7 @@ class ProfilerEventsGraphControl : Control
         long minShift;
 
         if (combineFrames && combinedFramesEvents != null)
-            minShift = combinedFramesEvents.Value.Time;
+            minShift = combinedFramesEvents.Time;
         else
             minShift = endTime - startTime;
 
@@ -631,7 +619,7 @@ class ProfilerEventsGraphControl : Control
         if (startTime == long.MaxValue)
             minZoom = 1;
         else if (combineFrames && combinedFramesEvents != null)
-            minZoom = ViewportWidth / (combinedFramesEvents.Value.Time / (double)TimeSpan.TicksPerMillisecond);
+            minZoom = ViewportWidth / (combinedFramesEvents.Time / (double)TimeSpan.TicksPerMillisecond);
         else
             minZoom = ViewportWidth / ((endTime - startTime) / (double)TimeSpan.TicksPerMillisecond);
 
@@ -827,13 +815,13 @@ class ProfilerEventsGraphControl : Control
             float y = headerHeight - (float)vScroll.Value;
             int i = 0;
 
-            foreach (var (groupId, group) in combinedFramesEvents.Value.Groups)
+            foreach (var group in combinedFramesEvents.Groups)
             {
-                var colorHSV = GetColorHSV(i++, combinedFramesEvents.Value.Groups.Length);
+                var colorHSV = GetColorHSV(i++, combinedFramesEvents.Groups.Length);
 
-                DrawGroupEvents(graphCtx, [group], -group.Events.Length, colorHSV, 0, y);
+                DrawGroupEvents(graphCtx, [group.Segment], -group.Segment.Events.Length, colorHSV, 0, y);
 
-                y += barHeight * groupMaxDepths[groupId] + threadGroupPadding;
+                y += barHeight * groupMaxDepths[group.ID] + threadGroupPadding;
             }
 
             Profiler.Stop();

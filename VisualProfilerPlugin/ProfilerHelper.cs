@@ -674,9 +674,9 @@ static class ProfilerHelper
         public override string ToString() => $"{NameKey}, Children: {Children.Count}";
     }
 
-    internal static (long Time, (int GroupId, ProfilerEventsSegment Group)[] Groups) CombineFrames(ProfilerEventsRecording recording)
+    internal static CombinedFrameEvents CombineFrames(ProfilerEventsRecording recording)
     {
-        var combinedGroups = new (int, ProfilerEventsSegment)[recording.Groups.Count];
+        var combinedGroups = new CombinedFrameEvents.Group[recording.Groups.Count];
         var combinedEvents = new List<ProfilerEvent>();
         var timers = new Dictionary<int, AccumTimer>();
 
@@ -809,11 +809,15 @@ static class ProfilerHelper
             if (groupTime > maxTime)
                 maxTime = groupTime;
 
-            combinedGroups[i++] = (groupId, new ProfilerEventsSegment { EndTime = groupTime, Events = combinedEvents.ToArray() });
+            combinedGroups[i++] = new CombinedFrameEvents.Group(groupId, new ProfilerEventsSegment {
+                EndTime = groupTime,
+                Events = combinedEvents.ToArray()
+            });
+
             combinedEvents.Clear();
         }
 
-        return (maxTime, combinedGroups);
+        return new CombinedFrameEvents(maxTime, combinedGroups);
 
         static ProfilerEvent.EventCategory GetCategory(ref ProfilerEvent _event)
         {
@@ -841,14 +845,14 @@ static class ProfilerHelper
 
     public static string SummarizeRecording(ProfilerEventsRecording recording)
     {
-        var (_, groups) = CombineFrames(recording);
+        var groups = CombineFrames(recording).Groups;
 
         var header = $"Recorded {recording.NumFrames} frames over {recording.ElapsedTime.TotalSeconds:N1} seconds.";
 
         if (groups.Length == 0)
             return header;
 
-        var mainGroup = groups[0].Group;
+        var mainGroup = groups[0].Segment;
         var times = new (ProfilerEvent.EventCategory Category, double AvgTime, double TotalTime)[(int)ProfilerEvent.EventCategory.CategoryCount];
 
         for (int i = 0; i < times.Length; i++)
@@ -918,6 +922,24 @@ static class ProfilerHelper
                     StdDev ms: {Math.Sqrt(MillisecondsVariance):N2}
                     """;
         }
+    }
+}
+
+class CombinedFrameEvents
+{
+    public struct Group
+    {
+        public int ID;
+        public ProfilerEventsSegment Segment;
+    }
+
+    public long Time;
+    public Group[] Groups;
+
+    public CombinedFrameEvents(long time, ProfilerEventsSegment segment)
+    {
+        Time = time;
+        Segment = segment;
     }
 }
 
