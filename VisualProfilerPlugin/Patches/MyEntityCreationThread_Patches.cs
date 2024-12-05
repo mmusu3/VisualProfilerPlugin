@@ -4,9 +4,11 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Sandbox.Game.Entities;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using static System.Reflection.Emit.OpCodes;
 using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
@@ -41,24 +43,21 @@ static class MyEntityCreationThread_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MyEntityCreationThread)}.ThreadProc.");
 
-        const int expectedParts = 2;
+        const int expectedParts = 3;
         int patchedParts = 0;
 
         var prefixMethod = typeof(MyEntityCreationThread_Patches).GetNonPublicStaticMethod(nameof(Prefix_ThreadProc));
         var suffixMethod = typeof(MyEntityCreationThread_Patches).GetNonPublicStaticMethod(nameof(Suffix_ThreadProc));
 
+        var threadNameSetter = typeof(Thread).GetProperty(nameof(Thread.Name))!.SetMethod!;
         var initEntityMethod = typeof(MyEntities).GetPublicStaticMethod(nameof(MyEntities.InitEntity));
 
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
-        ReadOnlySpan<OpCode> pattern1 = [OpCodes.Ldloca_S, OpCodes.Ldloc_0, OpCodes.Ldfld, OpCodes.Call];
-        ReadOnlySpan<OpCode> pattern2 = [OpCodes.Ldloc_0, OpCodes.Ldfld, OpCodes.Ldloca_S, OpCodes.Ldflda, OpCodes.Ldc_I4_0, OpCodes.Call];
-
-        Emit(Call(prefixMethod));
+        ReadOnlySpan<OpCode> pattern1 = [Ldloca_S, Ldloc_0, Ldfld, OpCodes.Call];
+        ReadOnlySpan<OpCode> pattern2 = [Ldloc_0, Ldfld, Ldloca_S, Ldflda, Ldc_I4_0, OpCodes.Call];
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -69,19 +68,24 @@ static class MyEntityCreationThread_Patches
                 if (instructions[i + 5].Operand is MsilOperandInline<MethodBase> call && call.Value == initEntityMethod)
                 {
                     e.EmitProfilerStart(1, "MyEntities.InitEntity");
-                    Emit(timerLocal.AsValueStore());
+                    e.Emit(timerLocal.AsValueStore());
                     patchedParts++;
                 }
             }
-            else if (ins.OpCode == OpCodes.Ret)
+            else if (ins.OpCode == Ret)
             {
                 break;
             }
 
-            Emit(ins);
+            e.Emit(ins);
 
-            if (i > 1
-                && ins.OpCode == OpCodes.Pop
+            if (ins.OpCode == Callvirt && ins.Operand is MsilOperandInline<MethodBase> call1 && call1.Value == threadNameSetter)
+            {
+                e.Emit(Call(prefixMethod));
+                patchedParts++;
+            }
+            else if (i > 1
+                && ins.OpCode == Pop
                 && instructions[i - 1].OpCode == OpCodes.Call)
             {
                 if (instructions[i - 1].Operand is MsilOperandInline<MethodBase> call && call.Value == initEntityMethod)
@@ -92,8 +96,8 @@ static class MyEntityCreationThread_Patches
             }
         }
 
-        Emit(Call(suffixMethod));
-        Emit(new(OpCodes.Ret));
+        e.Emit(Call(suffixMethod));
+        e.Emit(new(Ret));
 
         if (patchedParts != expectedParts)
         {

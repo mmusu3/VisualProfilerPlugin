@@ -155,6 +155,11 @@ static class TranspileHelper
         internal static readonly MethodInfo StopMethod               = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Stop))!;
     }
 
+    public static void Emit(this List<MsilInstruction> instructions, MsilInstruction instruction)
+    {
+        instructions.Add(instruction);
+    }
+
     public static ReadOnlySpan<MsilInstruction> EmitProfilerStart(this List<MsilInstruction> instructions, int index, string name)
     {
         instructions.Add(LoadConst(index));
