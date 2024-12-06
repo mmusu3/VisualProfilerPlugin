@@ -50,32 +50,32 @@ public struct ProfilerEvent
     [ProtoContract]
     public struct ExtraValueUnion
     {
-        [ProtoMember(1)] public long DataField;
-        [ProtoIgnore] public readonly long LongValue => DataField;
-        [ProtoIgnore] public double DoubleValue => Unsafe.As<long, double>(ref DataField);
-        [ProtoIgnore] public float FloatValue => Unsafe.As<long, float>(ref DataField);
+        [ProtoMember(1)] public ulong DataField;
+        [ProtoIgnore] public readonly long LongValue => (long)DataField;
+        [ProtoIgnore] public double DoubleValue => Unsafe.As<ulong, double>(ref DataField);
+        [ProtoIgnore] public float FloatValue => Unsafe.As<ulong, float>(ref DataField);
         [ProtoIgnore] public readonly EventCategory CategoryValue => (EventCategory)(DataField >> 32);
 
         public ExtraValueUnion(long value)
         {
-            DataField = value;
+            DataField = (ulong)value;
         }
 
         public ExtraValueUnion(double value)
         {
             DataField = 0;
-            Unsafe.As<long, double>(ref DataField) = value;
+            Unsafe.As<ulong, double>(ref DataField) = value;
         }
 
         public ExtraValueUnion(float value)
         {
             DataField = 0;
-            Unsafe.As<long, float>(ref DataField) = value;
+            Unsafe.As<ulong, float>(ref DataField) = value;
         }
 
         public ExtraValueUnion(EventCategory category)
         {
-            DataField = (long)category << 32;
+            DataField = (ulong)category << 32;
         }
     }
 
@@ -87,11 +87,11 @@ public struct ProfilerEvent
 
         [ProtoIgnore] public object? Object;
 
-        [ProtoMember(3)]
+        [ProtoIgnore] // Was ProtoMember(3)
         public ObjectId ObjectKey
         {
-            readonly get => new ObjectId((int)Value.DataField);
-            set => Value.DataField = (Value.DataField & ~0xFFFFFFFFL) | (long)value.ID;
+            readonly get => new ObjectId((int)(uint)Value.DataField);
+            set => Value.DataField = (Value.DataField & ~0xFFFFFFFFUL) | (uint)value.ID;
         }
 
         [ProtoMember(4)] public string? Format;
