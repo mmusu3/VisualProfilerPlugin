@@ -158,7 +158,7 @@ public struct ProfilerEvent
 
     public readonly TimeSpan ElapsedTime => ProfilerTimer.TimeSpanFromTimestampTicks(EndTime - StartTime);
     public readonly double ElapsedMilliseconds => ProfilerTimer.MillisecondsFromTicks(EndTime - StartTime);
-    public readonly double ElapsedMcroseconds => ProfilerTimer.MicrosecondsFromTicks(EndTime - StartTime);
+    public readonly double ElapsedMicroseconds => ProfilerTimer.MicrosecondsFromTicks(EndTime - StartTime);
 }
 
 [ProtoContract]
