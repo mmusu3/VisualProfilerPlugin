@@ -962,6 +962,9 @@ class ProfilerEventsGraphControl : Control
 
     void DrawGroupEvents(DrawingContext drawCtx, ProfilerEvent[] events, ProfilerEventsSegment[] segments, Vector3 colorHSV, long startTicks, float y)
     {
+        double minTextWidth = new FormattedText("…", CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            fontFace, FontSize, Brushes.Black, VisualTreeHelper.GetDpi(this).PixelsPerDip) { MaxLineCount = 1 }.Width;
+
         double graphWidth = ViewportWidth;
 
         for (int s = 0; s < segments.Length; s++)
@@ -1088,7 +1091,7 @@ class ProfilerEventsGraphControl : Control
                     area.X++;
                     w -= 2;
 
-                    if (w > 0)
+                    if (w > minTextWidth)
                     {
                         var textBrush = GetBrushForColor(textColor);
 
