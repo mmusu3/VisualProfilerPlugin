@@ -162,52 +162,6 @@ public struct ProfilerEvent
 }
 
 [ProtoContract]
-public struct ProfilerEventsSegment
-{
-    [ProtoMember(1)] public ProfilerEvent[] Events;
-    [ProtoMember(2)] public long StartTime;
-    [ProtoMember(3)] public long EndTime;
-}
-
-public struct ProfilerEventEnumerator
-{
-    ProfilerEventsSegment[] segments;
-    int totalCount;
-    int currentIndex;
-
-    public ProfilerEventEnumerator(ProfilerEventsSegment[] segments, int totalCount)
-    {
-        this.segments = segments;
-        this.totalCount = totalCount;
-        currentIndex = -1;
-    }
-
-    public readonly ProfilerEventEnumerator GetEnumerator() => this;
-
-    public readonly ref ProfilerEvent Current
-    {
-        get
-        {
-            int segmentIndex = Math.DivRem(currentIndex, ProfilerEventsAllocator.SegmentSize, out int eventIndex);
-
-            var segment = segments[segmentIndex];
-            return ref segment.Events[eventIndex];
-        }
-    }
-
-    public bool MoveNext()
-    {
-        int c = currentIndex + 1;
-
-        if (c >= totalCount)
-            return false;
-
-        currentIndex = c;
-        return true;
-    }
-}
-
-[ProtoContract]
 public class GCEventInfo
 {
     [ProtoMember(1)] public int Gen0Collections;

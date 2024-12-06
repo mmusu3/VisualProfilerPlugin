@@ -525,7 +525,8 @@ public class ProfilerGroup
             currentEvents = new ProfilerEventsAllocator();
 
             int startIndex = prevFrameEndEventIndex + 1;
-            int endIndex = recordedEvents.NextIndex - 1;
+            int eventCount = recordedEvents.NextIndex;
+            int endIndex = eventCount - 1;
 
             var eventObjectResolver = Profiler.EventObjectResolver;
 
@@ -542,8 +543,11 @@ public class ProfilerGroup
 
             ProfilerEventsRecordingGroup? recording = null;
 
-            if (recordedEvents.NextIndex > 0)
-                recording = new ProfilerEventsRecordingGroup(Name, recordedEvents, frameStartEventIndices.ToArray(), frameEndEventIndices.ToArray(), outlierFrameIndices.ToArray());
+            if (eventCount > 0)
+            {
+                recording = new ProfilerEventsRecordingGroup(Name, recordedEvents.Segments, eventCount,
+                    frameStartEventIndices.ToArray(), frameEndEventIndices.ToArray(), outlierFrameIndices.ToArray());
+            }
 
             prevFrameEndEventIndex = -1;
 

@@ -371,10 +371,12 @@ static class ProfilerHelper
     {
         var objsToIds = new Dictionary<object, int>();
 
-        foreach (var item in recording.Groups)
+        foreach (var (_, group) in recording.Groups)
         {
-            foreach (ref var _event in item.Value.AllEvents)
+            for (int i = 0; i < group.Events.Length; i++)
             {
+                ref var _event = ref group.Events[i];
+
                 if (_event.ExtraValue.Type is not ProfilerEvent.ExtraValueTypeOption.Object
                     and not ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
                     continue;
@@ -429,10 +431,12 @@ static class ProfilerHelper
         GeneralStringCache.Clear();
         GeneralStringCache.Init(recording.DataStrings);
 
-        foreach (var item in recording.Groups)
+        foreach (var (_, group) in recording.Groups)
         {
-            foreach (ref var _event in item.Value.AllEvents)
+            for (int i = 0; i < group.Events.Length; i++)
             {
+                ref var _event = ref group.Events[i];
+
                 if (_event.NameKey != 0)
                     _event.NameKey = ProfilerKeyCache.GetOrAdd(recording.EventStrings[_event.NameKey]).GlobalIndex;
 
@@ -493,18 +497,11 @@ static class ProfilerHelper
                 if (endEventIndex < startEventIndex)
                     continue;
 
-                int startSegmentIndex = startEventIndex / group.SegmentSize;
-                int endSegmentIndex = endEventIndex / group.SegmentSize;
+                var events = group.Events.AsSpan(startEventIndex, endEventIndex + 1 - startEventIndex);
 
                 {
-                    var firstSegment = group.EventSegments[startSegmentIndex].Events;
-                    int startIndex = Math.Max(0, startEventIndex - startSegmentIndex * group.SegmentSize);
-
-                    var lastSegment = group.EventSegments[endSegmentIndex].Events;
-                    int endIndex = Math.Min(lastSegment.Length - 1, endEventIndex - endSegmentIndex * group.SegmentSize);
-
-                    long startTime = firstSegment[startIndex].StartTime;
-                    long endTime = lastSegment[endIndex].EndTime;
+                    long startTime = events[0].StartTime;
+                    long endTime = events[^1].EndTime;
                     long frameTime = endTime - startTime;
 
                     while (frameTimes.Count <= f)
@@ -513,46 +510,38 @@ static class ProfilerHelper
                     frameTimes[f] = Math.Max(frameTimes[f], frameTime);
                 }
 
-                for (int s = startSegmentIndex; s <= endSegmentIndex; s++)
+                for (int e = 0; e < events.Length; e++)
                 {
-                    var segment = group.EventSegments[s].Events;
-                    int startIndexInSegment = Math.Max(0, startEventIndex - s * group.SegmentSize);
-                    int endIndexInSegment = Math.Min(segment.Length - 1, endEventIndex - s * group.SegmentSize);
+                    ref var _event = ref events[e];
 
-                    for (int e = startIndexInSegment; e <= endIndexInSegment; e++)
+                    switch (_event.ExtraValue.Type)
                     {
-                        ref var _event = ref segment[e];
-
-                        switch (_event.ExtraValue.Type)
+                    case ProfilerEvent.ExtraValueTypeOption.Object:
+                    case ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory:
                         {
-                        case ProfilerEvent.ExtraValueTypeOption.Object:
-                        case ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory:
-                            {
-                                // TODO: Record list of event IDs per object for highlighting events in graph when object selected
+                            // TODO: Record list of event IDs per object for highlighting events in graph when object selected
 
-                                switch (_event.ExtraValue.Object)
-                                {
-                                case PhysicsClusterInfoProxy.Snapshot clusterInfo:
-                                    AnalyzePhysicsCluster(clusterInfo, in _event, groupId, f);
-                                    break;
-                                case CubeGridInfoProxy.Snapshot gridInfo:
-                                    AnalyzeGrid(gridInfo, in _event, groupId, f);
-                                    break;
-                                case CubeBlockInfoProxy.Snapshot blockInfo:
-                                    AnalyzeBlock(blockInfo, in _event, groupId, f);
-                                    break;
-                                }
+                            switch (_event.ExtraValue.Object)
+                            {
+                            case PhysicsClusterInfoProxy.Snapshot clusterInfo:
+                                AnalyzePhysicsCluster(clusterInfo, in _event, groupId, f);
+                                break;
+                            case CubeGridInfoProxy.Snapshot gridInfo:
+                                AnalyzeGrid(gridInfo, in _event, groupId, f);
+                                break;
+                            case CubeBlockInfoProxy.Snapshot blockInfo:
+                                AnalyzeBlock(blockInfo, in _event, groupId, f);
+                                break;
                             }
-                            break;
-                        case ProfilerEvent.ExtraValueTypeOption.Long:
-                        case ProfilerEvent.ExtraValueTypeOption.Double:
-                        case ProfilerEvent.ExtraValueTypeOption.Float:
-                            break;
                         }
+                        break;
+                    case ProfilerEvent.ExtraValueTypeOption.Long:
+                    case ProfilerEvent.ExtraValueTypeOption.Double:
+                    case ProfilerEvent.ExtraValueTypeOption.Float:
+                        break;
                     }
                 }
             }
-
         }
 
         RecordingAnalysisInfo.FrameTimeInfo frameTimeInfo = default;
@@ -601,11 +590,11 @@ static class ProfilerHelper
                 clusters.Add(clusterInfo.Cluster.ID, anInf = new(clusterInfo));
 
             // TODO: Filter parent events to prevent time overlap
-            switch (_event.Name)
-            {
-            default:
-                break;
-            }
+            //switch (_event.Name)
+            //{
+            //default:
+            //    break;
+            //}
 
             anInf.TotalTime += _event.ElapsedMilliseconds;
             anInf.IncludedInGroups.Add(groupId);
@@ -620,11 +609,11 @@ static class ProfilerHelper
                 grids.Add(gridInfo.Grid.EntityId, anInf = new(gridInfo));
 
             // TODO: Filter parent events to prevent time overlap
-            switch (_event.Name)
-            {
-            default:
-                break;
-            }
+            //switch (_event.Name)
+            //{
+            //default:
+            //    break;
+            //}
 
             anInf.TotalTime += _event.ElapsedMilliseconds;
             anInf.IncludedInGroups.Add(groupId);
@@ -642,11 +631,11 @@ static class ProfilerHelper
                 progBlocks.Add(blockInfo.Block.EntityId, anInf = new(blockInfo));
 
             // TODO: Filter parent events to prevent time overlap
-            switch (_event.Name)
-            {
-            default:
-                break;
-            }
+            //switch (_event.Name)
+            //{
+            //default:
+            //    break;
+            //}
 
             anInf.TotalTime += _event.ElapsedMilliseconds;
             anInf.IncludedInGroups.Add(groupId);
@@ -725,10 +714,22 @@ static class ProfilerHelper
         {
             activeTimer = null;
 
+            int startEventIndex = 0;
+            int endEventIndex = -1;
+
+            if (group.FrameStartEventIndices.Length > 0)
+                startEventIndex = group.FrameStartEventIndices[0];
+
+            if (group.FrameEndEventIndices.Length > 0)
+                endEventIndex = group.FrameEndEventIndices[^1];
+
+            var events = group.Events.AsSpan(startEventIndex, endEventIndex + 1 - startEventIndex);
             int prevDepth = 0;
 
-            foreach (ref var _event in group.AllEvents)
+            for (int e = 0; e < events.Length; e++)
             {
+                ref var _event = ref events[e];
+
                 if (_event.IsSinglePoint)
                     continue;
 
@@ -809,10 +810,11 @@ static class ProfilerHelper
             if (groupTime > maxTime)
                 maxTime = groupTime;
 
-            combinedGroups[i++] = new CombinedFrameEvents.Group(groupId, new ProfilerEventsSegment {
-                EndTime = groupTime,
+            combinedGroups[i++] = new() {
+                ID = groupId,
+                Time = groupTime,
                 Events = combinedEvents.ToArray()
-            });
+            };
 
             combinedEvents.Clear();
         }
@@ -852,7 +854,7 @@ static class ProfilerHelper
         if (groups.Length == 0)
             return header;
 
-        var mainGroup = groups[0].Segment;
+        var mainGroup = groups[0];
         var times = new (ProfilerEvent.EventCategory Category, double AvgTime, double TotalTime)[(int)ProfilerEvent.EventCategory.CategoryCount];
 
         for (int i = 0; i < times.Length; i++)
@@ -930,16 +932,17 @@ class CombinedFrameEvents
     public struct Group
     {
         public int ID;
-        public ProfilerEventsSegment Segment;
+        public long Time;
+        public ProfilerEvent[] Events;
     }
 
     public long Time;
     public Group[] Groups;
 
-    public CombinedFrameEvents(long time, ProfilerEventsSegment segment)
+    public CombinedFrameEvents(long time, Group[] groups)
     {
         Time = time;
-        Segment = segment;
+        Groups = groups;
     }
 }
 
