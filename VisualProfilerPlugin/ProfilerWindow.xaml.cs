@@ -381,8 +381,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         statisticsLabel.Content =
             $"""
             Session Name: {recording.SessionName}
-            Recording Start Time: {recording.StartTime.ToLocalTime():yyyy/MM/d hh:mm:ss tt}
-            Recorded {recording.NumFrames} frames
+            Starting Time: {recording.StartTime.ToLocalTime():yyyy/MM/d hh:mm:ss tt}
+            Length: {recording.ElapsedTime:hh\:mm\:ss\.FFF} over {recording.NumFrames} frames
             """;
 
         frameTimesLabel.Content =
