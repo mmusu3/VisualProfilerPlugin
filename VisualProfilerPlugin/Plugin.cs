@@ -148,10 +148,11 @@ public class Plugin : TorchPluginBase, IWpfPlugin
             FileStream stream;
 #if NET
             await using ((stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true)).ConfigureAwait(false))
+                await stream.WriteAsync(serializedRecording, CancellationToken.None).ConfigureAwait(false);
 #else
             using (stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true))
-#endif
                 await stream.WriteAsync(serializedRecording, 0, serializedRecording.Length, CancellationToken.None).ConfigureAwait(false);
+#endif
 
             Log.Info($"Saved profiler recording to \"{filePath}\".");
 
@@ -167,12 +168,12 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
     internal static string GetRecordingFileName(ProfilerEventsRecording recording)
     {
-        var fileName = recording.SessionName.Replace(' ', '_');
+        var fileName = recording.SessionName.Replace(' ', '_').TrimEnd('.');
 
         foreach (var item in Path.GetInvalidPathChars())
             fileName = fileName.Replace(item, '_');
 
-        fileName += "-" + recording.StartTime.ToString("s").Replace(':', '-');
+        fileName += $"--{recording.StartTime:yyyy-MM-dd--HH-mm-ss}--F{recording.NumFrames}";
 
         return fileName;
     }
