@@ -256,6 +256,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             eventsGraph.SetRecordedEvents(null);
 
             GeneralStringCache.Clear();
+            GC.Collect();
 
             if (recordTimeTypeBox.SelectedIndex == 0) // Seconds
             {
