@@ -131,6 +131,7 @@ static class TranspileHelper
 
     public static MsilInstruction LoadLocal(LocalVariableInfo local) => LoadLocal(local.LocalIndex);
     public static MsilInstruction LoadField(FieldInfo field) => new MsilInstruction(OpCodes.Ldfld).InlineValue(field);
+    public static MsilInstruction LoadFieldAddress(FieldInfo field) => new MsilInstruction(OpCodes.Ldflda).InlineValue(field);
     public static MsilInstruction LoadStaticField(FieldInfo field) => new MsilInstruction(OpCodes.Ldsfld).InlineValue(field);
     public static MsilInstruction Call(MethodInfo method) => new MsilInstruction(OpCodes.Call).InlineValue(method);
     public static MsilInstruction CallVirt(MethodInfo method) => new MsilInstruction(OpCodes.Callvirt).InlineValue(method);

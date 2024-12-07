@@ -40,8 +40,6 @@ static class Parallel_RunCallbacks_Patch
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(Parallel)}.{nameof(Parallel.RunCallbacks)}.");
 
         const int expectedParts = 4;
@@ -60,7 +58,7 @@ static class Parallel_RunCallbacks_Patch
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
         e.EmitProfilerStart(Keys.RunCallbacks, ProfilerTimerOptions.ProfileMemory);
-        Emit(timerLocal1.AsValueStore());
+        e.Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -72,9 +70,9 @@ static class Parallel_RunCallbacks_Patch
                 {
                     if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call2 && call2.Value == invokeMethod)
                     {
-                        Emit(new(OpCodes.Ldloc_1));
-                        Emit(Call(startCallbackMethod));
-                        Emit(timerLocal2.AsValueStore());
+                        e.Emit(new(OpCodes.Ldloc_1));
+                        e.Emit(Call(startCallbackMethod));
+                        e.Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
                 }
@@ -82,9 +80,9 @@ static class Parallel_RunCallbacks_Patch
                 {
                     if (instructions[i + 2].OpCode == OpCodes.Ldloc_1)
                     {
-                        Emit(new(OpCodes.Ldloc_1));
-                        Emit(Call(startDataCallbackMethod));
-                        Emit(timerLocal2.AsValueStore());
+                        e.Emit(new(OpCodes.Ldloc_1));
+                        e.Emit(Call(startDataCallbackMethod));
+                        e.Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
                 }
@@ -93,7 +91,7 @@ static class Parallel_RunCallbacks_Patch
             if (ins.OpCode == OpCodes.Ret)
                 break;
 
-            Emit(ins);
+            e.Emit(ins);
 
             if (ins.OpCode == OpCodes.Callvirt && ins.Operand is MsilOperandInline<MethodBase> call3)
             {
@@ -106,7 +104,7 @@ static class Parallel_RunCallbacks_Patch
         }
 
         e.EmitStopProfilerTimer(timerLocal1);
-        Emit(new(OpCodes.Ret));
+        e.Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {

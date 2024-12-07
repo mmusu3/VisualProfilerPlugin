@@ -45,8 +45,6 @@ static class WorkItem_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(WorkItem)}.{nameof(WorkItem.DoWork)}.");
 
         const int expectedParts = 2;
@@ -66,9 +64,9 @@ static class WorkItem_Patches
             {
                 if (call1.Value == stackPushMethod)
                 {
-                    Emit(new(OpCodes.Ldarg_0));
-                    Emit(Call(taskStartedMethod));
-                    Emit(timerLocal.AsValueStore());
+                    e.Emit(new(OpCodes.Ldarg_0));
+                    e.Emit(Call(taskStartedMethod));
+                    e.Emit(timerLocal.AsValueStore());
                     patchedParts++;
                 }
             }
@@ -81,7 +79,7 @@ static class WorkItem_Patches
                 }
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         if (patchedParts != expectedParts)
@@ -137,8 +135,6 @@ static class WorkItem_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(WorkItem)}.{nameof(WorkItem.Wait)}.");
 
         const int expectedParts = 2;
@@ -156,12 +152,12 @@ static class WorkItem_Patches
                 patchedParts++;
             }
 
-            Emit(ins);
+            e.Emit(ins);
 
             if (ins.OpCode == OpCodes.Nop && instructions[i - 1].OpCode == OpCodes.Ret)
             {
                 e.EmitProfilerStart(Keys.WaitTask, ProfilerTimerOptions.ProfileMemory); // OnTaskStarted(MyProfiler.TaskType.SyncWait, "WaitTask");
-                Emit(timerLocal.AsValueStore());
+                e.Emit(timerLocal.AsValueStore());
                 patchedParts++;
             }
         }

@@ -8,6 +8,7 @@ using System.Threading;
 using ParallelTasks;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -101,8 +102,7 @@ static class PrioritizedScheduler_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
-
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+        var e = newInstructions;
 
         Plugin.Log.Debug($"Patching {nameof(PrioritizedScheduler)}.WorkerArray.ScheduleOnEachWorker.");
 
@@ -111,7 +111,8 @@ static class PrioritizedScheduler_Patches
 
         var createOptionsMethod = typeof(PrioritizedScheduler_Patches).GetNonPublicStaticMethod(nameof(CreateWorkOptions));
         var defaultOptionsField = typeof(Parallel).GetField(nameof(Parallel.DefaultOptions), BindingFlags.Static | BindingFlags.Public);
-        var workersGetter = typeof(PrioritizedScheduler).GetNestedType("WorkerArray", BindingFlags.NonPublic)!.GetProperty("Workers", BindingFlags.Instance | BindingFlags.Public)!.GetMethod;
+        var workersGetter = typeof(PrioritizedScheduler).GetNestedType("WorkerArray", BindingFlags.NonPublic)!
+            .GetProperty("Workers", BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
 
         bool skipping = false;
 
@@ -124,12 +125,12 @@ static class PrioritizedScheduler_Patches
 
             if (ins.OpCode == OpCodes.Ldsfld && ins.Operand is MsilOperandInline<FieldInfo> ldField && ldField.Value == defaultOptionsField)
             {
-                Emit(new MsilInstruction(OpCodes.Ldarg_1));
-                Emit(new MsilInstruction(OpCodes.Ldarg_0));
-                Emit(new MsilInstruction(OpCodes.Call).InlineValue(workersGetter));
-                Emit(new MsilInstruction(OpCodes.Ldlen));
-                Emit(new MsilInstruction(OpCodes.Conv_I4));
-                Emit(new MsilInstruction(OpCodes.Call).InlineValue(createOptionsMethod));
+                e.Emit(new(OpCodes.Ldarg_1));
+                e.Emit(new(OpCodes.Ldarg_0));
+                e.Emit(Call(workersGetter));
+                e.Emit(new(OpCodes.Ldlen));
+                e.Emit(new(OpCodes.Conv_I4));
+                e.Emit(Call(createOptionsMethod));
                 skipping = true;
                 patchedParts++;
             }
@@ -141,7 +142,7 @@ static class PrioritizedScheduler_Patches
             if (skipping)
                 skipped++;
             else
-                Emit(ins);
+                e.Emit(ins);
         }
 
         if (patchedParts != expectedParts)

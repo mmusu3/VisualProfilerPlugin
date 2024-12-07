@@ -189,8 +189,6 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.DispatchSimulate)}.");
 
         int expectedParts = 3;
@@ -238,11 +236,11 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                         ],
                         dataLocal
                     );
-                    Emit(handleLocal.AsValueStore());
+                    e.Emit(handleLocal.AsValueStore());
 
                     // Original call
-                    Emit(ins);
-                    Emit(instructions[++i]);
+                    e.Emit(ins);
+                    e.Emit(instructions[++i]);
 
                     e.EmitDisposeProfilerEventHandle(handleLocal);
                 }
@@ -255,11 +253,11 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                     ], ProfilerTimerOptions.ProfileMemory, null, [
                         new(ins.OpCode) // entity
                     ]);
-                    Emit(timerLocal2.AsValueStore());
+                    e.Emit(timerLocal2.AsValueStore());
 
                     // Original call
-                    Emit(ins);
-                    Emit(instructions[++i]);
+                    e.Emit(ins);
+                    e.Emit(instructions[++i]);
 
                     e.EmitDisposeProfilerTimer(timerLocal2);
                 }
@@ -274,7 +272,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 patchedParts++;
             }
 
-            Emit(ins);
+            e.Emit(ins);
 
             if (i > 0 && instructions[i - 1].OpCode == Ldarg_0 && ins.OpCode == OpCodes.Call
                 && ins.Operand is MsilOperandInline<MethodBase> call3 && call3.Value == applyChangesMethod)
@@ -287,7 +285,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                         new(Conv_I8)
                     ]
                 );
-                Emit(timerLocal1.AsValueStore());
+                e.Emit(timerLocal1.AsValueStore());
                 patchedParts++;
             }
         }
@@ -463,8 +461,6 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.{methodName}.");
 
         int expectedParts = numParts;
@@ -494,7 +490,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         }
 
         e.EmitProfilerStartLongExtra(key, ProfilerTimerOptions.ProfileMemory, "Num entities: {0:n0}", dataInstructions);
-        Emit(timerLocal1.AsValueStore());
+        e.Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -509,11 +505,11 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                         new(ins.OpCode) // entity
                     ], dataLocal);
 
-                    Emit(handleLocal.AsValueStore());
+                    e.Emit(handleLocal.AsValueStore());
 
                     // Original call
-                    Emit(ins);
-                    Emit(instructions[++i]);
+                    e.Emit(ins);
+                    e.Emit(instructions[++i]);
 
                     e.EmitDisposeProfilerEventHandle(handleLocal);
                 }
@@ -526,11 +522,11 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                     ], ProfilerTimerOptions.ProfileMemory, null, [
                         new(ins.OpCode) // entity
                     ]);
-                    Emit(timerLocal2.AsValueStore());
+                    e.Emit(timerLocal2.AsValueStore());
 
                     // Original call
-                    Emit(ins);
-                    Emit(instructions[++i]);
+                    e.Emit(ins);
+                    e.Emit(instructions[++i]);
 
                     e.EmitDisposeProfilerTimer(timerLocal2);
                 }
@@ -543,11 +539,11 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 break;
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         e.EmitStopProfilerTimer(timerLocal1)[0].CopyLabelsAndTryCatchOperations(instructions[^1]);
-        Emit(new(Ret));
+        e.Emit(new(Ret));
 
         if (patchedParts != expectedParts)
         {
@@ -577,8 +573,6 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.PerformParallelUpdate.");
 
         const int expectedParts = 1;
@@ -607,7 +601,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
             ]
         );
 
-        Emit(timerLocal.AsValueStore());
+        e.Emit(timerLocal.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -620,7 +614,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 // ILGenerator that the Torch code patcher uses. The issue manifests in
                 // PerformParallelUpdate by making the serial update branch always run after the
                 // parallel one. This is the workaround.
-                Emit(new MsilInstruction(Leave).InlineTarget(endLabel).SwapTryCatchOperations(ref ins));
+                e.Emit(new MsilInstruction(Leave).InlineTarget(endLabel).SwapTryCatchOperations(ref ins));
                 patchedParts++;
             }
             else if (ins.OpCode == Ret && i == instructions.Length - 1)
@@ -628,11 +622,11 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 break;
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         e.EmitStopProfilerTimer(timerLocal)[0].CopyLabelsAndTryCatchOperations(instructions[^1]);
-        Emit(new(Ret));
+        e.Emit(new(Ret));
 
         if (patchedParts != expectedParts)
         {
@@ -670,8 +664,6 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.ParallelUpdateHandlerBeforeSimulation.");
 
         const int expectedParts = 1;
@@ -697,15 +689,15 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 ], ProfilerTimerOptions.ProfileMemory, null, [
                     new(Ldarg_1) // entity
                 ]);
-                Emit(timerLocal.AsValueStore());
-                Emit(ins);
-                Emit(instructions[++i]);
+                e.Emit(timerLocal.AsValueStore());
+                e.Emit(ins);
+                e.Emit(instructions[++i]);
                 e.EmitDisposeProfilerTimer(timerLocal);
                 patchedParts++;
                 continue;
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         if (patchedParts != expectedParts)
@@ -725,8 +717,6 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
-
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
 
         Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.ParallelUpdateHandlerAfterSimulation.");
 
@@ -753,15 +743,15 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 ], ProfilerTimerOptions.ProfileMemory, null, [
                     new(Ldarg_1) // entity
                 ]);
-                Emit(timerLocal.AsValueStore());
-                Emit(ins);
-                Emit(instructions[++i]);
+                e.Emit(timerLocal.AsValueStore());
+                e.Emit(ins);
+                e.Emit(instructions[++i]);
                 e.EmitDisposeProfilerTimer(timerLocal);
                 patchedParts++;
                 continue;
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         if (patchedParts != expectedParts)
@@ -806,8 +796,6 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater)}.");
 
         const int expectedParts = 2;
@@ -833,7 +821,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
             if (MatchOpCodes(instructions, i, pattern1)
                 && instructions[i + 2].Operand is MsilOperandInline<FieldInfo> ldField && ldField.Value == lockField)
             {
-                Emit(ins);
+                e.Emit(ins);
                 ins = instructions[++i];
 
                 e.EmitProfilerStartLongExtra(Keys.ProcessInvokeLater, ProfilerTimerOptions.ProfileMemory, null, [
@@ -842,7 +830,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                     Call(getCountMethod),
                     new(Conv_I8)
                 ])[0].SwapLabels(ref ins);
-                Emit(timerLocal1.AsValueStore());
+                e.Emit(timerLocal1.AsValueStore());
                 patchedParts++;
             }
             else if (ins.OpCode == Callvirt && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod)
@@ -855,9 +843,9 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 ], ProfilerTimerOptions.ProfileMemory, null, [
                     actionLocal.AsValueLoad()
                 ]);
-                Emit(timerLocal2.AsValueStore());
-                Emit(actionLocal.AsValueLoad());
-                Emit(ins);
+                e.Emit(timerLocal2.AsValueStore());
+                e.Emit(actionLocal.AsValueLoad());
+                e.Emit(ins);
                 e.EmitDisposeProfilerTimer(timerLocal2);
                 patchedParts++;
                 continue;
@@ -867,11 +855,11 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 break;
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         e.EmitStopProfilerTimer(timerLocal1);
-        Emit(new(Ret));
+        e.Emit(new(Ret));
 
         if (patchedParts != expectedParts)
         {

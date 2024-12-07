@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Security.Cryptography;
 using Torch.Managers.PatchManager.MSIL;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -42,14 +43,13 @@ static class Torch_MethodContext_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
-
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+        var e = newInstructions;
 
         Plugin.Log.Debug($"Patching MethodContext.AddEhHandler.");
 
         var targetType = Type.GetType("Torch.Managers.PatchManager.Transpile.MethodContext, Torch")!;
         var findInstructionMethod = targetType.GetPublicInstanceMethod("FindInstruction");
-        var instructionsField = targetType.GetField("_instructions", BindingFlags.Instance | BindingFlags.NonPublic);
+        var instructionsField = targetType.GetField("_instructions", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var eomIfNullMethod = typeof(Torch_MethodContext_Patches).GetNonPublicStaticMethod("GetEndOfMethodNopIfNull");
 
         const int expectedParts = 1;
@@ -59,14 +59,14 @@ static class Torch_MethodContext_Patches
         {
             var ins = instructions[i];
 
-            Emit(ins);
+            e.Emit(ins);
 
             if (ins.OpCode == OpCodes.Call && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == findInstructionMethod)
             {
-                Emit(new MsilInstruction(OpCodes.Ldarg_1));
-                Emit(new MsilInstruction(OpCodes.Ldarg_0));
-                Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(instructionsField));
-                Emit(new MsilInstruction(OpCodes.Call).InlineValue(eomIfNullMethod));
+                e.Emit(new(OpCodes.Ldarg_1));
+                e.Emit(new(OpCodes.Ldarg_0));
+                e.Emit(LoadField(instructionsField));
+                e.Emit(Call(eomIfNullMethod));
                 patchedParts++;
             }
         }

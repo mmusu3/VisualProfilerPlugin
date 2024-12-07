@@ -6,6 +6,7 @@ using System.Reflection.Emit;
 using ParallelTasks;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -24,8 +25,7 @@ static class DelegateWork_Options_Patch
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
-
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+        var e = newInstructions;
 
         Plugin.Log.Debug($"Patching DelegateWork.Options setter.");
 
@@ -38,15 +38,15 @@ static class DelegateWork_Options_Patch
         {
             if (ins.OpCode == OpCodes.Ret)
             {
-                Emit(new MsilInstruction(OpCodes.Ldarg_0));
-                Emit(new MsilInstruction(OpCodes.Ldarg_0));
-                Emit(new MsilInstruction(OpCodes.Ldflda).InlineValue(optionsField));
-                Emit(new MsilInstruction(OpCodes.Callvirt).InlineValue(fillDebugInfoMethod));
+                e.Emit(new(OpCodes.Ldarg_0));
+                e.Emit(new(OpCodes.Ldarg_0));
+                e.Emit(LoadFieldAddress(optionsField));
+                e.Emit(CallVirt(fillDebugInfoMethod));
 
                 patched = true;
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         if (patched)

@@ -60,8 +60,7 @@ static class MySandboxGame_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
-
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+        var e = newInstructions;
 
         Plugin.Log.Debug($"Patching {nameof(MySandboxGame)}.LoadData.");
 
@@ -74,11 +73,11 @@ static class MySandboxGame_Patches
 
         foreach (var ins in instructions)
         {
-            Emit(ins);
+            e.Emit(ins);
 
             if (ins.OpCode == OpCodes.Call && ins.Operand is MsilOperandInline<MethodBase> callOp && callOp.Value == baseSystemInitMethod)
             {
-                Emit(new MsilInstruction(OpCodes.Call).InlineValue(initProfilingMethod));
+                e.Emit(Call(initProfilingMethod));
                 patched = true;
             }
         }
@@ -126,8 +125,6 @@ static class MySandboxGame_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MySandboxGame)}.ProcessInvoke.");
 
         const int expectedParts = 2;
@@ -149,7 +146,7 @@ static class MySandboxGame_Patches
             Call(countGetter),
             new(OpCodes.Conv_I8)
         ]);
-        Emit(timerLocal1.AsValueStore());
+        e.Emit(timerLocal1.AsValueStore());
 
         ReadOnlySpan<OpCode> pattern1 = [OpCodes.Ldloc_0, OpCodes.Ldfld, OpCodes.Brfalse_S];
         ReadOnlySpan<OpCode> pattern2 = [OpCodes.Callvirt, OpCodes.Ldloc_0];
@@ -166,7 +163,7 @@ static class MySandboxGame_Patches
                         LoadLocal(0).SwapLabels(ref ins),
                         LoadField(invokerField)
                     ]);
-                    Emit(timerLocal2.AsValueStore());
+                    e.Emit(timerLocal2.AsValueStore());
                     patchedParts++;
                 }
             }
@@ -175,20 +172,20 @@ static class MySandboxGame_Patches
                 break;
             }
 
-            Emit(ins);
+            e.Emit(ins);
 
             if (MatchOpCodes(instructions, i, pattern2)
                 && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod)
             {
                 var nextIns = instructions[++i];
                 e.EmitStopProfilerTimer(timerLocal2)[0].SwapLabels(ref nextIns);
-                Emit(nextIns);
+                e.Emit(nextIns);
                 patchedParts++;
             }
         }
 
         e.EmitStopProfilerTimer(timerLocal1);
-        Emit(new(OpCodes.Ret));
+        e.Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {

@@ -92,8 +92,6 @@ static class MyCubeGrid_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MyCubeGrid)}.Dispatch.");
 
         const int expectedParts = 1;
@@ -109,7 +107,7 @@ static class MyCubeGrid_Patches
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
         e.EmitProfilerStart(Keys.Dispatch, ProfilerTimerOptions.ProfileMemory);
-        Emit(timerLocal.AsValueStore());
+        e.Emit(timerLocal.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -125,9 +123,9 @@ static class MyCubeGrid_Patches
                 }
                 else
                 {
-                    Emit(LoadLocal(updateLocal));
-                    Emit(LoadField(callbackField));
-                    Emit(Call(newInvokeMethod));
+                    e.Emit(LoadLocal(updateLocal));
+                    e.Emit(LoadField(callbackField));
+                    e.Emit(Call(newInvokeMethod));
                     patchedParts++;
                     i += pattern1.Length - 1;
                     continue;
@@ -138,11 +136,11 @@ static class MyCubeGrid_Patches
                 break;
             }
 
-            Emit(instructions[i]);
+            e.Emit(instructions[i]);
         }
 
         e.EmitDisposeProfilerTimer(timerLocal);
-        Emit(new(OpCodes.Ret));
+        e.Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {

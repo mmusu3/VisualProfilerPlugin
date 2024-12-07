@@ -117,7 +117,7 @@ static class MySession_Patches
     [MethodImpl(Inline)] static bool Prefix_SaveDataComponents(ref ProfilerTimer __local_timer)
     { __local_timer = Profiler.Start(Keys.SaveDataComponents); return true; }
 
-    static bool Prefix_UpdateComponents(MySession __instance, Dictionary<int, SortedSet<MySessionComponentBase>> __field_m_sessionComponentsForUpdate)
+    static bool Prefix_UpdateComponents(Dictionary<int, SortedSet<MySessionComponentBase>> __field_m_sessionComponentsForUpdate)
     {
         Profiler.Start(Keys.UpdateComponents);
 
@@ -183,8 +183,6 @@ static class MySession_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MySession)}.{nameof(MySession.UpdateComponents)}.");
 
         const int expectedParts = 6;
@@ -207,7 +205,7 @@ static class MySession_Patches
         ReadOnlySpan<OpCode> pattern33 = [Ldloc_S, Callvirt];
 
         e.EmitProfilerStart(Keys.UpdateComponents, ProfilerTimerOptions.ProfileMemory);
-        Emit(new(Pop));
+        e.Emit(new(Pop));
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -219,7 +217,7 @@ static class MySession_Patches
                     && instructions[i + 4].Operand is MsilOperandInline<MethodBase> call && call.Value == tryGetValueMethod)
                 {
                     e.EmitProfilerStart(0, "Before Simulation");
-                    Emit(new(Pop));
+                    e.Emit(new(Pop));
                     patchedParts++;
                 }
             }
@@ -231,10 +229,10 @@ static class MySession_Patches
                         LoadLocal(2).SwapLabels(ref ins),
                         LoadField(debugNameField)
                     ]);
-                    Emit(timerLocal.AsValueStore());
+                    e.Emit(timerLocal.AsValueStore());
                     // Move past existing ops
-                    Emit(ins);
-                    Emit(instructions[++i]);
+                    e.Emit(ins);
+                    e.Emit(instructions[++i]);
                     // Dispose timer
                     e.EmitDisposeProfilerTimer(timerLocal);
                     patchedParts++;
@@ -247,7 +245,7 @@ static class MySession_Patches
                     && instructions[i + 4].Operand is MsilOperandInline<MethodBase> call && call.Value == tryGetValueMethod)
                 {
                     e.EmitProfilerRestart(1, "Simulate", ProfilerTimerOptions.ProfileMemory)[0].SwapLabelsAndTryCatchOperations(ref ins);
-                    Emit(new(Pop));
+                    e.Emit(new(Pop));
                     patchedParts++;
                 }
             }
@@ -259,10 +257,10 @@ static class MySession_Patches
                         LoadLocal(3).SwapLabels(ref ins),
                         LoadField(debugNameField)
                     ]);
-                    Emit(timerLocal.AsValueStore());
+                    e.Emit(timerLocal.AsValueStore());
                     // Move past existing ops
-                    Emit(ins);
-                    Emit(instructions[++i]);
+                    e.Emit(ins);
+                    e.Emit(instructions[++i]);
                     // Dispose timer
                     e.EmitDisposeProfilerTimer(timerLocal);
                     patchedParts++;
@@ -275,7 +273,7 @@ static class MySession_Patches
                     && instructions[i + 4].Operand is MsilOperandInline<MethodBase> call && call.Value == tryGetValueMethod)
                 {
                     e.EmitProfilerRestart(2, "After Simulation", ProfilerTimerOptions.ProfileMemory)[0].SwapLabelsAndTryCatchOperations(ref ins);
-                    Emit(new(Pop));
+                    e.Emit(new(Pop));
                     patchedParts++;
                 }
             }
@@ -287,10 +285,10 @@ static class MySession_Patches
                         LoadLocal(4).SwapLabels(ref ins),
                         LoadField(debugNameField)
                     ]);
-                    Emit(timerLocal.AsValueStore());
+                    e.Emit(timerLocal.AsValueStore());
                     // Move past existing ops
-                    Emit(ins);
-                    Emit(instructions[++i]);
+                    e.Emit(ins);
+                    e.Emit(instructions[++i]);
                     // Dispose timer
                     e.EmitDisposeProfilerTimer(timerLocal);
                     patchedParts++;
@@ -302,12 +300,12 @@ static class MySession_Patches
                 break;
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         e.EmitStopProfiler()[0].CopyLabelsAndTryCatchOperations(instructions[^1]);
         e.EmitStopProfiler();
-        Emit(new(Ret));
+        e.Emit(new(Ret));
 
         if (patchedParts != expectedParts)
         {

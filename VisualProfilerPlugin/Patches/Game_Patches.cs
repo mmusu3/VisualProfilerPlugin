@@ -65,8 +65,6 @@ static class Game_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(Game)}.UpdateInternal.");
 
         const int expectedParts = 2;
@@ -81,7 +79,7 @@ static class Game_Patches
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        Emit(Call(beginFrameMethod));
+        e.Emit(Call(beginFrameMethod));
 
         e.EmitProfilerStartLongExtra(Keys.UpdateFrame,
             ProfilerTimerOptions.ProfileMemory, "Sim Frame Index: {0}", [
@@ -91,7 +89,7 @@ static class Game_Patches
             ]
         );
 
-        Emit(timerLocal1.AsValueStore());
+        e.Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -103,7 +101,7 @@ static class Game_Patches
 
                 if (callMethod == updateMethod)
                 {
-                    Emit(ins);
+                    e.Emit(ins);
                     e.EmitStopProfilerTimer(timerLocal2);
                     patchedParts++;
                     continue;
@@ -114,7 +112,7 @@ static class Game_Patches
                 if (instructions[i - 1].OpCode == OpCodes.Endfinally)
                 {
                     e.EmitProfilerStart(1, "UpdateInternal::Update")[0].SwapTryCatchOperations(ref ins);
-                    Emit(timerLocal2.AsValueStore());
+                    e.Emit(timerLocal2.AsValueStore());
                     patchedParts++;
                 }
             }
@@ -123,12 +121,12 @@ static class Game_Patches
                 break;
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         e.EmitDisposeProfilerTimer(timerLocal1);
-        Emit(Call(endMethod));
-        Emit(new(OpCodes.Ret));
+        e.Emit(Call(endMethod));
+        e.Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {

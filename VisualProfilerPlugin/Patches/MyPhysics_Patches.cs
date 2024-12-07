@@ -107,8 +107,7 @@ static class MyPhysics_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
-
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+        var e = newInstructions;
 
         Plugin.Log.Debug($"Patching {nameof(MyPhysics)}.{nameof(MyPhysics.LoadData)}.");
 
@@ -120,15 +119,15 @@ static class MyPhysics_Patches
 
         foreach (var ins in instructions)
         {
-            Emit(ins);
+            e.Emit(ins);
 
             if (ins.OpCode == OpCodes.Stsfld && ins.Operand is MsilOperandInline<FieldInfo> fieldOp && fieldOp.Value == m_jobQueueField)
             {
-                Emit(new MsilInstruction(OpCodes.Ldarg_0));
-                Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(m_jobQueueField));
-                Emit(new MsilInstruction(OpCodes.Ldarg_0));
-                Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(m_threadPoolField));
-                Emit(new MsilInstruction(OpCodes.Call).InlineValue(initProfilingMethod));
+                e.Emit(new(OpCodes.Ldarg_0));
+                e.Emit(LoadField(m_jobQueueField));
+                e.Emit(new(OpCodes.Ldarg_0));
+                e.Emit(LoadField(m_threadPoolField));
+                e.Emit(Call(initProfilingMethod));
                 patched = true;
             }
         }
@@ -160,8 +159,7 @@ static class MyPhysics_Patches
     {
         var instructions = instructionStream.ToArray();
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
-
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
+        var e = newInstructions;
 
         Plugin.Log.Debug($"Patching {nameof(MyPhysics)}.UnloadData.");
 
@@ -179,14 +177,14 @@ static class MyPhysics_Patches
             {
                 if (instructions[i + 1].OpCode == OpCodes.Callvirt && instructions[i + 1].Operand is MsilOperandInline<MethodBase> callOp && callOp.Value == disposeMethod)
                 {
-                    Emit(new MsilInstruction(OpCodes.Ldarg_0));
-                    Emit(new MsilInstruction(OpCodes.Ldfld).InlineValue(m_threadPoolField));
-                    Emit(new MsilInstruction(OpCodes.Call).InlineValue(removeThreadsMethod));
+                    e.Emit(new(OpCodes.Ldarg_0));
+                    e.Emit(LoadField(m_threadPoolField));
+                    e.Emit(Call(removeThreadsMethod));
                     patched = true;
                 }
             }
 
-            Emit(ins);
+            e.Emit(ins);
         }
 
         if (patched)
@@ -226,8 +224,6 @@ static class MyPhysics_Patches
         var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
         var e = newInstructions;
 
-        void Emit(MsilInstruction ins) => newInstructions.Add(ins);
-
         Plugin.Log.Debug($"Patching {nameof(MyPhysics)}.StepWorldsParallel.");
 
         const int expectedParts = 7;
@@ -253,7 +249,7 @@ static class MyPhysics_Patches
             Call(listCountGetter),
             new(OpCodes.Conv_I8)
         ]);
-        Emit(timerLocal1.AsValueStore());
+        e.Emit(timerLocal1.AsValueStore());
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -277,7 +273,7 @@ static class MyPhysics_Patches
                             e.EmitProfilerStartObjExtra(0, "Init HKWorld update", ProfilerTimerOptions.None, null, [
                                 LoadLocal(clusterLocal)
                             ]);
-                            Emit(timerLocal2.AsValueStore());
+                            e.Emit(timerLocal2.AsValueStore());
                             patchedParts++;
                         }
                     }
@@ -297,7 +293,7 @@ static class MyPhysics_Patches
                             e.EmitProfilerStartObjExtra(3, "Finish HKWorld update", ProfilerTimerOptions.None, null, [
                                 LoadLocal(clusterLocal)
                             ]);
-                            Emit(timerLocal2.AsValueStore());
+                            e.Emit(timerLocal2.AsValueStore());
                             patchedParts++;
                         }
                     }
@@ -309,7 +305,7 @@ static class MyPhysics_Patches
                 if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call && call.Value == waitPolicySetter)
                 {
                     e.EmitProfilerStart(1, "Process jobs")[0].SwapTryCatchOperations(ref ins);
-                    Emit(timerLocal2.AsValueStore());
+                    e.Emit(timerLocal2.AsValueStore());
                     patchedParts++;
                 }
             }
@@ -318,7 +314,7 @@ static class MyPhysics_Patches
                 break;
             }
 
-            Emit(ins);
+            e.Emit(ins);
 
             if (ins.OpCode == OpCodes.Pop && i > 0 && instructions[i - 1].OpCode == OpCodes.Callvirt)
             {
@@ -337,7 +333,7 @@ static class MyPhysics_Patches
                         e.EmitStopProfilerTimer(timerLocal2);
                         // Start next
                         e.EmitProfilerStart(2, "Wait for Havok thread pool");
-                        Emit(timerLocal2.AsValueStore());
+                        e.Emit(timerLocal2.AsValueStore());
                         patchedParts++;
                     }
                     else if (call.Value == waitForCompletionMethod
@@ -351,7 +347,7 @@ static class MyPhysics_Patches
         }
 
         e.EmitStopProfilerTimer(timerLocal1)[0].CopyLabelsAndTryCatchOperations(instructions[^1]);
-        Emit(new(OpCodes.Ret));
+        e.Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)
         {
