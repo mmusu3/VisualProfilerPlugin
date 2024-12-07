@@ -65,8 +65,8 @@ static class WorkItem_Patches
                 if (call1.Value == stackPushMethod)
                 {
                     e.Emit(new(OpCodes.Ldarg_0));
-                    e.Emit(Call(taskStartedMethod));
-                    e.Emit(timerLocal.AsValueStore());
+                    e.Call(taskStartedMethod);
+                    e.StoreLocal(timerLocal);
                     patchedParts++;
                 }
             }
@@ -157,7 +157,7 @@ static class WorkItem_Patches
             if (ins.OpCode == OpCodes.Nop && instructions[i - 1].OpCode == OpCodes.Ret)
             {
                 e.EmitProfilerStart(Keys.WaitTask, ProfilerTimerOptions.ProfileMemory); // OnTaskStarted(MyProfiler.TaskType.SyncWait, "WaitTask");
-                e.Emit(timerLocal.AsValueStore());
+                e.StoreLocal(timerLocal);
                 patchedParts++;
             }
         }

@@ -77,7 +77,7 @@ static class MySandboxGame_Patches
 
             if (ins.OpCode == OpCodes.Call && ins.Operand is MsilOperandInline<MethodBase> callOp && callOp.Value == baseSystemInitMethod)
             {
-                e.Emit(Call(initProfilingMethod));
+                e.Call(initProfilingMethod);
                 patched = true;
             }
         }
@@ -146,7 +146,7 @@ static class MySandboxGame_Patches
             Call(countGetter),
             new(OpCodes.Conv_I8)
         ]);
-        e.Emit(timerLocal1.AsValueStore());
+        e.StoreLocal(timerLocal1);
 
         ReadOnlySpan<OpCode> pattern1 = [OpCodes.Ldloc_0, OpCodes.Ldfld, OpCodes.Brfalse_S];
         ReadOnlySpan<OpCode> pattern2 = [OpCodes.Callvirt, OpCodes.Ldloc_0];
@@ -163,7 +163,7 @@ static class MySandboxGame_Patches
                         LoadLocal(0).SwapLabels(ref ins),
                         LoadField(invokerField)
                     ]);
-                    e.Emit(timerLocal2.AsValueStore());
+                    e.StoreLocal(timerLocal2);
                     patchedParts++;
                 }
             }

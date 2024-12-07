@@ -79,7 +79,7 @@ static class Game_Patches
         var timerLocal1 = __localCreator(typeof(ProfilerTimer));
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
-        e.Emit(Call(beginFrameMethod));
+        e.Call(beginFrameMethod);
 
         e.EmitProfilerStartLongExtra(Keys.UpdateFrame,
             ProfilerTimerOptions.ProfileMemory, "Sim Frame Index: {0}", [
@@ -89,7 +89,7 @@ static class Game_Patches
             ]
         );
 
-        e.Emit(timerLocal1.AsValueStore());
+        e.StoreLocal(timerLocal1);
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -112,7 +112,7 @@ static class Game_Patches
                 if (instructions[i - 1].OpCode == OpCodes.Endfinally)
                 {
                     e.EmitProfilerStart(1, "UpdateInternal::Update")[0].SwapTryCatchOperations(ref ins);
-                    e.Emit(timerLocal2.AsValueStore());
+                    e.StoreLocal(timerLocal2);
                     patchedParts++;
                 }
             }
@@ -125,7 +125,7 @@ static class Game_Patches
         }
 
         e.EmitDisposeProfilerTimer(timerLocal1);
-        e.Emit(Call(endMethod));
+        e.Call(endMethod);
         e.Emit(new(OpCodes.Ret));
 
         if (patchedParts != expectedParts)

@@ -127,10 +127,10 @@ static class PrioritizedScheduler_Patches
             {
                 e.Emit(new(OpCodes.Ldarg_1));
                 e.Emit(new(OpCodes.Ldarg_0));
-                e.Emit(Call(workersGetter));
+                e.Call(workersGetter);
                 e.Emit(new(OpCodes.Ldlen));
                 e.Emit(new(OpCodes.Conv_I4));
-                e.Emit(Call(createOptionsMethod));
+                e.Call(createOptionsMethod);
                 skipping = true;
                 patchedParts++;
             }

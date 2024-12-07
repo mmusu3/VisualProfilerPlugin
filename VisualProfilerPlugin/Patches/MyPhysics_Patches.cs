@@ -124,10 +124,10 @@ static class MyPhysics_Patches
             if (ins.OpCode == OpCodes.Stsfld && ins.Operand is MsilOperandInline<FieldInfo> fieldOp && fieldOp.Value == m_jobQueueField)
             {
                 e.Emit(new(OpCodes.Ldarg_0));
-                e.Emit(LoadField(m_jobQueueField));
+                e.LoadField(m_jobQueueField);
                 e.Emit(new(OpCodes.Ldarg_0));
-                e.Emit(LoadField(m_threadPoolField));
-                e.Emit(Call(initProfilingMethod));
+                e.LoadField(m_threadPoolField);
+                e.Call(initProfilingMethod);
                 patched = true;
             }
         }
@@ -178,8 +178,8 @@ static class MyPhysics_Patches
                 if (instructions[i + 1].OpCode == OpCodes.Callvirt && instructions[i + 1].Operand is MsilOperandInline<MethodBase> callOp && callOp.Value == disposeMethod)
                 {
                     e.Emit(new(OpCodes.Ldarg_0));
-                    e.Emit(LoadField(m_threadPoolField));
-                    e.Emit(Call(removeThreadsMethod));
+                    e.LoadField(m_threadPoolField);
+                    e.Call(removeThreadsMethod);
                     patched = true;
                 }
             }
@@ -249,7 +249,7 @@ static class MyPhysics_Patches
             Call(listCountGetter),
             new(OpCodes.Conv_I8)
         ]);
-        e.Emit(timerLocal1.AsValueStore());
+        e.StoreLocal(timerLocal1);
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -273,7 +273,7 @@ static class MyPhysics_Patches
                             e.EmitProfilerStartObjExtra(0, "Init HKWorld update", ProfilerTimerOptions.None, null, [
                                 LoadLocal(clusterLocal)
                             ]);
-                            e.Emit(timerLocal2.AsValueStore());
+                            e.StoreLocal(timerLocal2);
                             patchedParts++;
                         }
                     }
@@ -293,7 +293,7 @@ static class MyPhysics_Patches
                             e.EmitProfilerStartObjExtra(3, "Finish HKWorld update", ProfilerTimerOptions.None, null, [
                                 LoadLocal(clusterLocal)
                             ]);
-                            e.Emit(timerLocal2.AsValueStore());
+                            e.StoreLocal(timerLocal2);
                             patchedParts++;
                         }
                     }
@@ -305,7 +305,7 @@ static class MyPhysics_Patches
                 if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call && call.Value == waitPolicySetter)
                 {
                     e.EmitProfilerStart(1, "Process jobs")[0].SwapTryCatchOperations(ref ins);
-                    e.Emit(timerLocal2.AsValueStore());
+                    e.StoreLocal(timerLocal2);
                     patchedParts++;
                 }
             }
@@ -333,7 +333,7 @@ static class MyPhysics_Patches
                         e.EmitStopProfilerTimer(timerLocal2);
                         // Start next
                         e.EmitProfilerStart(2, "Wait for Havok thread pool");
-                        e.Emit(timerLocal2.AsValueStore());
+                        e.StoreLocal(timerLocal2);
                         patchedParts++;
                     }
                     else if (call.Value == waitForCompletionMethod

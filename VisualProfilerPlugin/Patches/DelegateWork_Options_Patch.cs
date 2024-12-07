@@ -6,7 +6,6 @@ using System.Reflection.Emit;
 using ParallelTasks;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
-using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
@@ -40,8 +39,8 @@ static class DelegateWork_Options_Patch
             {
                 e.Emit(new(OpCodes.Ldarg_0));
                 e.Emit(new(OpCodes.Ldarg_0));
-                e.Emit(LoadFieldAddress(optionsField));
-                e.Emit(CallVirt(fillDebugInfoMethod));
+                e.LoadFieldAddress(optionsField);
+                e.CallVirt(fillDebugInfoMethod);
 
                 patched = true;
             }

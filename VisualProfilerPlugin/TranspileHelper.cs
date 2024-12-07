@@ -129,36 +129,69 @@ static class TranspileHelper
         };
     }
 
-    public static MsilInstruction LoadLocal(LocalVariableInfo local) => LoadLocal(local.LocalIndex);
-    public static MsilInstruction LoadField(FieldInfo field) => new MsilInstruction(OpCodes.Ldfld).InlineValue(field);
+    public static MsilInstruction LoadLocal       (LocalVariableInfo local) => LoadLocal(local.LocalIndex);
+    public static MsilInstruction LoadField       (FieldInfo field) => new MsilInstruction(OpCodes.Ldfld).InlineValue(field);
     public static MsilInstruction LoadFieldAddress(FieldInfo field) => new MsilInstruction(OpCodes.Ldflda).InlineValue(field);
-    public static MsilInstruction LoadStaticField(FieldInfo field) => new MsilInstruction(OpCodes.Ldsfld).InlineValue(field);
-    public static MsilInstruction Call(MethodInfo method) => new MsilInstruction(OpCodes.Call).InlineValue(method);
-    public static MsilInstruction CallVirt(MethodInfo method) => new MsilInstruction(OpCodes.Callvirt).InlineValue(method);
-    public static MsilInstruction NewObj(ConstructorInfo ctor) => new MsilInstruction(OpCodes.Newobj).InlineValue(ctor);
+    public static MsilInstruction LoadStaticField (FieldInfo field) => new MsilInstruction(OpCodes.Ldsfld).InlineValue(field);
+    public static MsilInstruction Call            (MethodInfo method) => new MsilInstruction(OpCodes.Call).InlineValue(method);
+    public static MsilInstruction CallVirt        (MethodInfo method) => new MsilInstruction(OpCodes.Callvirt).InlineValue(method);
+    public static MsilInstruction NewObj          (ConstructorInfo ctor) => new MsilInstruction(OpCodes.Newobj).InlineValue(ctor);
+
+    public static void Emit            (this List<MsilInstruction> instructions, MsilInstruction instruction) => instructions.Add(instruction);
+    public static void LoadConst       (this List<MsilInstruction> instructions, int value) => instructions.Add(LoadConst(value));
+    public static void LoadString      (this List<MsilInstruction> instructions, string str) => instructions.Add(LoadString(str));
+
+    public static void LoadLocal(this List<MsilInstruction> instructions, MsilLocal local)
+    {
+        instructions.Add(local.Index switch {
+            0 => new MsilInstruction(OpCodes.Ldloc_0),
+            1 => new MsilInstruction(OpCodes.Ldloc_1),
+            2 => new MsilInstruction(OpCodes.Ldloc_2),
+            3 => new MsilInstruction(OpCodes.Ldloc_3),
+            < 256 => new MsilInstruction(OpCodes.Ldloc_S).InlineValue(local),
+            _ => new MsilInstruction(OpCodes.Ldloc).InlineValue(local),
+        });
+    }
+
+    public static void LoadLocalAddress(this List<MsilInstruction> instructions, MsilLocal local) => instructions.Add(new MsilInstruction(local.Index < 256 ? OpCodes.Ldloca_S : OpCodes.Ldloca).InlineValue(local));
+    public static void LoadLocal       (this List<MsilInstruction> instructions, int localIndex) => instructions.Add(LoadLocal(localIndex));
+    public static void LoadLocal       (this List<MsilInstruction> instructions, LocalVariableInfo local) => instructions.Add(LoadLocal(local.LocalIndex));
+    public static void LoadField       (this List<MsilInstruction> instructions, FieldInfo field) => instructions.Add(LoadField(field));
+    public static void LoadFieldAddress(this List<MsilInstruction> instructions, FieldInfo field) => instructions.Add(LoadFieldAddress(field));
+    public static void LoadStaticField (this List<MsilInstruction> instructions, FieldInfo field) => instructions.Add(LoadStaticField(field));
+    public static void Call            (this List<MsilInstruction> instructions, MethodInfo method) => instructions.Add(Call(method));
+    public static void CallVirt        (this List<MsilInstruction> instructions, MethodInfo method) => instructions.Add(CallVirt(method));
+    public static void NewObj          (this List<MsilInstruction> instructions, ConstructorInfo ctor) => instructions.Add(NewObj(ctor));
+
+    public static void StoreLocal(this List<MsilInstruction> instructions, MsilLocal local)
+    {
+        instructions.Add(local.Index switch {
+            0 => new MsilInstruction(OpCodes.Stloc_0),
+            1 => new MsilInstruction(OpCodes.Stloc_1),
+            2 => new MsilInstruction(OpCodes.Stloc_2),
+            3 => new MsilInstruction(OpCodes.Stloc_3),
+            < 256 => new MsilInstruction(OpCodes.Stloc_S).InlineValue(local),
+            _ => new MsilInstruction(OpCodes.Stloc).InlineValue(local),
+        });
+    }
 
     internal static class ProfilerMembers
     {
-        internal static readonly ConstructorInfo KeyCtor             = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
-        internal static readonly ConstructorInfo ExtraDataLongCtor   = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null)!;
-        internal static readonly ConstructorInfo ExtraDataObjCtor    = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null)!;
-        internal static readonly MethodInfo StartIndexExtraMethod    = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
-        internal static readonly MethodInfo StartIndexMethod         = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)])!;
-        internal static readonly MethodInfo StartKeyMethod           = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)])!;
-        internal static readonly MethodInfo StartKeyExtraMethod      = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
-        internal static readonly MethodInfo StartNameExtraMethod     = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
-        internal static readonly MethodInfo StartNameMethod          = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)])!;
-        internal static readonly MethodInfo StartLiteMethod          = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.StartLite), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData).MakeByRefType()])!;
-        internal static readonly MethodInfo RestartIndexMethod       = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Restart), [typeof(int), typeof(string), typeof(ProfilerTimerOptions)])!;
-        internal static readonly MethodInfo StopTimerMethod          = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop))!;
-        internal static readonly MethodInfo DisposeTimerMethod       = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
+        internal static readonly ConstructorInfo KeyCtor = typeof(ProfilerKey).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, [typeof(int)], null)!;
+        internal static readonly ConstructorInfo ExtraDataLongCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(long), typeof(string)], null)!;
+        internal static readonly ConstructorInfo ExtraDataObjCtor = typeof(ProfilerEvent.ExtraData).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, [typeof(object), typeof(string)], null)!;
+        internal static readonly MethodInfo StartIndexExtraMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        internal static readonly MethodInfo StartIndexMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(int), typeof(string)])!;
+        internal static readonly MethodInfo StartKeyMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions)])!;
+        internal static readonly MethodInfo StartKeyExtraMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        internal static readonly MethodInfo StartNameExtraMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData)])!;
+        internal static readonly MethodInfo StartNameMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Start), [typeof(string)])!;
+        internal static readonly MethodInfo StartLiteMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.StartLite), [typeof(ProfilerKey), typeof(ProfilerTimerOptions), typeof(ProfilerEvent.ExtraData).MakeByRefType()])!;
+        internal static readonly MethodInfo RestartIndexMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Restart), [typeof(int), typeof(string), typeof(ProfilerTimerOptions)])!;
+        internal static readonly MethodInfo StopTimerMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Stop))!;
+        internal static readonly MethodInfo DisposeTimerMethod = typeof(ProfilerTimer).GetPublicInstanceMethod(nameof(ProfilerTimer.Dispose))!;
         internal static readonly MethodInfo DisposeEventHandleMethod = typeof(ProfilerEventHandle).GetPublicInstanceMethod(nameof(ProfilerEventHandle.Dispose))!;
-        internal static readonly MethodInfo StopMethod               = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Stop))!;
-    }
-
-    public static void Emit(this List<MsilInstruction> instructions, MsilInstruction instruction)
-    {
-        instructions.Add(instruction);
+        internal static readonly MethodInfo StopMethod = typeof(Profiler).GetPublicStaticMethod(nameof(Profiler.Stop))!;
     }
 
     public static ReadOnlySpan<MsilInstruction> EmitProfilerStart(this List<MsilInstruction> instructions, int index, string name)

@@ -65,8 +65,8 @@ static class Torch_MethodContext_Patches
             {
                 e.Emit(new(OpCodes.Ldarg_1));
                 e.Emit(new(OpCodes.Ldarg_0));
-                e.Emit(LoadField(instructionsField));
-                e.Emit(Call(eomIfNullMethod));
+                e.LoadField(instructionsField);
+                e.Call(eomIfNullMethod);
                 patchedParts++;
             }
         }

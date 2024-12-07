@@ -58,7 +58,7 @@ static class Parallel_RunCallbacks_Patch
         var timerLocal2 = __localCreator(typeof(ProfilerTimer));
 
         e.EmitProfilerStart(Keys.RunCallbacks, ProfilerTimerOptions.ProfileMemory);
-        e.Emit(timerLocal1.AsValueStore());
+        e.StoreLocal(timerLocal1);
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -71,8 +71,8 @@ static class Parallel_RunCallbacks_Patch
                     if (instructions[i + 2].Operand is MsilOperandInline<MethodBase> call2 && call2.Value == invokeMethod)
                     {
                         e.Emit(new(OpCodes.Ldloc_1));
-                        e.Emit(Call(startCallbackMethod));
-                        e.Emit(timerLocal2.AsValueStore());
+                        e.Call(startCallbackMethod);
+                        e.StoreLocal(timerLocal2);
                         patchedParts++;
                     }
                 }
@@ -81,8 +81,8 @@ static class Parallel_RunCallbacks_Patch
                     if (instructions[i + 2].OpCode == OpCodes.Ldloc_1)
                     {
                         e.Emit(new(OpCodes.Ldloc_1));
-                        e.Emit(Call(startDataCallbackMethod));
-                        e.Emit(timerLocal2.AsValueStore());
+                        e.Call(startDataCallbackMethod);
+                        e.StoreLocal(timerLocal2);
                         patchedParts++;
                     }
                 }

@@ -236,7 +236,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                         ],
                         dataLocal
                     );
-                    e.Emit(handleLocal.AsValueStore());
+                    e.StoreLocal(handleLocal);
 
                     // Original call
                     e.Emit(ins);
@@ -253,7 +253,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                     ], ProfilerTimerOptions.ProfileMemory, null, [
                         new(ins.OpCode) // entity
                     ]);
-                    e.Emit(timerLocal2.AsValueStore());
+                    e.StoreLocal(timerLocal2);
 
                     // Original call
                     e.Emit(ins);
@@ -285,7 +285,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                         new(Conv_I8)
                     ]
                 );
-                e.Emit(timerLocal1.AsValueStore());
+                e.StoreLocal(timerLocal1);
                 patchedParts++;
             }
         }
@@ -490,7 +490,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         }
 
         e.EmitProfilerStartLongExtra(key, ProfilerTimerOptions.ProfileMemory, "Num entities: {0:n0}", dataInstructions);
-        e.Emit(timerLocal1.AsValueStore());
+        e.StoreLocal(timerLocal1);
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -505,7 +505,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                         new(ins.OpCode) // entity
                     ], dataLocal);
 
-                    e.Emit(handleLocal.AsValueStore());
+                    e.StoreLocal(handleLocal);
 
                     // Original call
                     e.Emit(ins);
@@ -522,7 +522,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                     ], ProfilerTimerOptions.ProfileMemory, null, [
                         new(ins.OpCode) // entity
                     ]);
-                    e.Emit(timerLocal2.AsValueStore());
+                    e.StoreLocal(timerLocal2);
 
                     // Original call
                     e.Emit(ins);
@@ -601,7 +601,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
             ]
         );
 
-        e.Emit(timerLocal.AsValueStore());
+        e.StoreLocal(timerLocal);
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -689,7 +689,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 ], ProfilerTimerOptions.ProfileMemory, null, [
                     new(Ldarg_1) // entity
                 ]);
-                e.Emit(timerLocal.AsValueStore());
+                e.StoreLocal(timerLocal);
                 e.Emit(ins);
                 e.Emit(instructions[++i]);
                 e.EmitDisposeProfilerTimer(timerLocal);
@@ -743,7 +743,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 ], ProfilerTimerOptions.ProfileMemory, null, [
                     new(Ldarg_1) // entity
                 ]);
-                e.Emit(timerLocal.AsValueStore());
+                e.StoreLocal(timerLocal);
                 e.Emit(ins);
                 e.Emit(instructions[++i]);
                 e.EmitDisposeProfilerTimer(timerLocal);
@@ -830,7 +830,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                     Call(getCountMethod),
                     new(Conv_I8)
                 ])[0].SwapLabels(ref ins);
-                e.Emit(timerLocal1.AsValueStore());
+                e.StoreLocal(timerLocal1);
                 patchedParts++;
             }
             else if (ins.OpCode == Callvirt && ins.Operand is MsilOperandInline<MethodBase> call && call.Value == invokeMethod)
@@ -843,8 +843,8 @@ static class MyParallelEntityUpdateOrchestrator_Patches
                 ], ProfilerTimerOptions.ProfileMemory, null, [
                     actionLocal.AsValueLoad()
                 ]);
-                e.Emit(timerLocal2.AsValueStore());
-                e.Emit(actionLocal.AsValueLoad());
+                e.StoreLocal(timerLocal2);
+                e.LoadLocal(actionLocal);
                 e.Emit(ins);
                 e.EmitDisposeProfilerTimer(timerLocal2);
                 patchedParts++;

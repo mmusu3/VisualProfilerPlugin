@@ -107,7 +107,7 @@ static class MyCubeGrid_Patches
         var timerLocal = __localCreator(typeof(ProfilerTimer));
 
         e.EmitProfilerStart(Keys.Dispatch, ProfilerTimerOptions.ProfileMemory);
-        e.Emit(timerLocal.AsValueStore());
+        e.StoreLocal(timerLocal);
 
         for (int i = 0; i < instructions.Length; i++)
         {
@@ -123,9 +123,9 @@ static class MyCubeGrid_Patches
                 }
                 else
                 {
-                    e.Emit(LoadLocal(updateLocal));
-                    e.Emit(LoadField(callbackField));
-                    e.Emit(Call(newInvokeMethod));
+                    e.LoadLocal(updateLocal);
+                    e.LoadField(callbackField);
+                    e.Call(newInvokeMethod);
                     patchedParts++;
                     i += pattern1.Length - 1;
                     continue;

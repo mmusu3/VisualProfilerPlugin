@@ -68,7 +68,7 @@ static class MyEntityCreationThread_Patches
                 if (instructions[i + 5].Operand is MsilOperandInline<MethodBase> call && call.Value == initEntityMethod)
                 {
                     e.EmitProfilerStart(1, "MyEntities.InitEntity");
-                    e.Emit(timerLocal.AsValueStore());
+                    e.StoreLocal(timerLocal);
                     patchedParts++;
                 }
             }
@@ -81,7 +81,7 @@ static class MyEntityCreationThread_Patches
 
             if (ins.OpCode == Callvirt && ins.Operand is MsilOperandInline<MethodBase> call1 && call1.Value == threadNameSetter)
             {
-                e.Emit(Call(prefixMethod));
+                e.Call(prefixMethod);
                 patchedParts++;
             }
             else if (i > 1
@@ -96,7 +96,7 @@ static class MyEntityCreationThread_Patches
             }
         }
 
-        e.Emit(Call(suffixMethod));
+        e.Call(suffixMethod);
         e.Emit(new(Ret));
 
         if (patchedParts != expectedParts)

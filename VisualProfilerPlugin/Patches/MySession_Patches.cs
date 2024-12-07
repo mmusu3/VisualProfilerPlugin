@@ -229,7 +229,7 @@ static class MySession_Patches
                         LoadLocal(2).SwapLabels(ref ins),
                         LoadField(debugNameField)
                     ]);
-                    e.Emit(timerLocal.AsValueStore());
+                    e.StoreLocal(timerLocal);
                     // Move past existing ops
                     e.Emit(ins);
                     e.Emit(instructions[++i]);
@@ -257,7 +257,7 @@ static class MySession_Patches
                         LoadLocal(3).SwapLabels(ref ins),
                         LoadField(debugNameField)
                     ]);
-                    e.Emit(timerLocal.AsValueStore());
+                    e.StoreLocal(timerLocal);
                     // Move past existing ops
                     e.Emit(ins);
                     e.Emit(instructions[++i]);
@@ -285,7 +285,7 @@ static class MySession_Patches
                         LoadLocal(4).SwapLabels(ref ins),
                         LoadField(debugNameField)
                     ]);
-                    e.Emit(timerLocal.AsValueStore());
+                    e.StoreLocal(timerLocal);
                     // Move past existing ops
                     e.Emit(ins);
                     e.Emit(instructions[++i]);
