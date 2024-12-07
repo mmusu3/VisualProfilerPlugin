@@ -1973,7 +1973,12 @@ class CubeGridAnalysisInfo
     {
         get
         {
-            double speed = Math.Round(AverageSpeed);
+            double speed = AverageSpeed;
+
+            if (speed > 0 && speed < 0.1f)
+                return "< 0.1";
+
+            speed = Math.Round(speed, 1);
 
             return speed == 0 ? "0" : speed.ToString();
         }
