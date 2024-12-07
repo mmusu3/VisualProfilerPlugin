@@ -458,7 +458,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         programmableBlocksList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeBlockAnalysisInfo.TotalTime), ListSortDirection.Descending));
 
         FixColumnWidth(physicsClusterCountedFramesColumn.Column);
+        FixColumnWidth(gridSnapshotCountColumn.Column);
         FixColumnWidth(gridCountedFramesColumn.Column);
+        FixColumnWidth(blockSnapshotCountColumn.Column);
         FixColumnWidth(blockCountedFramesColumn.Column);
     }
 
@@ -750,16 +752,20 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         switch (header.Name)
         {
+        case nameof(gridSnapshotCountColumn):
+            propName = nameof(CubeGridAnalysisInfo.SnapshotCount);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(gridCountedFramesColumn):
+            propName = nameof(CubeGridAnalysisInfo.NumFramesCounted);
+            defaultDir = ListSortDirection.Descending;
+            break;
         case nameof(gridTotalTimeColumn):
             propName = nameof(CubeGridAnalysisInfo.TotalTime);
             defaultDir = ListSortDirection.Descending;
             break;
         case nameof(gridAverageTimeColumn):
             propName = nameof(CubeGridAnalysisInfo.AverageTimePerFrame);
-            defaultDir = ListSortDirection.Descending;
-            break;
-        case nameof(gridCountedFramesColumn):
-            propName = nameof(CubeGridAnalysisInfo.NumFramesCounted);
             defaultDir = ListSortDirection.Descending;
             break;
         case nameof(gridTypeColumn):
@@ -1144,16 +1150,20 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         switch (header.Name)
         {
+        case nameof(blockSnapshotCountColumn):
+            propName = nameof(CubeBlockAnalysisInfo.SnapshotCount);
+            defaultDir = ListSortDirection.Descending;
+            break;
+        case nameof(blockCountedFramesColumn):
+            propName = nameof(CubeBlockAnalysisInfo.NumFramesCounted);
+            defaultDir = ListSortDirection.Descending;
+            break;
         case nameof(blockTotalTimeColumn):
             propName = nameof(CubeBlockAnalysisInfo.TotalTime);
             defaultDir = ListSortDirection.Descending;
             break;
         case nameof(blockAverageTimeColumn):
             propName = nameof(CubeBlockAnalysisInfo.AverageTimePerFrame);
-            defaultDir = ListSortDirection.Descending;
-            break;
-        case nameof(blockCountedFramesColumn):
-            propName = nameof(CubeBlockAnalysisInfo.NumFramesCounted);
             defaultDir = ListSortDirection.Descending;
             break;
         case nameof(blockGridSizeColumn):

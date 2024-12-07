@@ -140,6 +140,9 @@
                                 GridViewColumnHeader.Click="CubeGridsListHeader_Click">
                         <ListView.View>
                             <GridView AllowsColumnReorder="True">
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=SnapshotCount}">
+                                    <GridViewColumnHeader Name="gridSnapshotCountColumn" Content=" NS " ToolTip="Number of unique information snapshots captured for the grid."/>
+                                </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
                                     <GridViewColumnHeader Name="gridCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the grid was timed in."/>
                                 </GridViewColumn>
@@ -204,6 +207,9 @@
                             GridViewColumnHeader.Click="ProgBlocksListHeader_Click">
                     <ListView.View>
                         <GridView AllowsColumnReorder="True">
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=SnapshotCount}">
+                                <GridViewColumnHeader Name="blockSnapshotCountColumn" Content=" NS " ToolTip="Number of unique information snapshots captured for the block."/>
+                            </GridViewColumn>
                             <GridViewColumn DisplayMemberBinding="{Binding Path=NumFramesCounted}">
                                 <GridViewColumnHeader Name="blockCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the block was timed in."/>
                             </GridViewColumn>

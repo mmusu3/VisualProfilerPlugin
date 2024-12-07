@@ -521,6 +521,7 @@ static class ProfilerHelper
                         {
                             // TODO: Record list of event IDs per object for highlighting events in graph when object selected
 
+                            // NOTE: This can analyze the same snapshots multiple times
                             switch (_event.ExtraValue.Object)
                             {
                             case PhysicsClusterInfoProxy.Snapshot clusterInfo:
@@ -1835,6 +1836,8 @@ class CubeGridAnalysisInfo
 {
     public class Builder
     {
+        HashSet<CubeGridInfoProxy.Snapshot> snapshots = [];
+
         public long EntityId;
         public MyCubeSize GridSize;
         public bool IsNPC;
@@ -1856,50 +1859,53 @@ class CubeGridAnalysisInfo
         public double TotalTime;
         public double AverageTimePerFrame;
 
-        public Builder(CubeGridInfoProxy.Snapshot info)
+        public Builder(CubeGridInfoProxy.Snapshot snapshot)
         {
-            EntityId = info.Grid.EntityId;
-            GridSize = info.Grid.GridSize;
-            IsNPC = info.Grid.IsNPC;
-            IsPreview = info.Grid.IsPreview;
-            IsStatic = info.IsStatic;
-            IsPowered = info.IsPowered;
+            EntityId = snapshot.Grid.EntityId;
+            GridSize = snapshot.Grid.GridSize;
+            IsNPC = snapshot.Grid.IsNPC;
+            IsPreview = snapshot.Grid.IsPreview;
+            IsStatic = snapshot.IsStatic;
+            IsPowered = snapshot.IsPowered;
 
-            Add(info);
+            Add(snapshot);
         }
 
-        public void Add(CubeGridInfoProxy.Snapshot info)
+        public void Add(CubeGridInfoProxy.Snapshot snapshot)
         {
-            if (IsStatic != null && info.IsStatic != IsStatic)
+            snapshots.Add(snapshot);
+
+            if (IsStatic != null && snapshot.IsStatic != IsStatic)
                 IsStatic = null;
 
-            Names.Add(info.Name);
-            Owners[info.OwnerId] = info.OwnerName;
-            BlockCounts.Add(info.BlockCount);
-            PCUs.Add(info.PCU);
-            Sizes.Add(info.Size);
-            Positions.Add(info.Position);
-            PhysicsClusters.Add(info.PhysicsCluster);
-            Speeds.Add(info.Speed);
+            Names.Add(snapshot.Name);
+            Owners[snapshot.OwnerId] = snapshot.OwnerName;
+            BlockCounts.Add(snapshot.BlockCount);
+            PCUs.Add(snapshot.PCU);
+            Sizes.Add(snapshot.Size);
+            Positions.Add(snapshot.Position);
+            PhysicsClusters.Add(snapshot.PhysicsCluster);
+            Speeds.Add(snapshot.Speed);
 
-            if (IsPowered != null && info.IsPowered != IsPowered)
+            if (IsPowered != null && snapshot.IsPowered != IsPowered)
                 IsPowered = null;
 
-            ConnectedGrids.Add(info.ConnectedGrids);
+            ConnectedGrids.Add(snapshot.ConnectedGrids);
         }
 
         public CubeGridAnalysisInfo Finish()
         {
-            return new CubeGridAnalysisInfo(EntityId, GridSize, IsNPC, IsPreview, IsStatic, Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
+            return new CubeGridAnalysisInfo(snapshots.Count, EntityId, GridSize, IsNPC, IsPreview, IsStatic, Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
                 BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), PhysicsClusters.ToArray(), Speeds.ToArray(), IsPowered, ConnectedGrids.ToArray(),
                 TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
     }
 
-    public long EntityId { get; set; }
+    public int SnapshotCount { get; }
+    public long EntityId { get; }
     public MyCubeSize GridSize;
     public bool IsNPC;
-    public bool IsPreview { get; set; }
+    public bool IsPreview { get; }
     public bool? IsStatic;
     public string[] Names;
     public (long ID, string? Name)[] Owners;
@@ -1912,10 +1918,10 @@ class CubeGridAnalysisInfo
     public bool? IsPowered;
     public int[] ConnectedGrids;
 
-    public double TotalTime { get; set; }
-    public double AverageTimePerFrame { get; set; }
-    public int IncludedInNumGroups { get; set; }
-    public int NumFramesCounted { get; set; }
+    public double TotalTime { get; }
+    public double AverageTimePerFrame { get; }
+    public int IncludedInNumGroups { get; }
+    public int NumFramesCounted { get; }
 
     public Vector3D AveragePosition
     {
@@ -1977,13 +1983,14 @@ class CubeGridAnalysisInfo
     public string ConnectedGridsForColumn => ConnectedGrids.Length == 1 ? ConnectedGrids[0].ToString() : string.Join(",\n", ConnectedGrids);
 
     public CubeGridAnalysisInfo(
-        long entityId, MyCubeSize gridSize, bool isNpc, bool isPreview, bool? isStatic,
+        int snapshotCount, long entityId, MyCubeSize gridSize, bool isNpc, bool isPreview, bool? isStatic,
         string[] names, (long ID, string? Name)[] owners,
         int[] blockCounts, int[] pcus, Vector3I[] sizes,
         Vector3D[] positions, int[] physicsClusters, float[] speeds, bool? isPowered, int[] connectedGrids,
         double totalTime, double averageTimePerFrame,
         int includedInNumGroups, int numFramesCounted)
     {
+        SnapshotCount = snapshotCount;
         EntityId = entityId;
         GridSize = gridSize;
         IsNPC = isNpc;
@@ -2088,6 +2095,8 @@ class CubeBlockAnalysisInfo
 {
     public class Builder
     {
+        HashSet<CubeBlockInfoProxy.Snapshot> snapshots = [];
+
         public long EntityId;
         public MyCubeSize CubeSize;
         public HashSet<long> GridIds = [];
@@ -2101,44 +2110,47 @@ class CubeBlockAnalysisInfo
         public double TotalTime;
         public double AverageTimePerFrame;
 
-        public Builder(CubeBlockInfoProxy.Snapshot info)
+        public Builder(CubeBlockInfoProxy.Snapshot snapshot)
         {
-            EntityId = info.Block.EntityId;
-            CubeSize = info.Grid.Grid.GridSize;
-            BlockType = info.Block.BlockType.Type;
+            EntityId = snapshot.Block.EntityId;
+            CubeSize = snapshot.Grid.Grid.GridSize;
+            BlockType = snapshot.Block.BlockType.Type;
 
-            Add(info);
+            Add(snapshot);
         }
 
-        public void Add(CubeBlockInfoProxy.Snapshot info)
+        public void Add(CubeBlockInfoProxy.Snapshot snapshot)
         {
-            if (info.CustomName != null)
-                CustomNames.Add(info.CustomName);
+            snapshots.Add(snapshot);
 
-            GridIds.Add(info.Grid.Grid.EntityId);
-            Owners[info.OwnerId] = info.OwnerName;
-            Positions.Add(info.Position);
+            if (snapshot.CustomName != null)
+                CustomNames.Add(snapshot.CustomName);
+
+            GridIds.Add(snapshot.Grid.Grid.EntityId);
+            Owners[snapshot.OwnerId] = snapshot.OwnerName;
+            Positions.Add(snapshot.Position);
         }
 
         public CubeBlockAnalysisInfo Finish()
         {
-            return new CubeBlockAnalysisInfo(EntityId, CubeSize, GridIds.ToArray(), BlockType, CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
+            return new CubeBlockAnalysisInfo(snapshots.Count, EntityId, CubeSize, GridIds.ToArray(), BlockType, CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
                 Positions.ToArray(), TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
     }
 
-    public long EntityId { get; set; }
-    public MyCubeSize CubeSize { get; set; }
+    public int SnapshotCount { get; }
+    public long EntityId { get; }
+    public MyCubeSize CubeSize { get; }
     public long[] GridIds;
     public Type BlockType;
     public string[] CustomNames;
     public (long ID, string? Name)[] Owners;
     public Vector3D[] Positions;
 
-    public double TotalTime { get; set; }
-    public double AverageTimePerFrame { get; set; }
-    public int IncludedInNumGroups { get; set; }
-    public int NumFramesCounted { get; set; }
+    public double TotalTime { get; }
+    public double AverageTimePerFrame { get; }
+    public int IncludedInNumGroups { get; }
+    public int NumFramesCounted { get; }
 
     public Vector3D AveragePosition
     {
@@ -2160,12 +2172,13 @@ class CubeBlockAnalysisInfo
     public string AveragePositionForColumn => Vector3D.Round(AveragePosition, 0).ToString();
 
     public CubeBlockAnalysisInfo(
-        long entityId, MyCubeSize cubeSize, long[] gridIds, Type blockType,
+        int snapshotCount, long entityId, MyCubeSize cubeSize, long[] gridIds, Type blockType,
         string[] customNames, (long ID, string? Name)[] owners,
         Vector3D[] positions,
         double totalTime, double averageTimePerFrame,
         int includedInNumGroups, int numFramesCounted)
     {
+        SnapshotCount = snapshotCount;
         EntityId = entityId;
         CubeSize = cubeSize;
         GridIds = gridIds;
