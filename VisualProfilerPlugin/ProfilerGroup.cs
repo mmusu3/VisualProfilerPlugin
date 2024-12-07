@@ -469,10 +469,7 @@ public class ProfilerGroup
             }
 
             if (eventObjectResolver != null)
-            {
-                eventObjectResolver.ClearCache();
                 Monitor.Exit(eventObjectResolver);
-            }
 
             prevFrameEndEventIndex = -1;
             events.NextIndex = 0;
@@ -512,6 +509,8 @@ public class ProfilerGroup
             frameStartEventIndices.Clear();
             frameEndEventIndices.Clear();
             outlierFrameIndices.Clear();
+
+            ClearEventsData();
         }
     }
 
@@ -536,8 +535,6 @@ public class ProfilerGroup
                 {
                     if (endIndex >= startIndex)
                         ResolveObjects(recordedEvents, startIndex, endIndex, eventObjectResolver);
-
-                    eventObjectResolver.ClearCache();
                 }
             }
 

@@ -538,6 +538,17 @@ public static class Profiler
         EventObjectResolver = objectResolver;
     }
 
+    static void ClearObjectResolverCache()
+    {
+        var eventObjectResolver = EventObjectResolver;
+
+        if (eventObjectResolver != null)
+        {
+            lock (eventObjectResolver)
+                eventObjectResolver.ClearCache();
+        }
+    }
+
     public static void StartEventRecording(int? numFrames = null, Action<ProfilerEventsRecording>? completedCallback = null)
     {
         if (isRecordingEvents) throw new InvalidOperationException("Event recording has already started.");
@@ -557,6 +568,8 @@ public static class Profiler
             foreach (var item in profilerGroupsById.Values)
                 item.StartEventRecording();
         }
+
+        ClearObjectResolverCache();
     }
 
     public static void EndOfFrame()
@@ -566,17 +579,22 @@ public static class Profiler
         if (!isEnabled)
             return;
 
-        if (!isRecordingEvents || !numFramesToRecord.HasValue || ThreadGroup == null)
-            return;
+        if (isRecordingEvents)
+        {
+            if (numFramesToRecord.HasValue && ThreadGroup != null
+                && ThreadGroup.NumRecordedFrames >= numFramesToRecord.Value)
+            {
+                var recording = StopEventRecording();
 
-        if (ThreadGroup.NumRecordedFrames < numFramesToRecord.Value)
-            return;
-
-        var recording = StopEventRecording();
-
-        numFramesToRecord = null;
-        recordingCompletedCallback?.Invoke(recording);
-        recordingCompletedCallback = null;
+                numFramesToRecord = null;
+                recordingCompletedCallback?.Invoke(recording);
+                recordingCompletedCallback = null;
+            }
+        }
+        else
+        {
+            ClearObjectResolverCache();
+        }
     }
 
     public static ProfilerEventsRecording StopEventRecording()
@@ -603,6 +621,8 @@ public static class Profiler
                     groupsRecordings.Add((item.Key, events));
                 }
             }
+
+            ClearObjectResolverCache();
 
             int numRecordedFrames = 0;
 
