@@ -542,8 +542,16 @@ public class ProfilerGroup
 
             if (eventCount > 0)
             {
+                var frameStartIndices = frameStartEventIndices.ToArray();
+
+                // The values in frameStartEventIndices point to the next index to be used but if
+                // an event was not yet added there before StopEventRecording was called then the
+                // index will be invalid.
+                if (frameStartIndices.Length > 0 && frameStartIndices[^1] >= eventCount)
+                    frameStartIndices = frameStartIndices.AsSpan(0, frameStartIndices.Length - 1).ToArray();
+
                 recording = new ProfilerEventsRecordingGroup(Name, recordedEvents.Segments, eventCount,
-                    frameStartEventIndices.ToArray(), frameEndEventIndices.ToArray(), outlierFrameIndices.ToArray());
+                    frameStartIndices, frameEndEventIndices.ToArray(), outlierFrameIndices.ToArray());
             }
 
             prevFrameEndEventIndex = -1;
