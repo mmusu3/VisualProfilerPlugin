@@ -59,14 +59,7 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         return recording;
     }
 
-    internal static byte[] SerializeRecording(ProfilerEventsRecording recording)
-    {
-        ProfilerHelper.PrepareRecordingForSerialization(recording);
-
-        return SerializeRecordingImpl(recording);
-    }
-
-    static byte[] SerializeRecordingImpl(ProfilerEventsRecording recording)
+    static byte[] SerializeRecording(ProfilerEventsRecording recording)
     {
         byte[] serializedRecording;
 
@@ -81,12 +74,12 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         return serializedRecording;
     }
 
-    internal static async Task<byte[]> SerializeRecordingAsync(ProfilerEventsRecording recording)
+    internal static async Task<byte[]> PrepareAndSerializeRecordingAsync(ProfilerEventsRecording recording)
     {
         ProfilerHelper.PrepareRecordingForSerialization(recording);
 
         // Run on thread pool
-        var serializedRecording = await Task.Run(() => SerializeRecordingImpl(recording)).ConfigureAwait(false);
+        var serializedRecording = await Task.Run(() => SerializeRecording(recording)).ConfigureAwait(false);
 
         return serializedRecording;
     }
@@ -138,7 +131,7 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
     internal static async Task<(bool Written, byte[] SerializedRecording)> SaveRecordingAsync(ProfilerEventsRecording recording, string? filePath)
     {
-        var serializedRecording = await SerializeRecordingAsync(recording).ConfigureAwait(false);
+        var serializedRecording = await PrepareAndSerializeRecordingAsync(recording).ConfigureAwait(false);
 
         if (filePath == null)
             return (false, serializedRecording);
@@ -178,7 +171,7 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         return fileName;
     }
 
-    internal static void SendRecordingToClient(byte[] serializedRecording, string fileName, ulong userId)
+    internal static void SendRecordingToClient(byte[] serializedRecording, string fileName, CommandContext context)
     {
         const ushort FileNetMessageId = 19911; // Picked at random, may conflict with other mods/plugins.
 
@@ -191,7 +184,34 @@ public class Plugin : TorchPluginBase, IWpfPlugin
             messagePayload = stream.ToArray();
         }
 
-        MyModAPIHelper.MyMultiplayer.Static.SendMessageTo(FileNetMessageId, messagePayload, userId, reliable: true);
+        // TODO: Large file streaming
+
+        Log.Info($"Sending profiler recording ({messagePayload.Length:N} bytes) to client '{context.Player.DisplayName}', UserID: {context.Player.SteamUserId}");
+
+        int nBytes = messagePayload.Length;
+
+        double value;
+        string unit;
+
+        if (nBytes > 1024 * 1024)
+        {
+            value = nBytes / (double)(1024 * 1024);
+            unit = "MB";
+        }
+        else if (nBytes > 1024)
+        {
+            value = nBytes / 1024.0;
+            unit = "KB";
+        }
+        else
+        {
+            value = nBytes;
+            unit = "B";
+        }
+
+        context.Respond($"Sending recording payload of {value:N2} {unit}.");
+
+        MyModAPIHelper.MyMultiplayer.Static.SendMessageTo(FileNetMessageId, messagePayload, context.Player.SteamUserId, reliable: true);
     }
 
     [ProtoContract]
@@ -292,6 +312,12 @@ public class Commands : CommandModule
                 saveToFile = true;
                 break;
             case "sendtoclient":
+                if (Context.Player == null)
+                {
+                    Context.Respond("Command error: --sendtoclient argument is not valid for the server, it can only by used by clients.");
+                    return;
+                }
+
                 sendToClient = true;
                 break;
             default:
@@ -376,7 +402,7 @@ public class Commands : CommandModule
 
             try
             {
-                await SaveSendSummarizeAsync(recording, saveToFile, sendToClient);
+                await SummarizeSaveSendAsync(recording, saveToFile, sendToClient);
             }
             catch (Exception ex)
             {
@@ -427,7 +453,7 @@ public class Commands : CommandModule
 
             try
             {
-                await SaveSendSummarizeAsync(recording, saveToFile, sendToClient);
+                await SummarizeSaveSendAsync(recording, saveToFile, sendToClient);
             }
             catch (Exception ex)
             {
@@ -436,8 +462,13 @@ public class Commands : CommandModule
         }
     }
 
-    async Task SaveSendSummarizeAsync(ProfilerEventsRecording recording, bool saveToFile, bool sendToClient)
+    async Task SummarizeSaveSendAsync(ProfilerEventsRecording recording, bool saveToFile, bool sendToClient)
     {
+        var summary = ProfilerHelper.SummarizeRecording(recording);
+
+        if (!string.IsNullOrEmpty(summary))
+            Context.Torch.Invoke(() => Context.Respond(summary));
+
         byte[]? serializedRecording = null;
 
         if (saveToFile)
@@ -459,16 +490,16 @@ public class Commands : CommandModule
 
         if (sendToClient)
         {
-            serializedRecording ??= await Plugin.SerializeRecordingAsync(recording).ConfigureAwait(false);
+            if (serializedRecording == null)
+            {
+                Context.Torch.Invoke(() => Context.Respond("Serializing recording for transfer."));
+
+                serializedRecording = await Plugin.PrepareAndSerializeRecordingAsync(recording).ConfigureAwait(false);
+            }
 
             var fileName = Plugin.GetRecordingFileName(recording);
 
-            Context.Torch.Invoke(() => Plugin.SendRecordingToClient(serializedRecording, fileName, Context.Player.SteamUserId));
+            Context.Torch.Invoke(() => Plugin.SendRecordingToClient(serializedRecording, fileName, Context));
         }
-
-        var summary = ProfilerHelper.SummarizeRecording(recording);
-
-        if (!string.IsNullOrEmpty(summary))
-            Context.Torch.Invoke(() => Context.Respond(summary));
     }
 }
