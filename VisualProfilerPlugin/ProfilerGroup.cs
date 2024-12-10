@@ -30,6 +30,17 @@ public class ProfilerGroup
 
     internal bool IsWaitingForFirstUse;
 
+    readonly object frameLock = new();
+
+    ProfilerEventsAllocator currentEvents = new();
+
+    int frameStartEventIndex = -1;
+    int prevFrameEndEventIndex = -1;
+
+    List<int> frameStartEventIndices = [];
+    List<int> frameEndEventIndices = [];
+    List<int> outlierFrameIndices = [];
+
     public ProfilerGroup(string name, Thread thread)
     {
         Name = name;
@@ -337,17 +348,6 @@ public class ProfilerGroup
         }
     }
 
-    object frameLock = new();
-
-    ProfilerEventsAllocator currentEvents = new();
-
-    int frameStartEventIndex = -1;
-    int prevFrameEndEventIndex = -1;
-
-    List<int> frameStartEventIndices = [];
-    List<int> frameEndEventIndices = [];
-    List<int> outlierFrameIndices = [];
-
     internal void AddEvent(int nameKey, long timestamp, ProfilerEvent.ExtraData extraData = default)
     {
         currentEvents.Alloc(out var array, out int index);
@@ -478,15 +478,19 @@ public class ProfilerGroup
 
     void ClearEventsData()
     {
-        const int ss = ProfilerEventsAllocator.SegmentSize;
-
         var events = currentEvents;
-
         int startIndex = prevFrameEndEventIndex + 1;
         int endIndex = events.NextIndex - 1;
 
+        ClearEventsData(events, startIndex, endIndex);
+    }
+
+    static void ClearEventsData(ProfilerEventsAllocator events, int startIndex, int endIndex)
+    {
         if (endIndex < startIndex)
             return;
+
+        const int ss = ProfilerEventsAllocator.SegmentSize;
 
         int startSegmentIndex = startIndex / ss;
         int endSegmentIndex = endIndex / ss;
@@ -511,17 +515,22 @@ public class ProfilerGroup
             outlierFrameIndices.Clear();
 
             ClearEventsData();
+
+            prevFrameEndEventIndex = -1;
+            currentEvents.NextIndex = 0;
         }
     }
 
-    internal ProfilerEventsRecordingGroup? StopEventRecording()
+    internal ProfilerEventsRecordingGroup? StopEventRecording(bool isGameThread)
     {
         lock (frameLock)
         {
             // NOTE: ProfilerTimers can still be ending their events concurrently.
 
             var recordedEvents = currentEvents;
-            currentEvents = new ProfilerEventsAllocator();
+
+            if (!IsRealtimeThread)
+                currentEvents = new ProfilerEventsAllocator();
 
             int startIndex = prevFrameEndEventIndex + 1;
             int eventCount = recordedEvents.NextIndex;
@@ -529,13 +538,20 @@ public class ProfilerGroup
 
             var eventObjectResolver = Profiler.EventObjectResolver;
 
-            if (eventObjectResolver != null)
+            if (isGameThread)
             {
-                lock (eventObjectResolver)
+                if (eventObjectResolver != null)
                 {
-                    if (endIndex >= startIndex)
-                        ResolveObjects(recordedEvents, startIndex, endIndex, eventObjectResolver);
+                    lock (eventObjectResolver)
+                    {
+                        if (endIndex >= startIndex)
+                            ResolveObjects(recordedEvents, startIndex, endIndex, eventObjectResolver);
+                    }
                 }
+            }
+            else
+            {
+                ClearEventsData(recordedEvents, startIndex, endIndex);
             }
 
             ProfilerEventsRecordingGroup? recording = null;

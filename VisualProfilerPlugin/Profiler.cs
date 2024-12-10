@@ -560,7 +560,6 @@ public static class Profiler
         if (numFrames.HasValue)
             recordingCompletedCallback = completedCallback;
 
-        isRecordingEvents = true;
         recordingStartTime = DateTime.UtcNow;
 
         lock (profilerGroupsById)
@@ -570,6 +569,8 @@ public static class Profiler
         }
 
         ClearObjectResolverCache();
+
+        isRecordingEvents = true;
     }
 
     public static void EndOfFrame()
@@ -584,7 +585,7 @@ public static class Profiler
             if (numFramesToRecord.HasValue && ThreadGroup != null
                 && ThreadGroup.NumRecordedFrames >= numFramesToRecord.Value)
             {
-                var recording = StopEventRecording();
+                var recording = StopEventRecording(isGameThread: true);
 
                 numFramesToRecord = null;
                 recordingCompletedCallback?.Invoke(recording);
@@ -597,7 +598,7 @@ public static class Profiler
         }
     }
 
-    public static ProfilerEventsRecording StopEventRecording()
+    public static ProfilerEventsRecording StopEventRecording(bool isGameThread = false)
     {
         if (!isRecordingEvents) throw new InvalidOperationException("Event recording has not yet been started.");
 
@@ -606,14 +607,12 @@ public static class Profiler
             if (!isRecordingEvents)
                 return null!;
 
-            isRecordingEvents = false;
-
             var groups = new List<ProfilerGroup>(profilerGroupsById.Count);
             var groupsRecordings = new List<(int, ProfilerEventsRecordingGroup)>(profilerGroupsById.Count);
 
             foreach (var item in profilerGroupsById)
             {
-                var events = item.Value.StopEventRecording();
+                var events = item.Value.StopEventRecording(isGameThread);
 
                 if (events != null)
                 {
@@ -621,6 +620,8 @@ public static class Profiler
                     groupsRecordings.Add((item.Key, events));
                 }
             }
+
+            isRecordingEvents = false;
 
             ClearObjectResolverCache();
 
