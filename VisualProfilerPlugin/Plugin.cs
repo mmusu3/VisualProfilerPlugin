@@ -403,13 +403,15 @@ public class Commands : CommandModule
 
         var sessionName = Plugin.Instance.Torch.CurrentSession?.KeenSession?.Name ?? "";
 
-        Context.Respond($"Started a profiler recording for {numSeconds} seconds.");
+        Plugin.Log.Info($"Starting a profiler recording for {numSeconds} seconds.");
 
         Profiler.StartEventRecording();
 
         Timer timer = null!;
 
         timer = new Timer(TimerCompleted, null, TimeSpan.FromSeconds(numSeconds), Timeout.InfiniteTimeSpan);
+
+        Context.Respond($"Started a profiler recording for {numSeconds} seconds.");
 
         async void TimerCompleted(object? state)
         {
@@ -468,6 +470,8 @@ public class Commands : CommandModule
         }
 
         var sessionName = Plugin.Instance.Torch.CurrentSession?.KeenSession?.Name ?? "";
+
+        Plugin.Log.Info($"Starting a profiler recording for {numFrames} frames.");
 
         Profiler.StartEventRecording(numFrames, OnRecordingCompleted);
 

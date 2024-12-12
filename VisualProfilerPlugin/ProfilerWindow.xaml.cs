@@ -196,7 +196,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     bool TimeTextAllowed(string text)
     {
-        bool hasDigitSep = recordTimeBox.Text.Contains(".", StringComparison.Ordinal);
+        bool hasDigitSep = recordTimeBox.Text.IndexOf('.') >= 0;
         bool valid = true;
 
         for (int i = 0; i < text.Length; i++)
@@ -279,6 +279,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
                 if (float.TryParse(recordTimeBox.Text, out float seconds)
                     && seconds > 0 && seconds <= maxRecordingSeconds)
                 {
+                    Plugin.Log.Info($"Starting a profiler recording for {seconds} seconds.");
+
                     Profiler.StartEventRecording();
                     ClearTimer();
 
@@ -294,8 +296,10 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
                 if (int.TryParse(recordTimeBox.Text, out int frames)
                     && frames > 0 && frames <= maxRecordingFrames)
                 {
+                    Plugin.Log.Info($"Starting a profiler recording for {frames} frames with a timeout length of {maxRecordingSeconds} seconds.");
+
                     Profiler.StartEventRecording(frames, RecordingFramesCompleted);
-                    recordingTimer = new Timer(TimerCompleted, null, TimeSpan.FromSeconds(maxRecordingSeconds), Timeout.InfiniteTimeSpan);
+                    recordingTimer = new Timer(TimerCompleted, new object(), TimeSpan.FromSeconds(maxRecordingSeconds), Timeout.InfiniteTimeSpan);
                 }
                 else
                 {
@@ -1386,6 +1390,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             return;
 
         var recording = Profiler.StopEventRecording();
+
+        if (state != null)
+            Plugin.Log.Info("Frame profiling was timed out.");
 
         ClearTimer();
         Dispatcher.BeginInvoke(OnRecordingStopped, recording);
