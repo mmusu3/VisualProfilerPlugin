@@ -154,11 +154,26 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     protected override void OnClosing(CancelEventArgs args)
     {
+        if (currentRecording != null && !currentIsSaved)
+        {
+            var result = MessageBox.Show("The current recording is unsaved. Do you want to save it now?",
+                "Unsaved recording", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+            switch (result)
+            {
+            case MessageBoxResult.Yes:
+                Save();
+                break;
+            case MessageBoxResult.Cancel:
+                args.Cancel = true;
+                break;
+            }
+        }
+
         base.OnClosing(args);
 
-        // TODO: Prompt if unsaved
-
-        window = null;
+        if (!args.Cancel)
+            window = null;
     }
 
     void RecordTimeTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs args)
@@ -308,12 +323,18 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(CanSave));
     }
 
-    async void SaveButton_Click(object sender, RoutedEventArgs args)
+    void SaveButton_Click(object sender, RoutedEventArgs args)
     {
         if (currentRecording == null)
             return;
 
-        if (await Plugin.SaveRecordingDialogAsync(currentRecording))
+        Save();
+    }
+
+    async void Save()
+    {
+        // TODO: Saving indicator
+        if (await Plugin.SaveRecordingDialogAsync(currentRecording!))
             currentIsSaved = true;
 
         OnPropertyChanged(nameof(CanSave));
