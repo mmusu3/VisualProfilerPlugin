@@ -480,24 +480,18 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         }
 
         var borderBrush = new SolidColorBrush { Color = Colors.Black };
-
-        var copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
-        copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
-
         var clustersContextMenu = new ContextMenu();
-        clustersContextMenu.Items.Add(copyLastPosAsGPS);
+        clustersContextMenu.Items.Add(NewCopyLastPosItem());
 
         physicsClustersList.ContextMenu = clustersContextMenu;
         physicsClustersList.ItemsSource = analysis.PhysicsClusters;
         physicsClustersList.Items.SortDescriptions.Clear();
         physicsClustersList.Items.SortDescriptions.Add(new SortDescription(nameof(PhysicsClusterAnalysisInfo.TotalTime), ListSortDirection.Descending));
 
-        copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
-        copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
-
         var gridsContextMenu = new ContextMenu();
-        // TODO: Copy EntityID
-        gridsContextMenu.Items.Add(copyLastPosAsGPS);
+        gridsContextMenu.Items.Add(NewCopyEntityIdItem());
+        gridsContextMenu.Items.Add(NewCopyLastPosItem());
+        gridsContextMenu.Items.Add(NewCopyAllInfoItem());
 
         gridsList.ContextMenu = gridsContextMenu;
         gridsList.ItemsSource = analysis.Grids;
@@ -505,11 +499,10 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         gridsList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeGridAnalysisInfo.TotalTime), ListSortDirection.Descending));
         gridsList.Items.Filter = FilterCubeGridItem;
 
-        copyLastPosAsGPS = new MenuItem { Header = "Copy Last Position as GPS" };
-        copyLastPosAsGPS.Click += CopyLastPosAsGPS_Click;
-
         var blocksContextMenu = new ContextMenu();
-        blocksContextMenu.Items.Add(copyLastPosAsGPS);
+        blocksContextMenu.Items.Add(NewCopyEntityIdItem());
+        blocksContextMenu.Items.Add(NewCopyLastPosItem());
+        blocksContextMenu.Items.Add(NewCopyAllInfoItem());
 
         programmableBlocksList.ContextMenu = blocksContextMenu;
         programmableBlocksList.ItemsSource = analysis.ProgrammableBlocks;
@@ -521,6 +514,27 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         FixColumnWidth(gridCountedFramesColumn.Column);
         FixColumnWidth(blockSnapshotCountColumn.Column);
         FixColumnWidth(blockCountedFramesColumn.Column);
+
+        MenuItem NewCopyEntityIdItem()
+        {
+            var item = new MenuItem { Header = "Copy Entity ID" };
+            item.Click += CopyEntityId_Click;
+            return item;
+        }
+
+        MenuItem NewCopyLastPosItem()
+        {
+            var item = new MenuItem { Header = "Copy Last Position as GPS" };
+            item.Click += CopyLastPosAsGPS_Click;
+            return item;
+        }
+
+        MenuItem NewCopyAllInfoItem()
+        {
+            var item = new MenuItem { Header = "Copy All Info" };
+            item.Click += CopyAllInfo_Click;
+            return item;
+        }
     }
 
     static void FixColumnWidth(GridViewColumn column)
@@ -1411,6 +1425,34 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         recordingTimer = null;
     }
 
+    void CopyEntityId_Click(object sender, RoutedEventArgs e)
+    {
+        if (e.Source is not MenuItem menuItem)
+            return;
+
+        if (menuItem.Parent is not ContextMenu menu)
+            return;
+
+        object? selectedItem;
+
+        if (menu.PlacementTarget is ListViewItem lvi)
+            selectedItem = lvi.Content;
+        else if (menu.PlacementTarget is ListView lv)
+            selectedItem = lv.SelectedItem is ListViewItem { Content: var c } ? c : lv.SelectedItem;
+        else
+            return;
+
+        switch (selectedItem)
+        {
+        case CubeGridAnalysisInfo gridInfo:
+            Clipboard.SetText(gridInfo.EntityId.ToString());
+            break;
+        case CubeBlockAnalysisInfo blockInfo:
+            Clipboard.SetText(blockInfo.EntityId.ToString());
+            break;
+        }
+    }
+
     void CopyLastPosAsGPS_Click(object sender, RoutedEventArgs e)
     {
         if (e.Source is not MenuItem menuItem)
@@ -1465,6 +1507,34 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             var ivCt = System.Globalization.CultureInfo.InvariantCulture;
 
             return $"GPS:{name}:{coords.X.ToString("R", ivCt)}:{coords.Y.ToString("R", ivCt)}:{coords.Z.ToString("R", ivCt)}:";
+        }
+    }
+
+    void CopyAllInfo_Click(object sender, RoutedEventArgs e)
+    {
+        if (e.Source is not MenuItem menuItem)
+            return;
+
+        if (menuItem.Parent is not ContextMenu menu)
+            return;
+
+        object? selectedItem;
+
+        if (menu.PlacementTarget is ListViewItem lvi)
+            selectedItem = lvi.Content;
+        else if (menu.PlacementTarget is ListView lv)
+            selectedItem = lv.SelectedItem is ListViewItem { Content: var c } ? c : lv.SelectedItem;
+        else
+            return;
+
+        switch (selectedItem)
+        {
+        case CubeGridAnalysisInfo gridInfo:
+            Clipboard.SetText(gridInfo.ToString());
+            break;
+        case CubeBlockAnalysisInfo blockInfo:
+            Clipboard.SetText(blockInfo.ToString());
+            break;
         }
     }
 }
