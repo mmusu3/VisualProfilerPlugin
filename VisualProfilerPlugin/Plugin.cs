@@ -470,14 +470,44 @@ public class Commands : CommandModule
 
         var sessionName = Plugin.Instance.Torch.CurrentSession?.KeenSession?.Name ?? "";
 
-        Plugin.Log.Info($"Starting a profiler recording for {numFrames} frames.");
+        Plugin.Log.Info($"Starting a profiler recording for {numFrames} frames with a timeout length of {Plugin.MaxRecordingSeconds} seconds.");
+
+        Timer? timer = null;
 
         Profiler.StartEventRecording(numFrames, OnRecordingCompleted);
 
+        timer = new Timer(TimerCompleted, null, TimeSpan.FromSeconds(Plugin.MaxRecordingSeconds), Timeout.InfiniteTimeSpan);
+
         Context.Respond($"Started a profiler recording for {numFrames} frames.");
+
+        void TimerCompleted(object? state)
+        {
+            if (!Profiler.IsRecordingEvents)
+                return;
+
+            var recording = Profiler.StopEventRecording();
+
+            if (state != null)
+                Plugin.Log.Info("Frame profiling was timed out.");
+
+            ClearTimer();
+            OnRecordingCompleted(recording);
+        }
+
+        void ClearTimer()
+        {
+            if (timer == null)
+                return;
+
+            timer.Change(Timeout.Infinite, Timeout.Infinite); // Cancel timer
+            timer.Dispose();
+            timer = null;
+        }
 
         async void OnRecordingCompleted(ProfilerEventsRecording recording)
         {
+            ClearTimer();
+
             recording.SessionName = sessionName;
 
             try
