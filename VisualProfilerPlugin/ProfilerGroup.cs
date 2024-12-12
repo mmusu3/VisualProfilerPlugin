@@ -2,6 +2,11 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
+#if NET9_0_OR_GREATER
+using Lock = System.Threading.Lock;
+#else
+using Lock = object;
+#endif
 
 namespace VisualProfiler;
 
@@ -30,7 +35,7 @@ public class ProfilerGroup
 
     internal bool IsWaitingForFirstUse;
 
-    readonly object frameLock = new();
+    readonly Lock frameLock = new();
 
     ProfilerEventsAllocator currentEvents = new();
 

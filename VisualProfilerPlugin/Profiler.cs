@@ -6,6 +6,11 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using ProtoBuf;
+#if NET9_0_OR_GREATER
+using Lock = System.Threading.Lock;
+#else
+using Lock = object;
+#endif
 
 namespace VisualProfiler;
 
@@ -736,7 +741,7 @@ public readonly struct ProfilerKey
 
 static class ProfilerKeyCache
 {
-    static readonly object lockObj = new();
+    static readonly Lock lockObj = new();
     static readonly Dictionary<string, int> namesToKeys = [];
     static readonly Dictionary<int, string> keysToNames = [];
     static int keyGenerator = -1;
