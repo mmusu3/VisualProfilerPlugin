@@ -3,6 +3,7 @@ using System.Collections;
 using System.ComponentModel;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -336,21 +337,56 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (result is not true)
             return;
 
-        LoadRecording(diag.FileName);
+        LoadRecordingAsync(diag.FileName);
     }
 
-    void LoadRecording(string path)
+    async void LoadRecordingAsync(string path)
     {
-        ProfilerEventsRecording? recording = null;
+        var dialog = new WaitDialog {
+            Title = "Loading",
+            Message = "Loading profiler recording, please wait...",
+            Owner = window
+        };
+
+        ProfilerEventsRecording? recording;
 
         try
         {
-            recording = Plugin.LoadRecording(path);
+            var cancelSource = new CancellationTokenSource();
+
+            var task = Plugin.LoadRecordingAsync(path, cancelSource.Token)
+                .ContinueWith(task =>
+            {
+                dialog.Dispatcher.BeginInvoke(() =>
+                {
+                    dialog.DialogResult = true;
+                    dialog.Close();
+                });
+
+                return task.Result;
+            }, cancelSource.Token);
+
+            bool? result = dialog.ShowDialog();
+
+            if (result == false)
+            {
+                cancelSource.Cancel();
+                recording = null;
+            }
+            else
+            {
+                recording = await task;
+            }
         }
         catch (Exception ex)
         {
-            Plugin.Log.Error(ex, "Failed to load profiler recording file.");
-            // TODO: Msg box
+            recording = null;
+
+            if (ex is not TaskCanceledException)
+            {
+                Plugin.Log.Error(ex, "Failed to load profiler recording file.");
+                MessageBox.Show("An exception occurred while loading a recording file. See log for details.", "Error", MessageBoxButton.OK);
+            }
         }
 
         if (recording == null)

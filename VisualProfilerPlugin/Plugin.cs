@@ -59,6 +59,32 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         return recording;
     }
 
+    internal static async Task<ProfilerEventsRecording> LoadRecordingAsync(string filePath, CancellationToken cancellationToken = default)
+    {
+        ProfilerEventsRecording recording;
+        byte[] fileBytes;
+
+#if NET
+        fileBytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
+#else
+        using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true))
+        {
+            fileBytes = new byte[fs.Length];
+            await fs.ReadAsync(fileBytes, 0, fileBytes.Length, cancellationToken).ConfigureAwait(false);
+        }
+#endif
+
+        recording = await Task.Run(() =>
+        {
+            using var stream = new MemoryStream(fileBytes);
+            using var gzipStream = new GZipStream(stream, CompressionMode.Decompress);
+
+            return Serializer.Deserialize<ProfilerEventsRecording>(gzipStream);
+        }, cancellationToken).ConfigureAwait(false);
+
+        return recording;
+    }
+
     static byte[] SerializeRecording(ProfilerEventsRecording recording)
     {
         byte[] serializedRecording;
