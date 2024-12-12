@@ -159,7 +159,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             switch (result)
             {
             case MessageBoxResult.Yes:
-                Save();
+                Save(currentRecording);
                 break;
             case MessageBoxResult.Cancel:
                 args.Cancel = true;
@@ -326,17 +326,18 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     void SaveButton_Click(object sender, RoutedEventArgs args)
     {
-        if (currentRecording == null)
-            return;
-
-        Save();
+        if (currentRecording != null)
+            Save(currentRecording);
     }
 
-    async void Save()
+    async void Save(ProfilerEventsRecording recording)
     {
-        // TODO: Saving indicator
-        if (await Plugin.SaveRecordingDialogAsync(currentRecording!))
+        statusTextBlock.Text = "Saving to file...";
+
+        if (await Plugin.SaveRecordingDialogAsync(recording))
             currentIsSaved = true;
+
+        statusTextBlock.Text = "";
 
         OnPropertyChanged(nameof(CanSave));
     }

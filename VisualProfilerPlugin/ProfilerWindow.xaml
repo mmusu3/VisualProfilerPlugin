@@ -11,6 +11,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="auto"/>
             <RowDefinition/>
+            <RowDefinition Height="auto"/>
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
@@ -249,5 +250,11 @@
         <GridSplitter Grid.Column="1" Grid.Row="1" VerticalAlignment="Stretch" Width="4" ShowsPreview="true" Background="LightGray"/>
 
         <local:ProfilerEventsGraphControl x:Name="eventsGraph" Grid.Row="1" Grid.Column="2"/>
+
+        <StatusBar Grid.Row="2" Grid.ColumnSpan="3" Background="#FFDDDDDD">
+            <StatusBarItem>
+                <TextBlock Name="statusTextBlock"/>
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
 </Window>
