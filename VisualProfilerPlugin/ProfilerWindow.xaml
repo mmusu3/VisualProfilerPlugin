@@ -147,7 +147,7 @@
                                     <GridViewColumnHeader Name="gridCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the grid was timed in."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
-                                    <GridViewColumnHeader Name="gridAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                                    <GridViewColumnHeader Name="gridAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Total time in milliseconds divided by the number of frames the grid was counted in. Note: This includes any time spent on worker threads."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N2}">
                                     <GridViewColumnHeader Name="gridTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
@@ -189,7 +189,7 @@
                                     <GridViewColumnHeader Name="gridConnectedGridsColumn" Content=" Connected Grids " ToolTip="Number of connected grids (by connector, rotor, etc).&#10;Can be multiple values if grids were connected/disconnected over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=PhysicsClustersForColumn}">
-                                    <GridViewColumnHeader Name="gridPhysicsClustersColumn" Content=" Cluster IDs " ToolTip="IDs of physics clusters that the grids were in.&#10;Can be multiple values if grids moved between clsuters over time."/>
+                                    <GridViewColumnHeader Name="gridPhysicsClustersColumn" Content=" Cluster ID " ToolTip="IDs of physics clusters that the grids were in.&#10;Can be multiple values if grids moved between clsuters over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=IsPreview}">
                                     <GridViewColumnHeader Name="gridIsPreviewColumn" Content=" Is Preview " ToolTip="Whether the grid is marked as IsPreview, typically projections."/>
@@ -214,7 +214,7 @@
                                 <GridViewColumnHeader Name="blockCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the block was timed in."/>
                             </GridViewColumn>
                             <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
-                                <GridViewColumnHeader Name="blockAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                                <GridViewColumnHeader Name="blockAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Total time in milliseconds divided by the number of frames the block was counted in. Note: This includes any time spent on worker threads."/>
                             </GridViewColumn>
                             <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N2}">
                                 <GridViewColumnHeader Name="blockTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
