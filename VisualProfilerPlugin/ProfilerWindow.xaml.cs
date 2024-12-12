@@ -532,6 +532,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     void OutlierItem_MouseDoubleClick(object sender, MouseButtonEventArgs args)
     {
+        if (CombineFrames)
+            return;
+
         var item = (ListViewItem)sender;
         int index = (int)item.Tag;
 
@@ -542,6 +545,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     {
         if (e.Key == Key.Enter)
         {
+            if (CombineFrames)
+                return;
+
             var item = (ListViewItem)sender;
             int index = (int)item.Tag;
 
