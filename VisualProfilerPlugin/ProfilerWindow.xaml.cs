@@ -26,9 +26,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     static Dispatcher? dispatcher;
     static ProfilerWindow? window;
 
-    const int maxRecordingSeconds = 60;
-    const int maxRecordingFrames = 3600;
-
     Timer? recordingTimer;
 
     ProfilerEventsRecording? currentRecording;
@@ -50,7 +47,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         {
             if (float.TryParse(recordTimeBox.Text, out float seconds))
             {
-                if (seconds > 0 && seconds <= maxRecordingSeconds)
+                if (seconds > 0 && seconds <= Plugin.MaxRecordingSeconds)
                     return true;
             }
         }
@@ -58,7 +55,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         {
             if (int.TryParse(recordTimeBox.Text, out int frames))
             {
-                if (frames > 0 && frames <= maxRecordingFrames)
+                if (frames > 0 && frames <= Plugin.MaxRecordingFrames)
                     return true;
             }
         }
@@ -277,7 +274,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             if (recordTimeTypeBox.SelectedIndex == 0) // Seconds
             {
                 if (float.TryParse(recordTimeBox.Text, out float seconds)
-                    && seconds > 0 && seconds <= maxRecordingSeconds)
+                    && seconds > 0 && seconds <= Plugin.MaxRecordingSeconds)
                 {
                     Plugin.Log.Info($"Starting a profiler recording for {seconds} seconds.");
 
@@ -294,12 +291,12 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             else if (recordTimeTypeBox.SelectedIndex == 1) // Frames
             {
                 if (int.TryParse(recordTimeBox.Text, out int frames)
-                    && frames > 0 && frames <= maxRecordingFrames)
+                    && frames > 0 && frames <= Plugin.MaxRecordingFrames)
                 {
-                    Plugin.Log.Info($"Starting a profiler recording for {frames} frames with a timeout length of {maxRecordingSeconds} seconds.");
+                    Plugin.Log.Info($"Starting a profiler recording for {frames} frames with a timeout length of {Plugin.MaxRecordingSeconds} seconds.");
 
                     Profiler.StartEventRecording(frames, RecordingFramesCompleted);
-                    recordingTimer = new Timer(TimerCompleted, new object(), TimeSpan.FromSeconds(maxRecordingSeconds), Timeout.InfiniteTimeSpan);
+                    recordingTimer = new Timer(TimerCompleted, new object(), TimeSpan.FromSeconds(Plugin.MaxRecordingSeconds), Timeout.InfiniteTimeSpan);
                 }
                 else
                 {

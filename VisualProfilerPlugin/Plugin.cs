@@ -25,6 +25,9 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
     //Persistent<ConfigViewModel> configVM = null!;
 
+    internal const int MaxRecordingSeconds = 60;
+    internal const int MaxRecordingFrames = 3600;
+
     public override void Init(ITorchBase torch)
     {
         base.Init(torch);
@@ -387,11 +390,9 @@ public class Commands : CommandModule
             return;
         }
 
-        const double maxSeconds = 60;
-
-        if (numSeconds > maxSeconds)
+        if (numSeconds > Plugin.MaxRecordingSeconds)
         {
-            Context.Respond($"Command Error: Profiler recording is limited to a maximum of {maxSeconds} seconds.");
+            Context.Respond($"Command Error: Profiler recording is limited to a maximum of {Plugin.MaxRecordingSeconds} seconds.");
             return;
         }
 
@@ -455,11 +456,9 @@ public class Commands : CommandModule
             return;
         }
 
-        const int maxFrames = 3600;
-
-        if (numFrames > maxFrames)
+        if (numFrames > Plugin.MaxRecordingFrames)
         {
-            Context.Respond($"Command Error: Profiler recording is limited to a maximum of {maxFrames} frames.");
+            Context.Respond($"Command Error: Profiler recording is limited to a maximum of {Plugin.MaxRecordingFrames} frames.");
             return;
         }
 
