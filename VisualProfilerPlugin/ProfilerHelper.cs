@@ -26,344 +26,326 @@ static class ProfilerHelper
     class ObjectResolver : IProfilerEventDataObjectResolver
     {
         Dictionary<object, object> objectCache = [];
+        Dictionary<MyCubeGrid, CubeGridInfoProxy> gridCache = [];
+        Dictionary<MyCubeBlock, CubeBlockInfoProxy> blockCache = [];
 
-        public void Resolve(ref ProfilerEvent.ExtraData data) => ResolveProfilerEventObject(objectCache, ref data);
-
-        public void ResolveNonCached(ref ProfilerEvent.ExtraData data) => ResolveProfilerEventObject(ref data);
-
-        public void ClearCache() => objectCache.Clear();
-    }
-
-    static void ResolveProfilerEventObject(Dictionary<object, object> cache, ref ProfilerEvent.ExtraData data)
-    {
-        switch (data.Object)
+        public void ClearCache()
         {
-        case GCEventInfo:
-            break;
-        case Type type:
+            objectCache.Clear();
+            gridCache.Clear();
+            blockCache.Clear();
+        }
+
+        public void Resolve(ref ProfilerEvent.ExtraData data)
+        {
+            switch (data.Object)
             {
-                data.Format = "Type: {0}";
-
-                if (cache.TryGetValue(type, out var cachedObj))
+            case GCEventInfo:
+                break;
+            case Type type:
                 {
-                    data.Object = (string)cachedObj;
-                    break;
+                    data.Format = "Type: {0}";
+
+                    if (objectCache.TryGetValue(type, out var cachedObj))
+                    {
+                        data.Object = (string)cachedObj;
+                        break;
+                    }
+
+                    objectCache[type] = data.Object = type.FullName!;
                 }
-
-                cache[type] = data.Object = type.FullName!;
-            }
-            break;
-        case Delegate @delegate:
-            {
-                data.Format = "Declaring Type: {0}";
-
-                Type type;
-
-                // TODO: Get more info from Target
-                if (@delegate.Target != null)
-                    type = @delegate.Target.GetType();
-                else
-                    type = @delegate.Method.DeclaringType!;
-
-                if (cache.TryGetValue(type, out var cachedObj))
-                    data.Object = (string)cachedObj;
-                else
-                    cache[type] = data.Object = type.FullName!;
-            }
-            break;
-        case MyClusterTree.MyCluster cluster:
-            {
-                data.Format = "{0}";
-
-                PhysicsClusterInfoProxy clusterInfo;
-
-                if (cache.TryGetValue(cluster, out var cachedObj))
+                break;
+            case Delegate @delegate:
                 {
-                    clusterInfo = (PhysicsClusterInfoProxy)cachedObj;
+                    data.Format = "Declaring Type: {0}";
+
+                    Type type;
+
+                    // TODO: Get more info from Target
+                    if (@delegate.Target != null)
+                        type = @delegate.Target.GetType();
+                    else
+                        type = @delegate.Method.DeclaringType!;
+
+                    if (objectCache.TryGetValue(type, out var cachedObj))
+                        data.Object = (string)cachedObj;
+                    else
+                        objectCache[type] = data.Object = type.FullName!;
                 }
-                else
+                break;
+            case MyClusterTree.MyCluster cluster:
                 {
-                    clusterInfo = new PhysicsClusterInfoProxy(cluster);
-                    cache.Add(cluster, clusterInfo);
+                    data.Format = "{0}";
+
+                    PhysicsClusterInfoProxy clusterInfo;
+
+                    if (objectCache.TryGetValue(cluster, out var cachedObj))
+                    {
+                        clusterInfo = (PhysicsClusterInfoProxy)cachedObj;
+                    }
+                    else
+                    {
+                        clusterInfo = new PhysicsClusterInfoProxy(cluster);
+                        objectCache.Add(cluster, clusterInfo);
+                    }
+
+                    data.Object = clusterInfo.GetSnapshot(cluster);
                 }
-
-                data.Object = clusterInfo.GetSnapshot(cluster);
-            }
-            break;
-        case MyCubeGrid grid:
-            {
-                data.Format = "{0}";
-
-                CubeGridInfoProxy gridInfo;
-
-                if (cache.TryGetValue(grid, out var cachedObj))
+                break;
+            case MyCubeGrid grid:
                 {
-                    gridInfo = (CubeGridInfoProxy)cachedObj;
+                    data.Format = "{0}";
+
+                    CubeGridInfoProxy? gridInfo;
+
+                    if (!gridCache.TryGetValue(grid, out gridInfo))
+                    {
+                        gridInfo = new CubeGridInfoProxy(grid);
+                        gridCache.Add(grid, gridInfo);
+                    }
+
+                    data.Object = gridInfo.GetSnapshot(grid);
                 }
-                else
+                break;
+            case MyCubeBlock block:
                 {
-                    gridInfo = new CubeGridInfoProxy(grid);
-                    cache.Add(grid, gridInfo);
+                    data.Format = "{0}";
+
+                    CubeBlockInfoProxy? blockInfo;
+
+                    if (!blockCache.TryGetValue(block, out blockInfo))
+                    {
+                        blockInfo = new CubeBlockInfoProxy(block);
+                        blockCache.Add(block, blockInfo);
+                    }
+
+                    var gridSnapshot = GetGridSnapshot(block.CubeGrid);
+
+                    data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
                 }
-
-                data.Object = gridInfo.GetSnapshot(grid);
-            }
-            break;
-        case MyCubeBlock block:
-            {
-                data.Format = "{0}";
-
-                CubeBlockInfoProxy blockInfo;
-
-                if (cache.TryGetValue(block, out var cachedObj))
+                break;
+            case MyCharacter character:
                 {
-                    blockInfo = (CubeBlockInfoProxy)cachedObj;
+                    data.Format = "{0}";
+
+                    CharacterInfoProxy charInfo;
+
+                    if (objectCache.TryGetValue(character, out var cachedObj))
+                    {
+                        charInfo = (CharacterInfoProxy)cachedObj;
+                    }
+                    else
+                    {
+                        charInfo = new CharacterInfoProxy(character);
+                        objectCache.Add(character, charInfo);
+                    }
+
+                    data.Object = charInfo.GetSnapshot(character);
                 }
-                else
+                break;
+            case MyFloatingObject floatingObj:
                 {
-                    blockInfo = new CubeBlockInfoProxy(block);
-                    cache.Add(block, blockInfo);
+                    data.Format = "{0}";
+
+                    FloatingObjectInfoProxy floatObjInfo;
+
+                    if (objectCache.TryGetValue(floatingObj, out var cachedObj))
+                    {
+                        floatObjInfo = (FloatingObjectInfoProxy)cachedObj;
+                    }
+                    else
+                    {
+                        floatObjInfo = new FloatingObjectInfoProxy(floatingObj);
+                        objectCache.Add(floatingObj, floatObjInfo);
+                    }
+
+                    data.Object = floatObjInfo.GetSnapshot(floatingObj);
                 }
-
-                var gridSnapshot = GetGridSnapshot(cache, block.CubeGrid);
-
-                data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
-            }
-            break;
-        case MyCharacter character:
-            {
-                data.Format = "{0}";
-
-                CharacterInfoProxy charInfo;
-
-                if (cache.TryGetValue(character, out var cachedObj))
+                break;
+            case MyExternalReplicable<MyCubeGrid> gridRepl:
                 {
-                    charInfo = (CharacterInfoProxy)cachedObj;
+                    var grid = gridRepl.Instance;
+
+                    if (grid == null)
+                    {
+                        data.Object = null;
+                        data.Format = "Empty cube grid replicable{0}";
+                        break;
+                    }
+
+                    data.Format = "{0}";
+
+                    CubeGridInfoProxy? gridInfo;
+
+                    if (!gridCache.TryGetValue(grid, out gridInfo))
+                    {
+                        gridInfo = new CubeGridInfoProxy(grid);
+                        gridCache.Add(grid, gridInfo);
+                    }
+
+                    data.Object = gridInfo.GetSnapshot(grid);
                 }
-                else
+                break;
+            case MyExternalReplicable<MySyncedBlock> blockRepl:
                 {
-                    charInfo = new CharacterInfoProxy(character);
-                    cache.Add(character, charInfo);
+                    var block = blockRepl.Instance;
+
+                    if (block == null)
+                    {
+                        data.Object = null;
+                        data.Format = "Empty cube block replicable{0}";
+                        break;
+                    }
+
+                    data.Format = "{0}";
+
+                    CubeBlockInfoProxy? blockInfo;
+
+                    if (!blockCache.TryGetValue(block, out blockInfo))
+                    {
+                        blockInfo = new CubeBlockInfoProxy(block);
+                        blockCache.Add(block, blockInfo);
+                    }
+
+                    var gridSnapshot = GetGridSnapshot(block.CubeGrid);
+
+                    data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
                 }
-
-                data.Object = charInfo.GetSnapshot(character);
-            }
-            break;
-        case MyFloatingObject floatingObj:
-            {
-                data.Format = "{0}";
-
-                FloatingObjectInfoProxy floatObjInfo;
-
-                if (cache.TryGetValue(floatingObj, out var cachedObj))
+                break;
+            case MyExternalReplicable<MyCharacter> charRepl:
                 {
-                    floatObjInfo = (FloatingObjectInfoProxy)cachedObj;
+                    var character = charRepl.Instance;
+
+                    if (character == null)
+                    {
+                        data.Object = null;
+                        data.Format = "Empty character replicable{0}";
+                        break;
+                    }
+
+                    data.Format = "{0}";
+
+                    CharacterInfoProxy charInfo;
+
+                    if (objectCache.TryGetValue(character, out var cachedObj))
+                    {
+                        charInfo = (CharacterInfoProxy)cachedObj;
+                    }
+                    else
+                    {
+                        charInfo = new CharacterInfoProxy(character);
+                        objectCache.Add(character, charInfo);
+                    }
+
+                    data.Object = charInfo.GetSnapshot(character);
                 }
-                else
+                break;
+            case MyExternalReplicable<MyFloatingObject> floatObjRepl:
                 {
-                    floatObjInfo = new FloatingObjectInfoProxy(floatingObj);
-                    cache.Add(floatingObj, floatObjInfo);
+                    var floatingObj = floatObjRepl.Instance;
+
+                    if (floatingObj == null)
+                    {
+                        data.Object = null;
+                        data.Format = "Empty floating object replicable{0}";
+                        break;
+                    }
+
+                    data.Format = "{0}";
+
+                    FloatingObjectInfoProxy floatObjInfo;
+
+                    if (objectCache.TryGetValue(floatingObj, out var cachedObj))
+                    {
+                        floatObjInfo = (FloatingObjectInfoProxy)cachedObj;
+                    }
+                    else
+                    {
+                        floatObjInfo = new FloatingObjectInfoProxy(floatingObj);
+                        objectCache.Add(floatingObj, floatObjInfo);
+                    }
+
+                    data.Object = floatObjInfo.GetSnapshot(floatingObj);
                 }
-
-                data.Object = floatObjInfo.GetSnapshot(floatingObj);
-            }
-            break;
-        case MyExternalReplicable<MyCubeGrid> gridRepl:
-            {
-                var grid = gridRepl.Instance;
-
-                if (grid == null)
+                break;
+            case MyExternalReplicable<MyVoxelBase> voxelRepl:
                 {
-                    data.Object = null;
-                    data.Format = "Empty cube grid replicable{0}";
-                    break;
-                }
+                    data.Format = "{0}";
 
-                data.Format = "{0}";
+                    var voxel = voxelRepl.Instance;
 
-                CubeGridInfoProxy gridInfo;
+                    if (voxel == null)
+                    {
+                        data.Object = null;
+                        data.Object = "Empty voxel replicable{0}";
+                        break;
+                    }
 
-                if (cache.TryGetValue(grid, out var cachedObj))
-                {
-                    gridInfo = (CubeGridInfoProxy)cachedObj;
-                }
-                else
-                {
-                    gridInfo = new CubeGridInfoProxy(grid);
-                    cache.Add(grid, gridInfo);
-                }
-
-                data.Object = gridInfo.GetSnapshot(grid);
-            }
-            break;
-        case MyExternalReplicable<MySyncedBlock> blockRepl:
-            {
-                var block = blockRepl.Instance;
-
-                if (block == null)
-                {
-                    data.Object = null;
-                    data.Format = "Empty cube block replicable{0}";
-                    break;
-                }
-
-                data.Format = "{0}";
-
-                CubeBlockInfoProxy blockInfo;
-
-                if (cache.TryGetValue(block, out var cachedObj))
-                {
-                    blockInfo = (CubeBlockInfoProxy)cachedObj;
-                }
-                else
-                {
-                    blockInfo = new CubeBlockInfoProxy(block);
-                    cache.Add(block, blockInfo);
-                }
-
-                var gridSnapshot = GetGridSnapshot(cache, block.CubeGrid);
-
-                data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
-            }
-            break;
-        case MyExternalReplicable<MyCharacter> charRepl:
-            {
-                var character = charRepl.Instance;
-
-                if (character == null)
-                {
-                    data.Object = null;
-                    data.Format = "Empty character replicable{0}";
-                    break;
-                }
-
-                data.Format = "{0}";
-
-                CharacterInfoProxy charInfo;
-
-                if (cache.TryGetValue(character, out var cachedObj))
-                {
-                    charInfo = (CharacterInfoProxy)cachedObj;
-                }
-                else
-                {
-                    charInfo = new CharacterInfoProxy(character);
-                    cache.Add(character, charInfo);
-                }
-
-                data.Object = charInfo.GetSnapshot(character);
-            }
-            break;
-        case MyExternalReplicable<MyFloatingObject> floatObjRepl:
-            {
-                var floatingObj = floatObjRepl.Instance;
-
-                if (floatingObj == null)
-                {
-                    data.Object = null;
-                    data.Format = "Empty floating object replicable{0}";
-                    break;
-                }
-
-                data.Format = "{0}";
-
-                FloatingObjectInfoProxy floatObjInfo;
-
-                if (cache.TryGetValue(floatingObj, out var cachedObj))
-                {
-                    floatObjInfo = (FloatingObjectInfoProxy)cachedObj;
-                }
-                else
-                {
-                    floatObjInfo = new FloatingObjectInfoProxy(floatingObj);
-                    cache.Add(floatingObj, floatObjInfo);
-                }
-
-                data.Object = floatObjInfo.GetSnapshot(floatingObj);
-            }
-            break;
-        case MyExternalReplicable<MyVoxelBase> voxelRepl:
-            {
-                data.Format = "{0}";
-
-                var voxel = voxelRepl.Instance;
-
-                if (voxel != null)
-                {
-                    if (cache.TryGetValue(voxel, out var cachedObj))
+                    if (objectCache.TryGetValue(voxel, out var cachedObj))
                     {
                         data.Object = (VoxelInfoProxy)cachedObj;
                         break;
                     }
 
-                    cache[voxel] = data.Object = new VoxelInfoProxy(voxel);
+                    objectCache[voxel] = data.Object = new VoxelInfoProxy(voxel);
                 }
-                else
+                break;
+            case IMyReplicable replicable:
                 {
                     data.Object = null;
-                    data.Object = "Empty voxel replicable{0}";
+                    data.Format = replicable.GetType().Name;
                 }
+                break;
+            default:
+                data.Object = GeneralStringCache.Intern(data.Object?.ToString());
+                break;
             }
-            break;
-        case IMyReplicable replicable:
-            {
-                data.Object = null;
-                data.Format = replicable.GetType().Name;
-            }
-            break;
-        default:
-            data.Object = GeneralStringCache.Intern(data.Object?.ToString());
-            break;
-        }
-    }
-
-    static CubeGridInfoProxy.Snapshot GetGridSnapshot(Dictionary<object, object> cache, MyCubeGrid grid)
-    {
-        CubeGridInfoProxy gridInfo;
-
-        if (cache.TryGetValue(grid, out var cachedObj))
-        {
-            gridInfo = (CubeGridInfoProxy)cachedObj;
-        }
-        else
-        {
-            gridInfo = new CubeGridInfoProxy(grid);
-            cache.Add(grid, gridInfo);
         }
 
-        return gridInfo.GetSnapshot(grid);
-    }
-
-    static void ResolveProfilerEventObject(ref ProfilerEvent.ExtraData data)
-    {
-        switch (data.Object)
+        CubeGridInfoProxy.Snapshot GetGridSnapshot(MyCubeGrid grid)
         {
-        case GCEventInfo:
-            break;
-        case Type type:
+            CubeGridInfoProxy? gridInfo;
+
+            if (!gridCache.TryGetValue(grid, out gridInfo))
             {
-                data.Format = "Type: {0}";
-                data.Object = type.FullName!;
+                gridInfo = new CubeGridInfoProxy(grid);
+                gridCache.Add(grid, gridInfo);
             }
-            break;
-        case Delegate @delegate:
+
+            return gridInfo.GetSnapshot(grid);
+        }
+
+        public void ResolveNonCached(ref ProfilerEvent.ExtraData data)
+        {
+            switch (data.Object)
             {
-                data.Format = "Declaring Type: {0}";
+            case GCEventInfo:
+                break;
+            case Type type:
+                {
+                    data.Format = "Type: {0}";
+                    data.Object = type.FullName!;
+                }
+                break;
+            case Delegate @delegate:
+                {
+                    data.Format = "Declaring Type: {0}";
 
-                Type type;
+                    Type type;
 
-                // TODO: Get more info from Target
-                if (@delegate.Target != null)
-                    type = @delegate.Target.GetType();
-                else
-                    type = @delegate.Method.DeclaringType!;
+                    // TODO: Get more info from Target
+                    if (@delegate.Target != null)
+                        type = @delegate.Target.GetType();
+                    else
+                        type = @delegate.Method.DeclaringType!;
 
-                data.Object = type.FullName!;
+                    data.Object = type.FullName!;
+                }
+                break;
+            default:
+                data.Object = GeneralStringCache.Intern(data.Object?.ToString());
+                break;
             }
-            break;
-        default:
-            data.Object = GeneralStringCache.Intern(data.Object?.ToString());
-            break;
         }
     }
 
