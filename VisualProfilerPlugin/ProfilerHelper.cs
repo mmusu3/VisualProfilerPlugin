@@ -1258,21 +1258,24 @@ class CubeGridInfoProxy
 
         public bool Equals(MyCubeGrid grid)
         {
+            // Grid info is captured at the end of the frame. State changes within the frame are not seen.
+            if (MySandboxGame.Static.SimulationFrameCounter == FrameIndex)
+                return true;
+
             long ownerId = grid.BigOwners.Count > 0 ? grid.BigOwners[0] : 0;
-            var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
+            var groupNode = MyCubeGridGroups.Static.Physical.GetNode(grid);
 
             return IsStatic == grid.IsStatic
                 && Name == grid.DisplayName
                 && OwnerId == ownerId
-                && OwnerName == ownerIdentity?.DisplayName
                 && BlockCount == grid.BlocksCount
                 && PCU == grid.BlocksPCU
                 && Size == (grid.Max - grid.Min + Vector3I.One)
-                && Vector3D.Round(Position, 1) == Vector3D.Round(grid.PositionComp.GetPosition(), 1)
+                && Vector3D.DistanceSquared(Position, grid.PositionComp.GetPosition()) < (0.1 * 0.1)
                 && PhysicsCluster == PhysicsHelper.GetClusterIdForObject(grid.Physics)
-                && Math.Round(Speed, 1) == Math.Round(grid.LinearVelocity.Length(), 1)
+                && Math.Abs(Speed - grid.LinearVelocity.Length()) < 0.1
                 && IsPowered == grid.IsPowered
-                && ConnectedGrids == MyCubeGridGroups.Static.Physical.GetNode(grid).LinkCount;
+                && ConnectedGrids == groupNode.LinkCount;
         }
 
         public override string ToString()
@@ -1389,13 +1392,41 @@ class CubeBlockInfoProxy
 
         public bool Equals(MyCubeBlock block)
         {
-            long ownerId = block.OwnerId;
-            var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
+            // Grid info is captured at the end of the frame. State changes within the frame are not seen.
+            if (MySandboxGame.Static.SimulationFrameCounter == FrameIndex)
+                return true;
 
-            return CustomName == (block as MyTerminalBlock)?.CustomName.ToString()
-                && OwnerId == ownerId
-                && OwnerName == ownerIdentity?.DisplayName
-                && Vector3D.Round(Position, 1) == Vector3D.Round(block.PositionComp.GetPosition(), 1);
+            return Grid.Grid.EntityId == block.CubeGrid.EntityId
+                && OwnerId == block.OwnerId
+                && Equals((block as MyTerminalBlock)?.CustomName, CustomName);
+
+            static bool Equals(StringBuilder? sb, string? s)
+            {
+                if (sb == null)
+                {
+                    return s == null;
+                }
+                else if (s == null)
+                {
+                    return false;
+                }
+
+#if NET
+                return sb.Equals(s);
+#else
+
+                if (sb.Length != s.Length)
+                    return false;
+
+                for (int i = 0; i < s.Length; i++)
+                {
+                    if (sb[i] != s[i])
+                        return false;
+                }
+
+                return true;
+#endif
+            }
         }
 
         public override string ToString()
@@ -1461,6 +1492,11 @@ class CharacterInfoProxy
         public Snapshot()
         {
             Character = null!;
+        }
+
+        public bool Equals(MyCharacter character)
+        {
+            return Vector3D.DistanceSquared(Position, character.PositionComp.GetPosition()) < (0.1 * 0.1);
         }
 
         public override string ToString()
@@ -1530,6 +1566,12 @@ class FloatingObjectInfoProxy
         public Snapshot()
         {
             FloatingObj = null!;
+        }
+
+        public bool Equals(MyFloatingObject floatingObj)
+        {
+            return Amount == floatingObj.Amount
+                && Vector3D.DistanceSquared(Position, floatingObj.PositionComp.GetPosition()) < (0.1 * 0.1);
         }
 
         public override string ToString()
