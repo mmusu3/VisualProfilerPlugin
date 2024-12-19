@@ -639,7 +639,7 @@ static class ProfilerHelper
             //}
 
             anInf.TotalTime += _event.ElapsedMilliseconds;
-            anInf.IncludedInGroups.Add(groupId);
+            anInf.IncludedInProfilerGroups.Add(groupId);
             anInf.FramesCounted.Add(frameIndex);
         }
     }
@@ -1920,7 +1920,7 @@ class CubeGridAnalysisInfo
 
     public double TotalTime { get; }
     public double AverageTimePerFrame { get; }
-    public int IncludedInNumGroups { get; }
+    public int IncludedInNumProfilerGroups { get; }
     public int NumFramesCounted { get; }
 
     public Vector3D AveragePosition
@@ -1993,7 +1993,7 @@ class CubeGridAnalysisInfo
         int[] blockCounts, int[] pcus, Vector3I[] sizes,
         Vector3D[] positions, int[] physicsClusters, float[] speeds, bool? isPowered, int[] connectedGrids,
         double totalTime, double averageTimePerFrame,
-        int includedInNumGroups, int numFramesCounted)
+        int includedInNumProfilerGroups, int numFramesCounted)
     {
         SnapshotCount = snapshotCount;
         EntityId = entityId;
@@ -2014,7 +2014,7 @@ class CubeGridAnalysisInfo
 
         TotalTime = totalTime;
         AverageTimePerFrame = averageTimePerFrame;
-        IncludedInNumGroups = includedInNumGroups;
+        IncludedInNumProfilerGroups = includedInNumProfilerGroups;
         NumFramesCounted = numFramesCounted;
     }
 
@@ -2060,9 +2060,9 @@ class CubeGridAnalysisInfo
         sb.AppendLine($"    Avg. Position{Vector3D.Round(AveragePosition, 0)}");
 
         if (PhysicsClusters.Length == 1)
-            sb.AppendLine($"    Physics Cluster: {PhysicsClusters[0]}");
+            sb.AppendLine($"    Physics Cluster ID: {PhysicsClusters[0]}");
         else
-            sb.AppendLine($"    Physics Clusters: {string.Join(", ", PhysicsClusters)}");
+            sb.AppendLine($"    Physics Cluster IDs: {string.Join(", ", PhysicsClusters)}");
 
         if (Speeds.Length == 1)
         {
@@ -2077,11 +2077,11 @@ class CubeGridAnalysisInfo
         if (ConnectedGrids.Length == 1)
         {
             if (ConnectedGrids[0] != 0)
-                sb.AppendLine($"    Connected Grids: {ConnectedGrids[0]}");
+                sb.AppendLine($"    Connected Grid Count: {ConnectedGrids[0]}");
         }
         else
         {
-            sb.AppendLine($"    Connected Grids: {string.Join(", ", ConnectedGrids)}");
+            sb.AppendLine($"    Connected Grid Counts: {string.Join(", ", ConnectedGrids)}");
         }
 
         sb.AppendLine($"    IsPowered: {(IsPowered != null ? IsPowered : "*")}");
@@ -2089,8 +2089,8 @@ class CubeGridAnalysisInfo
         sb.AppendLine($"Average Time: {AverageTimePerFrame:N2}ms");
         sb.AppendLine($"Counted Frames: {NumFramesCounted}");
 
-        if (IncludedInNumGroups > 1)
-            sb.AppendLine($"Processed over {IncludedInNumGroups} threads");
+        if (IncludedInNumProfilerGroups > 1)
+            sb.AppendLine($"Processed over {IncludedInNumProfilerGroups} threads");
 
         return sb.ToString();
     }
@@ -2109,7 +2109,7 @@ class CubeBlockAnalysisInfo
         public HashSet<string> CustomNames = [];
         public Dictionary<long, string?> Owners = [];
         public HashSet<Vector3D> Positions = [];
-        public HashSet<int> IncludedInGroups = [];
+        public HashSet<int> IncludedInProfilerGroups = [];
         public HashSet<int> FramesCounted = [];
 
         public double TotalTime;
@@ -2139,7 +2139,7 @@ class CubeBlockAnalysisInfo
         public CubeBlockAnalysisInfo Finish()
         {
             return new CubeBlockAnalysisInfo(snapshots.Count, EntityId, CubeSize, GridIds.ToArray(), BlockType, CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
-                Positions.ToArray(), TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
+                Positions.ToArray(), TotalTime, AverageTimePerFrame, IncludedInProfilerGroups.Count, FramesCounted.Count);
         }
     }
 
@@ -2154,7 +2154,7 @@ class CubeBlockAnalysisInfo
 
     public double TotalTime { get; }
     public double AverageTimePerFrame { get; }
-    public int IncludedInNumGroups { get; }
+    public int IncludedInNumProfilerGroups { get; }
     public int NumFramesCounted { get; }
 
     public Vector3D AveragePosition
@@ -2181,7 +2181,7 @@ class CubeBlockAnalysisInfo
         string[] customNames, (long ID, string? Name)[] owners,
         Vector3D[] positions,
         double totalTime, double averageTimePerFrame,
-        int includedInNumGroups, int numFramesCounted)
+        int includedInNumProfilerGroups, int numFramesCounted)
     {
         SnapshotCount = snapshotCount;
         EntityId = entityId;
@@ -2193,7 +2193,7 @@ class CubeBlockAnalysisInfo
         Positions = positions;
         TotalTime = totalTime;
         AverageTimePerFrame = averageTimePerFrame;
-        IncludedInNumGroups = includedInNumGroups;
+        IncludedInNumProfilerGroups = includedInNumProfilerGroups;
         NumFramesCounted = numFramesCounted;
     }
 
@@ -2236,8 +2236,8 @@ class CubeBlockAnalysisInfo
         sb.AppendLine($"Average Time: {AverageTimePerFrame:N2}ms");
         sb.AppendLine($"Counted Frames: {NumFramesCounted}");
 
-        if (IncludedInNumGroups > 1)
-            sb.AppendLine($"Processed over {IncludedInNumGroups} threads");
+        if (IncludedInNumProfilerGroups > 1)
+            sb.AppendLine($"Processed over {IncludedInNumProfilerGroups} threads");
 
         return sb.ToString();
     }
