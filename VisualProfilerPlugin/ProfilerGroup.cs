@@ -436,48 +436,45 @@ public class ProfilerGroup
             {
                 if (hasOutliers && frameStartEventIndices.Count > 0)
                     outlierFrameIndices.Add(frameStartEventIndices.Count - 1);
-
-                if (eventObjectResolver != null)
-                    Monitor.Exit(eventObjectResolver);
-
-                return;
-            }
-
-            if (hasOutliers && endIndex >= startIndex && Profiler.IsRecordingOutliers)
-            {
-                var eventsArray = new ProfilerEvent[endIndex - startIndex + 1];
-
-                const int ss = ProfilerEventsAllocator.SegmentSize;
-
-                int startSegmentIndex = startIndex / ss;
-                int endSegmentIndex = endIndex / ss;
-                int eIndex = 0;
-
-                for (int i = startSegmentIndex; i <= endSegmentIndex; i++)
-                {
-                    var segment = events.Segments[i];
-                    int startEventIndex = Math.Max(0, startIndex - i * ss);
-                    int endEventIndex = Math.Min(segment.Length - 1, endIndex - i * ss);
-
-                    for (int j = startEventIndex; j <= endEventIndex; j++)
-                    {
-                        eventsArray[eIndex++] = segment[j];
-                        segment[j].ExtraValue.Object = null;
-                    }
-                }
-
-                Profiler.AddOutlierFrameGroupEvents(this, eventsArray);
             }
             else
             {
-                ClearEventsData();
+                if (hasOutliers && endIndex >= startIndex && Profiler.IsRecordingOutliers)
+                {
+                    var eventsArray = new ProfilerEvent[endIndex - startIndex + 1];
+
+                    const int ss = ProfilerEventsAllocator.SegmentSize;
+
+                    int startSegmentIndex = startIndex / ss;
+                    int endSegmentIndex = endIndex / ss;
+                    int eIndex = 0;
+
+                    for (int i = startSegmentIndex; i <= endSegmentIndex; i++)
+                    {
+                        var segment = events.Segments[i];
+                        int startEventIndex = Math.Max(0, startIndex - i * ss);
+                        int endEventIndex = Math.Min(segment.Length - 1, endIndex - i * ss);
+
+                        for (int j = startEventIndex; j <= endEventIndex; j++)
+                        {
+                            eventsArray[eIndex++] = segment[j];
+                            segment[j].ExtraValue.Object = null;
+                        }
+                    }
+
+                    Profiler.AddOutlierFrameGroupEvents(this, eventsArray);
+                }
+                else
+                {
+                    ClearEventsData();
+                }
+
+                prevFrameEndEventIndex = -1;
+                events.NextIndex = 0;
             }
 
             if (eventObjectResolver != null)
                 Monitor.Exit(eventObjectResolver);
-
-            prevFrameEndEventIndex = -1;
-            events.NextIndex = 0;
         }
     }
 
@@ -526,7 +523,7 @@ public class ProfilerGroup
         }
     }
 
-    internal ProfilerEventsRecordingGroup? StopEventRecording(bool isGameThread)
+    internal ProfilerEventsRecordingGroup? StopEventRecording(bool fromGameThread)
     {
         lock (frameLock)
         {
@@ -543,9 +540,9 @@ public class ProfilerGroup
 
             var eventObjectResolver = Profiler.EventObjectResolver;
 
-            if (isGameThread)
+            if (fromGameThread)
             {
-                if (eventObjectResolver != null)
+                if (eventObjectResolver != null && IsRealtimeThread)
                 {
                     lock (eventObjectResolver)
                     {
@@ -554,7 +551,7 @@ public class ProfilerGroup
                     }
                 }
             }
-            else
+            else if (IsRealtimeThread)
             {
                 ClearEventsData(recordedEvents, startIndex, endIndex);
             }

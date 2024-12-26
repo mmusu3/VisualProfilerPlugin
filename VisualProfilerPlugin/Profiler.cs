@@ -590,7 +590,7 @@ public static class Profiler
             if (numFramesToRecord.HasValue && ThreadGroup != null
                 && ThreadGroup.NumRecordedFrames >= numFramesToRecord.Value)
             {
-                var recording = StopEventRecording(isGameThread: true);
+                var recording = StopEventRecording(fromGameThread: true);
 
                 numFramesToRecord = null;
                 recordingCompletedCallback?.Invoke(recording);
@@ -603,7 +603,7 @@ public static class Profiler
         }
     }
 
-    public static ProfilerEventsRecording StopEventRecording(bool isGameThread = false)
+    public static ProfilerEventsRecording StopEventRecording(bool fromGameThread = false)
     {
         if (!isRecordingEvents) throw new InvalidOperationException("Event recording has not yet been started.");
 
@@ -617,7 +617,7 @@ public static class Profiler
 
             foreach (var item in profilerGroupsById)
             {
-                var events = item.Value.StopEventRecording(isGameThread);
+                var events = item.Value.StopEventRecording(fromGameThread);
 
                 if (events != null)
                 {
