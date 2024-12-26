@@ -456,10 +456,12 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         objectCountsLabel.Content =
             $"""
-            Object Counts:
+            Recorded Object Counts:
                 Clusters: {analysis.PhysicsClusters.Length}
                 Grids: {analysis.Grids.Length}
+                Blocks: {analysis.TotalBlocks}
                 Programable Blocks: {analysis.ProgrammableBlocks.Length}
+                Floating Objects: {analysis.FloatingObjects}
             """;
 
         var outliers = recording.GetOutlierFrames();
@@ -895,6 +897,15 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             defaultDir = ListSortDirection.Descending;
             comparers = CubeGridConnectedGridsComparer.Instances;
             break;
+        case nameof(gridGroupIdColumn):
+            propName = nameof(CubeGridAnalysisInfo.GroupIdForColumn);
+            comparers = CubeGridGroupIdComparer.Instances;
+            break;
+        case nameof(gridGroupSizeColumn):
+            propName = nameof(CubeGridAnalysisInfo.GroupSizeForColumn);
+            defaultDir = ListSortDirection.Descending;
+            comparers = CubeGridGroupSizeComparer.Instances;
+            break;
         case nameof(gridPhysicsClustersColumn):
             propName = nameof(CubeGridAnalysisInfo.PhysicsClustersForColumn);
             comparers = CubeGridPhysicsClustersComparer.Instances;
@@ -1071,6 +1082,24 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         public static readonly CubeGridPCUsComparer[] Instances = [Ascending, Descending];
 
         protected override int[] GetArray(CubeGridAnalysisInfo gridInfo) => gridInfo.PCUs;
+    }
+
+    class CubeGridGroupIdComparer(ListSortDirection sortDirection) : CubeGridIntArrayComparer(sortDirection)
+    {
+        public static readonly CubeGridGroupIdComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridGroupIdComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridGroupIdComparer[] Instances = [Ascending, Descending];
+
+        protected override int[] GetArray(CubeGridAnalysisInfo gridInfo) => gridInfo.GroupIds;
+    }
+
+    class CubeGridGroupSizeComparer(ListSortDirection sortDirection) : CubeGridIntArrayComparer(sortDirection)
+    {
+        public static readonly CubeGridGroupSizeComparer Ascending = new(ListSortDirection.Ascending);
+        public static readonly CubeGridGroupSizeComparer Descending = new(ListSortDirection.Descending);
+        public static readonly CubeGridGroupSizeComparer[] Instances = [Ascending, Descending];
+
+        protected override int[] GetArray(CubeGridAnalysisInfo gridInfo) => gridInfo.GroupSizes;
     }
 
     class CubeGridConnectedGridsComparer(ListSortDirection sortDirection) : CubeGridIntArrayComparer(sortDirection)

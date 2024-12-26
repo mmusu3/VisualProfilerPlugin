@@ -16,6 +16,7 @@ using VRage.Network;
 using VRage.Utils;
 using VRageMath;
 using VRageMath.Spatial;
+using GridGroup = VRage.Groups.MyGroups<Sandbox.Game.Entities.MyCubeGrid, Sandbox.Game.Entities.MyGridPhysicalGroupData>.Group;
 
 namespace VisualProfiler;
 
@@ -28,12 +29,14 @@ static class ProfilerHelper
         Dictionary<object, object> objectCache = [];
         Dictionary<MyCubeGrid, CubeGridInfoProxy> gridCache = [];
         Dictionary<MyCubeBlock, CubeBlockInfoProxy> blockCache = [];
+        Dictionary<GridGroup, int> gridGroupsToIds = [];
 
         public void ClearCache()
         {
             objectCache.Clear();
             gridCache.Clear();
             blockCache.Clear();
+            gridGroupsToIds.Clear();
         }
 
         public void Resolve(ref ProfilerEvent.ExtraData data)
@@ -104,7 +107,7 @@ static class ProfilerHelper
                         gridCache.Add(grid, gridInfo);
                     }
 
-                    data.Object = gridInfo.GetSnapshot(grid);
+                    data.Object = gridInfo.GetSnapshot(grid, gridGroupsToIds);
                 }
                 break;
             case MyCubeBlock block:
@@ -183,7 +186,7 @@ static class ProfilerHelper
                         gridCache.Add(grid, gridInfo);
                     }
 
-                    data.Object = gridInfo.GetSnapshot(grid);
+                    data.Object = gridInfo.GetSnapshot(grid, gridGroupsToIds);
                 }
                 break;
             case MyExternalReplicable<MySyncedBlock> blockRepl:
@@ -312,7 +315,7 @@ static class ProfilerHelper
                 gridCache.Add(grid, gridInfo);
             }
 
-            return gridInfo.GetSnapshot(grid);
+            return gridInfo.GetSnapshot(grid, gridGroupsToIds);
         }
 
         public void ResolveNonCached(ref ProfilerEvent.ExtraData data)
@@ -459,7 +462,9 @@ static class ProfilerHelper
         var frameTimes = new List<long>();
         var clusters = new Dictionary<int, PhysicsClusterAnalysisInfo.Builder>();
         var grids = new Dictionary<long, CubeGridAnalysisInfo.Builder>();
+        var allBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
         var progBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
+        var floatingObjs = new HashSet<long>();
 
         foreach (var (groupId, group) in recording.Groups)
         {
@@ -515,6 +520,9 @@ static class ProfilerHelper
                             case CubeBlockInfoProxy.Snapshot blockInfo:
                                 AnalyzeBlock(blockInfo, in _event, groupId, f);
                                 break;
+                            case FloatingObjectInfoProxy.Snapshot floatObj:
+                                floatingObjs.Add(floatObj.FloatingObj.EntityId);
+                                break;
                             }
                         }
                         break;
@@ -557,13 +565,15 @@ static class ProfilerHelper
         foreach (var item in grids)
             item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
 
-        foreach (var item in progBlocks)
+        foreach (var item in allBlocks)
             item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
 
         return new RecordingAnalysisInfo(frameTimeInfo,
             clusters.Values.Select(c => c.Finish()).ToArray(),
             grids.Values.Select(c => c.Finish()).ToArray(),
-            progBlocks.Values.Select(c => c.Finish()).ToArray());
+            progBlocks.Values.Select(c => c.Finish()).ToArray(),
+            allBlocks.Count,
+            floatingObjs.Count);
 
         void AnalyzePhysicsCluster(PhysicsClusterInfoProxy.Snapshot clusterInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
         {
@@ -603,15 +613,17 @@ static class ProfilerHelper
             anInf.FramesCounted.Add(frameIndex);
         }
 
-        void AnalyzeBlock(CubeBlockInfoProxy.Snapshot blockInfo, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
+        void AnalyzeBlock(CubeBlockInfoProxy.Snapshot snapshot, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
         {
-            if (blockInfo.Block.BlockType.Type != typeof(Sandbox.Game.Entities.Blocks.MyProgrammableBlock))
-                return;
+            long eid = snapshot.Block.EntityId;
 
-            if (progBlocks.TryGetValue(blockInfo.Block.EntityId, out var anInf))
-                anInf.Add(blockInfo);
+            if (allBlocks.TryGetValue(eid, out var info))
+                info.Add(snapshot);
             else
-                progBlocks.Add(blockInfo.Block.EntityId, anInf = new(blockInfo));
+                allBlocks.Add(eid, info = new(snapshot));
+
+            if (snapshot.Block.BlockType.Type == typeof(Sandbox.Game.Entities.Blocks.MyProgrammableBlock))
+                progBlocks[eid] = info;
 
             // TODO: Filter parent events to prevent time overlap
             //switch (_event.Name)
@@ -620,9 +632,9 @@ static class ProfilerHelper
             //    break;
             //}
 
-            anInf.TotalTime += _event.ElapsedMilliseconds;
-            anInf.IncludedInProfilerGroups.Add(groupId);
-            anInf.FramesCounted.Add(frameIndex);
+            info.TotalTime += _event.ElapsedMilliseconds;
+            info.IncludedInProfilerGroups.Add(groupId);
+            info.FramesCounted.Add(frameIndex);
         }
     }
 
@@ -1226,8 +1238,10 @@ class CubeGridInfoProxy
         [ProtoMember(11)] public int PCU;
         [ProtoMember(12)] public bool IsPowered;
         [ProtoMember(14)] public int ConnectedGrids;
+        [ProtoMember(15)] public int GroupId;
+        [ProtoMember(16)] public int GroupSize;
 
-        public Snapshot(CubeGridInfoProxy gridInfo, MyCubeGrid grid)
+        public Snapshot(CubeGridInfoProxy gridInfo, MyCubeGrid grid, Dictionary<GridGroup, int> gridGroupsToIds)
         {
             Grid = gridInfo;
             FrameIndex = MySandboxGame.Static.SimulationFrameCounter;
@@ -1246,7 +1260,14 @@ class CubeGridInfoProxy
             PhysicsCluster = PhysicsHelper.GetClusterIdForObject(grid.Physics);
             Speed = grid.LinearVelocity.Length();
             IsPowered = grid.IsPowered;
-            ConnectedGrids = MyCubeGridGroups.Static.Physical.GetNode(grid).LinkCount;
+
+            var groupNode = MyCubeGridGroups.Static.Physical.GetNode(grid);
+
+            if (!gridGroupsToIds.TryGetValue(groupNode.Group, out GroupId))
+                gridGroupsToIds.Add(groupNode.Group, GroupId = gridGroupsToIds.Count + 1);
+
+            GroupSize = groupNode.Group.Nodes.Count;
+            ConnectedGrids = groupNode.LinkCount;
         }
 
         public Snapshot()
@@ -1256,7 +1277,7 @@ class CubeGridInfoProxy
             PhysicsCluster = -1;
         }
 
-        public bool Equals(MyCubeGrid grid)
+        public bool Equals(MyCubeGrid grid, Dictionary<GridGroup, int> gridGroupsToIds)
         {
             // Grid info is captured at the end of the frame. State changes within the frame are not seen.
             if (MySandboxGame.Static.SimulationFrameCounter == FrameIndex)
@@ -1275,6 +1296,8 @@ class CubeGridInfoProxy
                 && PhysicsCluster == PhysicsHelper.GetClusterIdForObject(grid.Physics)
                 && Math.Abs(Speed - grid.LinearVelocity.Length()) < 0.1
                 && IsPowered == grid.IsPowered
+                && GroupId == gridGroupsToIds.GetValueOrDefault(groupNode.Group, -1)
+                && GroupSize == groupNode.Group.Nodes.Count
                 && ConnectedGrids == groupNode.LinkCount;
         }
 
@@ -1317,8 +1340,12 @@ class CubeGridInfoProxy
 
             sb.AppendLine($"    Is Powered: {IsPowered}");
 
-            if (ConnectedGrids != 0)
-                sb.AppendLine($"    Connected Grids: {ConnectedGrids}");
+            if (GroupSize > 1)
+            {
+                sb.AppendLine($"    Group ID: {GroupId}");
+                sb.AppendLine($"    Group Size: {GroupSize}");
+                sb.AppendLine($"    Connected Grid Count: {ConnectedGrids}");
+            }
 
             return sb.ToString();
         }
@@ -1336,14 +1363,14 @@ class CubeGridInfoProxy
     {
     }
 
-    public Snapshot GetSnapshot(MyCubeGrid grid)
+    public Snapshot GetSnapshot(MyCubeGrid grid, Dictionary<GridGroup, int> gridGroupsToIds)
     {
         var lastSnapshot = Snapshots.Count > 0 ? Snapshots[^1].Object : null;
 
-        if (lastSnapshot != null && lastSnapshot.Equals(grid))
+        if (lastSnapshot != null && lastSnapshot.Equals(grid, gridGroupsToIds))
             return lastSnapshot;
 
-        var snapshot = new Snapshot(this, grid);
+        var snapshot = new Snapshot(this, grid, gridGroupsToIds);
 
         Snapshots.Add(new(snapshot));
 
@@ -1653,14 +1680,18 @@ class RecordingAnalysisInfo
     public PhysicsClusterAnalysisInfo[] PhysicsClusters;
     public CubeGridAnalysisInfo[] Grids;
     public CubeBlockAnalysisInfo[] ProgrammableBlocks;
+    public int TotalBlocks;
+    public int FloatingObjects;
 
     internal RecordingAnalysisInfo(FrameTimeInfo frameTimes, PhysicsClusterAnalysisInfo[] physicsClusters,
-        CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks)
+        CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks, int totalBlocks, int floatingObjs)
     {
         FrameTimes = frameTimes;
         PhysicsClusters = physicsClusters;
         Grids = grids;
         ProgrammableBlocks = programmableBlocks;
+        TotalBlocks = totalBlocks;
+        FloatingObjects = floatingObjs;
     }
 }
 
@@ -1876,6 +1907,8 @@ class CubeGridAnalysisInfo
         public HashSet<int> PhysicsClusters = [];
         public HashSet<float> Speeds = [];
         public bool? IsPowered; // Null value means mixed
+        public HashSet<int> GroupIds = [];
+        public HashSet<int> GroupSizes = [];
         public HashSet<int> ConnectedGrids = [];
         public HashSet<int> IncludedInGroups = [];
         public HashSet<int> FramesCounted = [];
@@ -1914,13 +1947,15 @@ class CubeGridAnalysisInfo
             if (IsPowered != null && snapshot.IsPowered != IsPowered)
                 IsPowered = null;
 
+            GroupIds.Add(snapshot.GroupId);
+            GroupSizes.Add(snapshot.GroupSize);
             ConnectedGrids.Add(snapshot.ConnectedGrids);
         }
 
         public CubeGridAnalysisInfo Finish()
         {
             return new CubeGridAnalysisInfo(snapshots.Count, EntityId, GridSize, IsNPC, IsPreview, IsStatic, Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
-                BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), PhysicsClusters.ToArray(), Speeds.ToArray(), IsPowered, ConnectedGrids.ToArray(),
+                BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), Positions.ToArray(), PhysicsClusters.ToArray(), Speeds.ToArray(), IsPowered, GroupIds.ToArray(), GroupSizes.ToArray(), ConnectedGrids.ToArray(),
                 TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
     }
@@ -1940,6 +1975,8 @@ class CubeGridAnalysisInfo
     public int[] PhysicsClusters;
     public float[] Speeds;
     public bool? IsPowered;
+    public int[] GroupIds;
+    public int[] GroupSizes;
     public int[] ConnectedGrids;
 
     public double TotalTime { get; }
@@ -2009,13 +2046,15 @@ class CubeGridAnalysisInfo
     }
 
     public string IsPoweredForColumn => IsPowered == null ? "*" : IsPowered.Value.ToString();
+    public string GroupIdForColumn => GroupIds.Length == 1 ? GroupIds[0].ToString() : string.Join(",\n", GroupIds);
+    public string GroupSizeForColumn => GroupSizes.Length == 1 ? GroupSizes[0].ToString() : string.Join(",\n", GroupSizes);
     public string ConnectedGridsForColumn => ConnectedGrids.Length == 1 ? ConnectedGrids[0].ToString() : string.Join(",\n", ConnectedGrids);
 
     public CubeGridAnalysisInfo(
         int snapshotCount, long entityId, MyCubeSize gridSize, bool isNpc, bool isPreview, bool? isStatic,
         string[] names, (long ID, string? Name)[] owners,
         int[] blockCounts, int[] pcus, Vector3I[] sizes,
-        Vector3D[] positions, int[] physicsClusters, float[] speeds, bool? isPowered, int[] connectedGrids,
+        Vector3D[] positions, int[] physicsClusters, float[] speeds, bool? isPowered, int[] groupIds, int[] groupSizes, int[] connectedGrids,
         double totalTime, double averageTimePerFrame,
         int includedInNumProfilerGroups, int numFramesCounted)
     {
@@ -2034,6 +2073,8 @@ class CubeGridAnalysisInfo
         PhysicsClusters = physicsClusters;
         Speeds = speeds;
         IsPowered = isPowered;
+        GroupIds = groupIds;
+        GroupSizes = groupSizes;
         ConnectedGrids = connectedGrids;
 
         TotalTime = totalTime;
@@ -2096,6 +2137,26 @@ class CubeGridAnalysisInfo
         else
         {
             sb.AppendLine($"    Speeds: {string.Join(", ", Speeds)}");
+        }
+
+        if (GroupIds.Length == 1)
+        {
+            if (GroupIds[0] != 0)
+                sb.AppendLine($"    Group ID: {GroupIds[0]}");
+        }
+        else
+        {
+            sb.AppendLine($"    Group IDs: {string.Join(", ", GroupIds)}");
+        }
+
+        if (GroupSizes.Length == 1)
+        {
+            if (GroupSizes[0] != 0)
+                sb.AppendLine($"    Group Size: {GroupSizes[0]}");
+        }
+        else
+        {
+            sb.AppendLine($"    Group Sizes: {string.Join(", ", GroupSizes)}");
         }
 
         if (ConnectedGrids.Length == 1)
