@@ -708,7 +708,7 @@ public static class Profiler
         _event.Flags = ProfilerEvent.EventFlags.SinglePoint;
         _event.StartTime = _event.EndTime = Stopwatch.GetTimestamp();
         _event.MemoryBefore = _event.MemoryAfter = 0;
-        _event.Depth = group.CurrentDepth;
+        _event.Depth = group.CurrentDepth + 1;
 
         return ref _event;
     }
