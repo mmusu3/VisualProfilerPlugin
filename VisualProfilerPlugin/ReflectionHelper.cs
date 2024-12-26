@@ -10,76 +10,76 @@ namespace VisualProfiler;
 
 static class ReflectionHelper
 {
-    static T ThrowIfNull<T>(T? obj, string methodName, [CallerMemberName] string callerName = null!)
+    static T ThrowIfNull<T>(T? obj, Type type, string methodName, [CallerMemberName] string callerName = null!)
     {
-        if (obj == null) throw new NullReferenceException($"{callerName} returned null looking for {methodName}.");
+        if (obj == null) throw new NullReferenceException($"{callerName} returned null looking for \"{methodName}\" in type \"{type.FullName}\".");
 
         return obj;
     }
 
     public static MethodInfo GetMethod(this Type type, string methodName, bool _public, bool _static)
     {
-        return ThrowIfNull(type.GetMethod(methodName, (_public ? BindingFlags.Public : BindingFlags.NonPublic) | (_static ? BindingFlags.Static : BindingFlags.Instance)), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, (_public ? BindingFlags.Public : BindingFlags.NonPublic) | (_static ? BindingFlags.Static : BindingFlags.Instance)), type, methodName);
     }
 
     public static MethodInfo GetPublicStaticMethod(this Type type, string methodName)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static), type, methodName);
     }
 
     public static MethodInfo GetPublicInstanceMethod(this Type type, string methodName)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance), type, methodName);
     }
 
     public static MethodInfo GetNonPublicStaticMethod(this Type type, string methodName)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static), type, methodName);
     }
 
     public static MethodInfo GetNonPublicInstanceMethod(this Type type, string methodName)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance), type, methodName);
     }
 
     public static MethodInfo GetAnyStaticMethod(this Type type, string methodName)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static), type, methodName);
     }
 
     public static MethodInfo GetAnyInstanceMethod(this Type type, string methodName)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance), type, methodName);
     }
 
     public static MethodInfo GetPublicStaticMethod(this Type type, string methodName, Type[] paramTypes)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static, null, paramTypes, null), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Static, null, paramTypes, null), type, methodName);
     }
 
     public static MethodInfo GetPublicInstanceMethod(this Type type, string methodName, Type[] paramTypes)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance, null, paramTypes, null), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance, null, paramTypes, null), type, methodName);
     }
 
     public static MethodInfo GetNonPublicStaticMethod(this Type type, string methodName, Type[] paramTypes)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static, null, paramTypes, null), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static, null, paramTypes, null), type, methodName);
     }
 
     public static MethodInfo GetNonPublicInstanceMethod(this Type type, string methodName, Type[] paramTypes)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance, null, paramTypes, null), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance, null, paramTypes, null), type, methodName);
     }
 
     public static MethodInfo GetAnyStaticMethod(this Type type, string methodName, Type[] paramTypes)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null, paramTypes, null), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null, paramTypes, null), type, methodName);
     }
 
     public static MethodInfo GetAnyInstanceMethod(this Type type, string methodName, Type[] paramTypes)
     {
-        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, paramTypes, null), methodName);
+        return ThrowIfNull(type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, paramTypes, null), type, methodName);
     }
 
     public static void CreateMethodInvoker<TDelegate>(out TDelegate invoker, Type declaringType, string methodName, bool isStatic, Type[]? parameterTypes)
