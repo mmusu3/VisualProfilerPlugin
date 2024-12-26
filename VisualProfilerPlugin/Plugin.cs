@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -46,6 +47,8 @@ public class Plugin : TorchPluginBase, IWpfPlugin
         Patches.Torch_MethodContext_Patches.Patch();
 #endif
         Patches.PrioritizedScheduler_Patches.Patch();
+
+        RuntimeHelpers.RunClassConstructor(typeof(PhysicsHelper).TypeHandle);
     }
 
     public UserControl GetControl() => new ConfigView(new()/*configVM.Data*/);
