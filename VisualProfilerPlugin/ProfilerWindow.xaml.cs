@@ -24,6 +24,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     static Thread? windowThread;
     static Dispatcher? dispatcher;
+
+    public static ProfilerWindow? Instance => window;
     static ProfilerWindow? window;
 
     Timer? recordingTimer;
@@ -33,7 +35,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    void OnPropertyChanged(string propertyName)
+    internal void OnPropertyChanged(string propertyName)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
@@ -81,7 +83,21 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
     public bool ProfilePhysicsClusters
     {
         get => MyPhysics_Patches.ProfileEachCluster;
-        set => MyPhysics_Patches.ProfileEachCluster = value;
+        set
+        {
+            MyPhysics_Patches.ProfileEachCluster = value;
+            OnPropertyChanged(nameof(ProfilePhysicsClusters));
+        }
+    }
+
+    public bool RecordEventObjects
+    {
+        get => Profiler.IsRecordingObjects;
+        set
+        {
+            Profiler.SetObjectRecordingEnabled(value);
+            OnPropertyChanged(nameof(RecordEventObjects));
+        }
     }
 
     public bool AutoSaveRecording { get; set; }

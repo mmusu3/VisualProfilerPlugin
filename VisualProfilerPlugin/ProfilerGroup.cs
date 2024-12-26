@@ -429,7 +429,12 @@ public class ProfilerGroup
                 Monitor.Enter(eventObjectResolver);
 
                 if (endIndex >= startIndex && (Profiler.IsRecordingEvents || (hasOutliers && Profiler.IsRecordingOutliers)))
-                    ResolveObjects(events, startIndex, endIndex, eventObjectResolver);
+                {
+                    if (Profiler.IsRecordingObjects)
+                        ResolveObjects(events, startIndex, endIndex, eventObjectResolver);
+                    else
+                        ClearEventsObjectData(events, startIndex, endIndex);
+                }
             }
 
             if (Profiler.IsRecordingEvents)
@@ -466,7 +471,7 @@ public class ProfilerGroup
                 }
                 else
                 {
-                    ClearEventsData();
+                    ClearEventsObjectData();
                 }
 
                 prevFrameEndEventIndex = -1;
@@ -478,16 +483,16 @@ public class ProfilerGroup
         }
     }
 
-    void ClearEventsData()
+    void ClearEventsObjectData()
     {
         var events = currentEvents;
         int startIndex = prevFrameEndEventIndex + 1;
         int endIndex = events.NextIndex - 1;
 
-        ClearEventsData(events, startIndex, endIndex);
+        ClearEventsObjectData(events, startIndex, endIndex);
     }
 
-    static void ClearEventsData(ProfilerEventsAllocator events, int startIndex, int endIndex)
+    static void ClearEventsObjectData(ProfilerEventsAllocator events, int startIndex, int endIndex)
     {
         if (endIndex < startIndex)
             return;
@@ -516,7 +521,7 @@ public class ProfilerGroup
             frameEndEventIndices.Clear();
             outlierFrameIndices.Clear();
 
-            ClearEventsData();
+            ClearEventsObjectData();
 
             prevFrameEndEventIndex = -1;
             currentEvents.NextIndex = 0;
@@ -547,13 +552,18 @@ public class ProfilerGroup
                     lock (eventObjectResolver)
                     {
                         if (endIndex >= startIndex)
-                            ResolveObjects(recordedEvents, startIndex, endIndex, eventObjectResolver);
+                        {
+                            if (Profiler.IsRecordingObjects)
+                                ResolveObjects(recordedEvents, startIndex, endIndex, eventObjectResolver);
+                            else
+                                ClearEventsObjectData(recordedEvents, startIndex, endIndex);
+                        }
                     }
                 }
             }
             else if (IsRealtimeThread)
             {
-                ClearEventsData(recordedEvents, startIndex, endIndex);
+                ClearEventsObjectData(recordedEvents, startIndex, endIndex);
             }
 
             ProfilerEventsRecordingGroup? recording = null;

@@ -7,6 +7,11 @@
         mc:Ignorable="d"
         Title="Profiler" Width="1200" Height="750"
         DataContext="{Binding RelativeSource={RelativeSource Self}}">
+    <Window.Resources>
+        <ResourceDictionary>
+            <local:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+        </ResourceDictionary>
+    </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="auto"/>
@@ -29,7 +34,23 @@
                     Content="Load From File"
                     Click="LoadButton_Click"/>
 
-            <Button Name="startStopButton" VerticalAlignment="Stretch" Padding="6,0,6,0" Margin="20,0,0,0"
+            <ToggleButton Name="optionsButton" Width="80" Margin="20,0,0,0" IsHitTestVisible="{Binding ElementName=optionsPopup, Path=IsOpen, Converter={StaticResource InverseBooleanConverter}}">
+                <StackPanel>
+                    <TextBlock>Options</TextBlock>
+                    <Popup Name="optionsPopup" IsOpen="{Binding IsChecked, ElementName=optionsButton}" StaysOpen="False"
+                           PlacementTarget="{Binding ElementName=optionsButton}" Placement="Bottom">
+                        <Border Padding="4" BorderThickness="1" Background="White">
+                            <StackPanel>
+                                <CheckBox IsChecked="{Binding ProfilePhysicsClusters}" Content="Profile Physics Clusters" ToolTip="Runs simulation of physics clusters serially instead of in parallel to record per-cluster timings."/>
+                                <CheckBox IsChecked="{Binding RecordEventObjects}" Content="Record Event Objects" ToolTip="Has a high amount of per-frame overhead. Records extra object information in the events. Grids/blocks/other are captured as snapshots."/>
+                                <CheckBox IsChecked="{Binding AutoSaveRecording}" Content="Autosave Recording to File" ToolTip="Automatically save recordings to file after they are stopped. They are given a generated name and are stored in the Recordings folder."/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
+            </ToggleButton>
+
+            <Button Name="startStopButton" VerticalAlignment="Stretch" Padding="6,0,6,0"
                     Content="Start New Recording" IsEnabled="{Binding CanStartStopRecording}"
                     Click="StartStopButton_Click"/>
 
@@ -48,12 +69,8 @@
                 <ComboBoxItem Content="Frames"/>
             </ComboBox>
 
-            <CheckBox Content="Profile Physics Clusters" VerticalAlignment="Center" Margin="4,0,4,0" IsChecked="{Binding ProfilePhysicsClusters}"/>
-            <CheckBox Content="AutoSave recording to file" VerticalAlignment="Center" Margin="4,0,4,0" IsChecked="{Binding AutoSaveRecording}"/>
-
             <Button Content="Reset Zoom" Width="100" VerticalAlignment="Stretch" Click="ResetViewButton_Click" Margin="20,0,0,0"/>
 
-            <!--TODO: Use combobox instead-->
             <CheckBox Content="Combined Frame View" VerticalAlignment="Center" Margin="4,0,4,0" IsChecked="{Binding CombineFrames}"/>
         </StackPanel>
 

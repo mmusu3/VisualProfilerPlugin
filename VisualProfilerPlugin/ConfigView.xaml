@@ -15,7 +15,15 @@
 
     <StackPanel Orientation="Vertical" Margin="8,8,8,8" HorizontalAlignment="Left">
         <Button Content="Open Profiler UI" HorizontalAlignment="Left" Width="100" Height="30" Click="OpenButton_Click"/>
-        <Label Content="Chat Commands" FontWeight="Bold"/>
-        <TextBox Text="!vprofiler start [--secs=1.5] [--frames=20] [--savetofile]" IsReadOnly="True" BorderThickness="0" Background="{x:Null}" BorderBrush="{x:Null}"/>
+        <Label Content="Chat Commands:" FontWeight="Bold"/>
+        <TextBox Text="!vprofiler start --secs=1.5" IsReadOnly="True" FontFamily="Courier New" BorderThickness="0" Background="{x:Null}" BorderBrush="{x:Null}"/>
+        <TextBox Text="!vprofiler start --frames=20" IsReadOnly="True" FontFamily="Courier New" BorderThickness="0" Background="{x:Null}" BorderBrush="{x:Null}"/>
+        <Label Content="Additional arguments:" FontWeight="Bold" Margin="0,4,0,0"/>
+        <TextBox Text="--keepobjects" IsReadOnly="True" FontFamily="Courier New" BorderThickness="0" Background="{x:Null}" BorderBrush="{x:Null}"/>
+        <TextBlock TextWrapping="Wrap" Text="Has a high amount of per-frame overhead. Records extra object information in the events. Grids/blocks/other are captured as snapshots. The setting persists between start commands when not specified."/>
+        <TextBox Margin="0,10,0,0" Text="--profileclusters" IsReadOnly="True" FontFamily="Courier New" BorderThickness="0" Background="{x:Null}" BorderBrush="{x:Null}"/>
+        <TextBlock TextWrapping="Wrap" Text="Runs simulation of physics clusters serially instead of in parallel to record per-cluster timings. The setting persists between start commands when not specified."/>
+        <TextBox Margin="0,10,0,0" Text="--savetofile" IsReadOnly="True" FontFamily="Courier New" BorderThickness="0" Background="{x:Null}" BorderBrush="{x:Null}"/>
+        <TextBlock TextWrapping="Wrap" Text="Saves the recording to a file in the default location with a generated name."/>
     </StackPanel>
 </UserControl>

@@ -13,6 +13,7 @@ using Torch.API;
 using Torch.API.Plugins;
 using Torch.Commands;
 using Torch.Commands.Permissions;
+using VisualProfiler.Patches;
 
 namespace VisualProfiler;
 
@@ -279,6 +280,8 @@ public class Commands : CommandModule
 
         string? secs = null;
         string? frames = null;
+        string? keepObjects = null;
+        string? profileClusters = null;
         bool saveToFile = false;
         bool sendToClient = false;
 
@@ -337,6 +340,24 @@ public class Commands : CommandModule
 
                 frames = argValue;
                 break;
+            case "keepobjects":
+                if (argValue == null)
+                {
+                    Context.Respond("Command error: Missing value for --keepobjects argument.");
+                    return;
+                }
+
+                keepObjects = argValue;
+                break;
+            case "profileclusters":
+                if (argValue == null)
+                {
+                    Context.Respond("Command error: Missing value for --profileclusters argument.");
+                    return;
+                }
+
+                profileClusters = argValue;
+                break;
             case "savetofile":
                 saveToFile = true;
                 break;
@@ -363,18 +384,18 @@ public class Commands : CommandModule
                 return;
             }
 
-            StartSeconds(secs, saveToFile, sendToClient);
+            StartSeconds(secs, keepObjects, profileClusters, saveToFile, sendToClient);
             return;
         }
 
         if (frames != null)
         {
-            StartFrames(frames, saveToFile, sendToClient);
+            StartFrames(frames, keepObjects, profileClusters, saveToFile, sendToClient);
             return;
         }
     }
 
-    void StartSeconds(string seconds, bool saveToFile, bool sendToClient)
+    void StartSeconds(string seconds, string? keepObjects, string? profileClusters, bool saveToFile, bool sendToClient)
     {
         double numSeconds;
 
@@ -400,6 +421,30 @@ public class Commands : CommandModule
         {
             Context.Respond("Command Error: Cannot start profiling, a profiler recording has already been started.");
             return;
+        }
+
+        if (keepObjects != null)
+        {
+            if (!bool.TryParse(keepObjects, out bool bKeepObjects))
+            {
+                Context.Respond("Command Error: Invalid argument boolean value.");
+                return;
+            }
+
+            Profiler.SetObjectRecordingEnabled(bKeepObjects);
+            ProfilerWindow.Instance?.Dispatcher?.BeginInvoke(() => ProfilerWindow.Instance.OnPropertyChanged(nameof(ProfilerWindow.RecordEventObjects)));
+        }
+
+        if (profileClusters != null)
+        {
+            if (!bool.TryParse(profileClusters, out bool bProfileClusters))
+            {
+                Context.Respond("Command Error: Invalid argument boolean value.");
+                return;
+            }
+
+            MyPhysics_Patches.ProfileEachCluster = bProfileClusters;
+            ProfilerWindow.Instance?.Dispatcher?.BeginInvoke(() => ProfilerWindow.Instance.OnPropertyChanged(nameof(ProfilerWindow.ProfilePhysicsClusters)));
         }
 
         var sessionName = Plugin.Instance.Torch.CurrentSession?.KeenSession?.Name ?? "";
@@ -440,7 +485,7 @@ public class Commands : CommandModule
         }
     }
 
-    void StartFrames(string frames, bool saveToFile, bool sendToClient)
+    void StartFrames(string frames, string? keepObjects, string? profileClusters, bool saveToFile, bool sendToClient)
     {
         int numFrames;
 
@@ -466,6 +511,30 @@ public class Commands : CommandModule
         {
             Context.Respond("Command Error: Cannot start profiling, a profiler recording has already been started.");
             return;
+        }
+
+        if (keepObjects != null)
+        {
+            if (!bool.TryParse(keepObjects, out bool bKeepObjects))
+            {
+                Context.Respond("Command Error: Invalid argument boolean value.");
+                return;
+            }
+
+            Profiler.SetObjectRecordingEnabled(bKeepObjects);
+            ProfilerWindow.Instance?.Dispatcher?.BeginInvoke(() => ProfilerWindow.Instance.OnPropertyChanged(nameof(ProfilerWindow.RecordEventObjects)));
+        }
+
+        if (profileClusters != null)
+        {
+            if (!bool.TryParse(profileClusters, out bool bProfileClusters))
+            {
+                Context.Respond("Command Error: Invalid argument boolean value.");
+                return;
+            }
+
+            MyPhysics_Patches.ProfileEachCluster = bProfileClusters;
+            ProfilerWindow.Instance?.Dispatcher?.BeginInvoke(() => ProfilerWindow.Instance.OnPropertyChanged(nameof(ProfilerWindow.ProfilePhysicsClusters)));
         }
 
         var sessionName = Plugin.Instance.Torch.CurrentSession?.KeenSession?.Name ?? "";

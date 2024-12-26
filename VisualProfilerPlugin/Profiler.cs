@@ -61,6 +61,9 @@ public static class Profiler
     public static bool IsRecordingOutliers => isRecordingOutliers;
     static bool isRecordingOutliers;
 
+    public static bool IsRecordingObjects => isRecordingObjects;
+    static bool isRecordingObjects;
+
     internal static IProfilerEventDataObjectResolver? EventObjectResolver;
 
     static int? numFramesToRecord;
@@ -536,6 +539,11 @@ public static class Profiler
         if (isRecordingEvents) throw new InvalidOperationException("Cannot change profiler enabled state while event recording is in progress.");
 
         isEnabled = enabled;
+    }
+
+    public static void SetObjectRecordingEnabled(bool enabled)
+    {
+        isRecordingObjects = enabled;
     }
 
     public static void SetEventObjectResolver(IProfilerEventDataObjectResolver? objectResolver)
