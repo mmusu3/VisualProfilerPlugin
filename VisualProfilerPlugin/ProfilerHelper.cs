@@ -1394,7 +1394,10 @@ class CubeBlockInfoProxy
         [ProtoMember(4)] public string? CustomName;
         [ProtoMember(5)] public long OwnerId;
         [ProtoMember(6)] public StringId OwnerName;
-        [ProtoMember(7)] public Vector3D Position;
+        //[ProtoMember(7)] public Vector3D Position;
+        [ProtoMember(8)] public Vector3I LocalPosition;
+
+        public Vector3D WorldPosition => Grid.Position + LocalPosition * (Grid.Grid.GridSize == MyCubeSize.Large ? 2.5f : 0.5f);
 
         public Snapshot(CubeGridInfoProxy.Snapshot gridInfo, CubeBlockInfoProxy blockInfo, MyCubeBlock block)
         {
@@ -1408,7 +1411,7 @@ class CubeBlockInfoProxy
             CustomName = (block as MyTerminalBlock)?.CustomName.ToString();
             OwnerId = ownerId;
             OwnerName = new StringId(ownerIdentity?.DisplayName);
-            Position = block.PositionComp.GetPosition();
+            LocalPosition = block.Min;
         }
 
         public Snapshot()
@@ -1464,7 +1467,7 @@ class CubeBlockInfoProxy
                 {Block.BlockType.Type.Name}, ID: {Block.EntityId}
                    Name: {CustomName}
                    Owner: {OwnerName}{idPart}{OwnerId}
-                   Position: {Vector3D.Round(Position, 1)}
+                   WorldPosition: {Vector3D.Round(WorldPosition, 1)}
                 {Grid}
                 """;
         }
@@ -2218,7 +2221,7 @@ class CubeBlockAnalysisInfo
 
             GridIds.Add(snapshot.Grid.Grid.EntityId);
             Owners[snapshot.OwnerId] = snapshot.OwnerName;
-            Positions.Add(snapshot.Position);
+            Positions.Add(snapshot.WorldPosition);
         }
 
         public CubeBlockAnalysisInfo Finish()
