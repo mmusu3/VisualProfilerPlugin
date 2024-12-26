@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -7,6 +8,7 @@ using System.Runtime.CompilerServices;
 using Sandbox.Engine.Platform;
 using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
+using VRageMath;
 using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
@@ -158,6 +160,15 @@ static class Game_Patches
 
     static void EndFrame()
     {
+        long memoryBefore = GC.GetAllocatedBytesForCurrentThread();
+
+        Vector3I gcCountsBefore;
+        gcCountsBefore.X = GC.CollectionCount(0);
+        gcCountsBefore.Y = GC.CollectionCount(1);
+        gcCountsBefore.Z = GC.CollectionCount(2);
+
+        long startTime = Stopwatch.GetTimestamp();
+
         Profiler.EndFrameForCurrentThread();
         Profiler.GetProfilerGroups(profilerGroupsList);
 
@@ -170,5 +181,36 @@ static class Game_Patches
         profilerGroupsList.Clear();
 
         Profiler.EndOfFrame();
+
+        long endTime = Stopwatch.GetTimestamp();
+
+        if (!Profiler.IsRecordingEvents)
+            return;
+
+        long ticks = endTime - startTime;
+        long memoryAfter = GC.GetAllocatedBytesForCurrentThread();
+
+        Vector3I gcCountsAfter;
+        gcCountsAfter.X = GC.CollectionCount(0);
+        gcCountsAfter.Y = GC.CollectionCount(1);
+        gcCountsAfter.Z = GC.CollectionCount(2);
+
+        var gcCounts = gcCountsAfter - gcCountsBefore;
+
+        ref var _event = ref Profiler.StartEvent("Profiler EndFrame");
+
+        _event.StartTime = startTime;
+        _event.EndTime = endTime;
+        _event.MemoryBefore = memoryBefore;
+        _event.MemoryAfter = memoryAfter;
+        _event.ExtraValue = new(ProfilerEvent.EventCategory.Profiler);
+
+        if (gcCounts != Vector3I.Zero)
+        {
+            _event = ref Profiler.StartEvent(ProfilerTimer.GCKey);
+            _event.StartTime = _event.EndTime = endTime;
+            _event.Flags = ProfilerEvent.EventFlags.SinglePoint;
+            _event.ExtraValue = new(new GCEventInfo(gcCounts), "{0}");
+        }
     }
 }

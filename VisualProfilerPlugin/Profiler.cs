@@ -677,6 +677,27 @@ public static class Profiler
 
     #endregion
 
+    public static ref ProfilerEvent StartEvent(string name)
+    {
+        var key = ProfilerKeyCache.GetOrAdd(name);
+
+        return ref StartEvent(key);
+    }
+
+    public static ref ProfilerEvent StartEvent(ProfilerKey key)
+    {
+        var group = GetOrCreateGroupForCurrentThread();
+
+        ref var _event = ref group.StartEvent(out _, out _);
+        _event.NameKey = key.GlobalIndex;
+        _event.Flags = ProfilerEvent.EventFlags.None;
+        _event.StartTime = _event.EndTime = Stopwatch.GetTimestamp();
+        _event.MemoryBefore = _event.MemoryAfter = 0;
+        _event.Depth = group.CurrentDepth + 1;
+
+        return ref _event;
+    }
+
     [MethodImpl(Inline)]
     public static void AddEvent(string name, ProfilerEvent.ExtraData extraData)
     {

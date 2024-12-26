@@ -94,7 +94,7 @@ public sealed class ProfilerTimer : IDisposable
     public TimeSpan[] GCTimes;
 #endif
 
-    static ProfilerKey GCKey = ProfilerKeyCache.GetOrAdd("GC");
+    internal static ProfilerKey GCKey = ProfilerKeyCache.GetOrAdd("GC");
 
     public const int BufferSize = 300;
 

@@ -30,19 +30,20 @@ public struct ProfilerEvent
 
     public enum EventCategory
     {
-        Other,
-        Wait,
-        Save,
-        Load,
-        Physics,
-        Network,
-        World,
-        Grids,
-        Blocks,
-        Characters,
-        FloatingObjects,
-        Scripts,
-        Mods,
+        Other       = 0,
+        Wait        = 1,
+        Save        = 2,
+        Load        = 3,
+        Physics     = 4,
+        Network     = 5,
+        World       = 6,
+        Grids       = 7,
+        Blocks      = 8,
+        Characters  = 9,
+        FloatingObjects = 10,
+        Scripts     = 11,
+        Mods        = 12,
+        Profiler    = 13,
 
         CategoryCount
     }
