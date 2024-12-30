@@ -17,6 +17,11 @@ using VRage.Utils;
 using VRageMath;
 using VRageMath.Spatial;
 using GridGroup = VRage.Groups.MyGroups<Sandbox.Game.Entities.MyCubeGrid, Sandbox.Game.Entities.MyGridPhysicalGroupData>.Group;
+#if NET9_0_OR_GREATER
+using Lock = System.Threading.Lock;
+#else
+using Lock = object;
+#endif
 
 namespace VisualProfiler;
 
@@ -984,7 +989,7 @@ static class GeneralStringCache
 {
     static readonly Dictionary<string, int> stringsToIds = [];
     static readonly Dictionary<int, string> idsToStrings = [];
-    static readonly object lockObj = new();
+    static readonly Lock lockObj = new();
     static int idGenerator = 1;
 
     public static void Init(Dictionary<int, string> values)
