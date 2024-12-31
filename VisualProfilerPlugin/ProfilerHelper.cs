@@ -899,7 +899,7 @@ static class ProfilerHelper
             {
                 switch (_event.ExtraValue.Object)
                 {
-                case CubeGridInfoProxy.Snapshot:
+                case CubeGridInfoProxy.MotionSnapshot:
                     return ProfilerEvent.EventCategory.Grids;
                 case CubeBlockInfoProxy.Snapshot:
                     return ProfilerEvent.EventCategory.Blocks;
