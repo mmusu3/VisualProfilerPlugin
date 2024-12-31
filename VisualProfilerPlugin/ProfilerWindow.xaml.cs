@@ -458,7 +458,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             $"""
             Session Name: {recording.SessionName}
             Starting Time: {recording.StartTime.ToLocalTime():yyyy/MM/d hh:mm:ss tt}
-            Length: {recording.ElapsedTime:hh\:mm\:ss\.FFF} over {recording.NumFrames} frames
+            Length: {recording.ElapsedTime.TotalSeconds:N2}sec over {recording.NumFrames} frames
             """;
 
         frameTimesLabel.Content =
@@ -507,6 +507,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         physicsClustersList.Items.SortDescriptions.Clear();
         physicsClustersList.Items.SortDescriptions.Add(new SortDescription(nameof(PhysicsClusterAnalysisInfo.TotalTime), ListSortDirection.Descending));
 
+        physicsClustersListCurrentSortProp = "";
+        physicsClustersListCurrentSortDir = ListSortDirection.Descending;
+
         var gridsContextMenu = new ContextMenu();
         gridsContextMenu.Items.Add(NewCopyEntityIdItem());
         gridsContextMenu.Items.Add(NewCopyLastPosItem());
@@ -518,6 +521,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         gridsList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeGridAnalysisInfo.TotalTime), ListSortDirection.Descending));
         gridsList.Items.Filter = FilterCubeGridItem;
 
+        cubeGridsListCurrentSortProp = "";
+        cubeGridsListCurrentSortDir = ListSortDirection.Descending;
+
         var blocksContextMenu = new ContextMenu();
         blocksContextMenu.Items.Add(NewCopyEntityIdItem());
         blocksContextMenu.Items.Add(NewCopyLastPosItem());
@@ -527,6 +533,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         programmableBlocksList.ItemsSource = analysis.ProgrammableBlocks;
         programmableBlocksList.Items.SortDescriptions.Clear();
         programmableBlocksList.Items.SortDescriptions.Add(new SortDescription(nameof(CubeBlockAnalysisInfo.TotalTime), ListSortDirection.Descending));
+
+        cubeBlocksListCurrentSortProp = "";
+        cubeBlocksListCurrentSortDir = ListSortDirection.Descending;
 
         FixColumnWidth(physicsClusterCountedFramesColumn.Column);
         FixColumnWidth(gridSnapshotCountColumn.Column);
@@ -761,6 +770,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     #region Physics cluster list sorting
 
+    string physicsClustersListCurrentSortProp = "";
+    ListSortDirection physicsClustersListCurrentSortDir;
+
     void PhysicsClustersListHeader_Click(object sender, RoutedEventArgs args)
     {
         if (args.OriginalSource is not GridViewColumnHeader header)
@@ -832,12 +844,12 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         }
     }
 
-    string physicsClustersListCurrentSortProp = "";
-    ListSortDirection physicsClustersListCurrentSortDir;
-
     #endregion
 
     #region Grid list sorting
+
+    string cubeGridsListCurrentSortProp = "";
+    ListSortDirection cubeGridsListCurrentSortDir;
 
     void CubeGridsListHeader_Click(object sender, RoutedEventArgs args)
     {
@@ -957,9 +969,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             gridsList.Items.SortDescriptions.Add(new(propName, sortDir));
         }
     }
-
-    string cubeGridsListCurrentSortProp = "";
-    ListSortDirection cubeGridsListCurrentSortDir;
 
     class CubeGridOwnerIDsComparer(ListSortDirection sortDirection) : IComparer
     {
@@ -1264,6 +1273,9 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     #region PB list sorting
 
+    string cubeBlocksListCurrentSortProp = "";
+    ListSortDirection cubeBlocksListCurrentSortDir;
+
     void ProgBlocksListHeader_Click(object sender, RoutedEventArgs args)
     {
         if (args.OriginalSource is not GridViewColumnHeader header)
@@ -1339,9 +1351,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             programmableBlocksList.Items.SortDescriptions.Add(new(propName, sortDir));
         }
     }
-
-    string cubeBlocksListCurrentSortProp = "";
-    ListSortDirection cubeBlocksListCurrentSortDir;
 
     class CubeBlockGridIDsComparer(ListSortDirection sortDirection) : IComparer
     {
