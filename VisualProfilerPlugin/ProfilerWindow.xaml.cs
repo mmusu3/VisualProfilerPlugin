@@ -1311,9 +1311,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         case nameof(blockOwnerNamesColumn):
             propName = nameof(CubeBlockAnalysisInfo.OwnerNamesForColumn);
             break;
-        case nameof(blockAveragePositionColumn):
-            propName = nameof(CubeBlockAnalysisInfo.AveragePositionForColumn);
-            break;
         default:
             break;
         }
@@ -1539,7 +1536,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         case CubeBlockAnalysisInfo blockInfo:
             {
                 var name = blockInfo.CustomNames.Length > 0 ? blockInfo.CustomNames[^1].Replace(':', '_') : $"{blockInfo.BlockType.Name} {blockInfo.EntityId}";
-                var gps = FormatGPS(name, blockInfo.Positions[^1]);
+                var gps = FormatGPS(name, blockInfo.LastWorldPosition);
 
                 Clipboard.SetText(gps);
                 break;

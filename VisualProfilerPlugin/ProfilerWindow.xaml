@@ -261,9 +261,6 @@
                             <GridViewColumn DisplayMemberBinding="{Binding Path=OwnerNamesForColumn}">
                                 <GridViewColumnHeader Name="blockOwnerNamesColumn" Content=" Main Owner Names " ToolTip="Names of the players that owned the block.&#10;Will be empty if owned by nobody.&#10;Can be multiple values if block ownership changed over time."/>
                             </GridViewColumn>
-                            <GridViewColumn DisplayMemberBinding="{Binding Path=AveragePositionForColumn}">
-                                <GridViewColumnHeader Name="blockAveragePositionColumn" Content=" Avg. Position " ToolTip="Average world position of the block over all the recorded frames."/>
-                            </GridViewColumn>
                         </GridView>
                     </ListView.View>
                 </ListView>

@@ -875,7 +875,7 @@ public class ProfilerEventsAllocator
 [ProtoContract]
 public class ProfilerEventsRecording
 {
-    [ProtoMember(8)] public int Version = 1;
+    [ProtoMember(8)] public int Version = 2;
     [ProtoMember(1)] public string SessionName;
     [ProtoMember(2)] public DateTime StartTime;
     [ProtoMember(3)] public int NumFrames;
