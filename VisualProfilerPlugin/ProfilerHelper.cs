@@ -538,6 +538,7 @@ static class ProfilerHelper
         var grids = new Dictionary<long, CubeGridAnalysisInfo.Builder>();
         var allBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
         var progBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
+        var blockTimesByType = new Dictionary<Type, long>();
         var floatingObjs = new HashSet<long>();
 
         foreach (var (groupId, group) in recording.Groups)
@@ -633,20 +634,22 @@ static class ProfilerHelper
             frameTimeInfo.StdDev = 0;
         }
 
-        foreach (var item in clusters)
-            item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
+        foreach (var (_, item) in clusters)
+            item.AverageTimePerFrame = item.TotalTime / item.FramesCounted.Count;
 
-        foreach (var item in grids)
-            item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
+        foreach (var (_, item) in grids)
+            item.AverageTimePerFrame = item.TotalTime / item.FramesCounted.Count;
 
-        foreach (var item in allBlocks)
-            item.Value.AverageTimePerFrame = item.Value.TotalTime / item.Value.FramesCounted.Count;
+        foreach (var (_, item) in allBlocks)
+            item.AverageTimePerFrame = item.TotalTime / item.FramesCounted.Count;
 
         return new RecordingAnalysisInfo(frameTimeInfo,
             clusters.Values.Select(c => c.Finish()).ToArray(),
             grids.Values.Select(c => c.Finish()).ToArray(),
+            allBlocks.Values.Select(c => c.Finish()).ToArray(),
             progBlocks.Values.Select(c => c.Finish()).ToArray(),
-            allBlocks.Count,
+            blockTimesByType.OrderByDescending(p => p.Value).Select(p => new KeyValuePair<Type, double>(
+                p.Key, ProfilerTimer.MillisecondsFromTicks(p.Value))).ToDictionary(p => p.Key, p => p.Value),
             floatingObjs.Count);
 
         void AnalyzePhysicsCluster(PhysicsClusterInfoProxy.Snapshot snapshot, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
@@ -663,7 +666,7 @@ static class ProfilerHelper
             //    break;
             //}
 
-            anInf.TotalTime += _event.ElapsedMilliseconds;
+            anInf.TotalTicks += _event.ElapsedTicks;
             anInf.IncludedInGroups.Add(groupId);
             anInf.FramesCounted.Add(frameIndex);
         }
@@ -682,7 +685,7 @@ static class ProfilerHelper
             //    break;
             //}
 
-            anInf.TotalTime += _event.ElapsedMilliseconds;
+            anInf.TotalTicks += _event.ElapsedTicks;
             anInf.IncludedInGroups.Add(groupId);
             anInf.FramesCounted.Add(frameIndex);
         }
@@ -696,7 +699,9 @@ static class ProfilerHelper
             else
                 allBlocks.Add(eid, info = new(snapshot));
 
-            if (snapshot.Block.BlockType.Type == typeof(Sandbox.Game.Entities.Blocks.MyProgrammableBlock))
+            var type = snapshot.Block.BlockType.Type;
+
+            if (type == typeof(Sandbox.Game.Entities.Blocks.MyProgrammableBlock))
                 progBlocks[eid] = info;
 
             // TODO: Filter parent events to prevent time overlap
@@ -706,9 +711,16 @@ static class ProfilerHelper
             //    break;
             //}
 
-            info.TotalTime += _event.ElapsedMilliseconds;
+            info.TotalTicks += _event.ElapsedTicks;
             info.IncludedInProfilerGroups.Add(groupId);
             info.FramesCounted.Add(frameIndex);
+
+            long timeByType;
+
+            if (!blockTimesByType.TryGetValue(type, out timeByType))
+                timeByType = 0;
+
+            blockTimesByType[type] = timeByType + _event.ElapsedTicks;
         }
     }
 
@@ -1763,18 +1775,22 @@ class RecordingAnalysisInfo
 
     public PhysicsClusterAnalysisInfo[] PhysicsClusters;
     public CubeGridAnalysisInfo[] Grids;
+    public CubeBlockAnalysisInfo[] AllBlocks;
     public CubeBlockAnalysisInfo[] ProgrammableBlocks;
-    public int TotalBlocks;
+    public Dictionary<Type, double> BlockTimesByType;
+
     public int FloatingObjects;
 
     internal RecordingAnalysisInfo(FrameTimeInfo frameTimes, PhysicsClusterAnalysisInfo[] physicsClusters,
-        CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] programmableBlocks, int totalBlocks, int floatingObjs)
+        CubeGridAnalysisInfo[] grids, CubeBlockAnalysisInfo[] allBlocks, CubeBlockAnalysisInfo[] programmableBlocks,
+        Dictionary<Type, double> blockTimesByType, int floatingObjs)
     {
         FrameTimes = frameTimes;
         PhysicsClusters = physicsClusters;
         Grids = grids;
+        AllBlocks = allBlocks;
         ProgrammableBlocks = programmableBlocks;
-        TotalBlocks = totalBlocks;
+        BlockTimesByType = blockTimesByType;
         FloatingObjects = floatingObjs;
     }
 }
@@ -1789,8 +1805,11 @@ class PhysicsClusterAnalysisInfo
         public HashSet<int> NumActiveObjects = [];
         public HashSet<int> NumCharacters = [];
 
-        public double TotalTime;
+        public double TotalTime => ProfilerTimer.MillisecondsFromTicks(TotalTicks);
+        public long TotalTicks;
+
         public double AverageTimePerFrame;
+
         public HashSet<int> IncludedInGroups = [];
         public HashSet<int> FramesCounted = [];
 
@@ -1999,7 +2018,9 @@ class CubeGridAnalysisInfo
         public HashSet<int> IncludedInGroups = [];
         public HashSet<int> FramesCounted = [];
 
-        public double TotalTime;
+        public double TotalTime => ProfilerTimer.MillisecondsFromTicks(TotalTicks);
+        public long TotalTicks;
+
         public double AverageTimePerFrame;
 
         public Builder(CubeGridInfoProxy.MotionSnapshot snapshot)
@@ -2291,7 +2312,9 @@ class CubeBlockAnalysisInfo
         public HashSet<int> IncludedInProfilerGroups = [];
         public HashSet<int> FramesCounted = [];
 
-        public double TotalTime;
+        public double TotalTime => ProfilerTimer.MillisecondsFromTicks(TotalTicks);
+        public long TotalTicks;
+
         public double AverageTimePerFrame;
 
         public Builder(CubeBlockInfoProxy.Snapshot snapshot)

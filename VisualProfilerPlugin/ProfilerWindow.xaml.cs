@@ -475,7 +475,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             Recorded Object Counts:
                 Clusters: {analysis.PhysicsClusters.Length}
                 Grids: {analysis.Grids.Length}
-                Blocks: {analysis.TotalBlocks}
+                Blocks: {analysis.AllBlocks.Length}
                 Programable Blocks: {analysis.ProgrammableBlocks.Length}
                 Floating Objects: {analysis.FloatingObjects}
             """;

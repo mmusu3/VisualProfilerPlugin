@@ -157,6 +157,7 @@ public struct ProfilerEvent
     public readonly bool MemoryTracked => (Flags & EventFlags.MemoryTracked) != 0;
     public readonly bool IsSinglePoint => (Flags & EventFlags.SinglePoint) != 0;
 
+    public readonly long ElapsedTicks => EndTime - StartTime;
     public readonly TimeSpan ElapsedTime => ProfilerTimer.TimeSpanFromTimestampTicks(EndTime - StartTime);
     public readonly double ElapsedMilliseconds => ProfilerTimer.MillisecondsFromTicks(EndTime - StartTime);
     public readonly double ElapsedMicroseconds => ProfilerTimer.MicrosecondsFromTicks(EndTime - StartTime);
