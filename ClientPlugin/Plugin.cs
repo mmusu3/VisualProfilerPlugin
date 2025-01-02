@@ -54,10 +54,11 @@ public class Plugin : IPlugin
             using (var stream = new MemoryStream(payload))
                 filePayload = Serializer.Deserialize<FilePayload>(stream);
         }
-        catch
+        catch (Exception ex)
         {
-            // TODO: Log
             filePayload = null;
+
+            MyLog.Default.Error("VProfiler Plugin: Exception while deserializing file payload.\r\n" + ex.ToString());
         }
 
         if (filePayload == null)
