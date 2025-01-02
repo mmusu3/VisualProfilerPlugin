@@ -9,6 +9,7 @@
     <AssemblyName>VisualProfiler</AssemblyName>
     <RootNamespace>VisualProfiler</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WarningsAsErrors>nullable</WarningsAsErrors>
     <OutputPath>bin\</OutputPath>
   </PropertyGroup>
 
