@@ -43,10 +43,8 @@ public class Plugin : TorchPluginBase, IWpfPlugin
 
         Profiler.SetEventObjectResolver(ProfilerHelper.ProfilerEventObjectResolver);
 
-#if NETFRAMEWORK
-        Patches.Torch_MethodContext_Patches.Patch();
-#endif
-        Patches.PrioritizedScheduler_Patches.Patch();
+        Torch_MethodContext_Patches.Patch();
+        PrioritizedScheduler_Patches.Patch();
 
         RuntimeHelpers.RunClassConstructor(typeof(PhysicsHelper).TypeHandle);
     }
