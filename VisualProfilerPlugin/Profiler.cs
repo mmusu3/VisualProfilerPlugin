@@ -879,10 +879,16 @@ public class ProfilerEventsRecording
     [ProtoMember(1)] public string SessionName;
     [ProtoMember(2)] public DateTime StartTime;
     [ProtoMember(3)] public int NumFrames;
-    [ProtoMember(4)] public Dictionary<int, ProfilerEventsRecordingGroup> Groups;
     [ProtoMember(5)] public Dictionary<int, string> EventStrings;
     [ProtoMember(6)] public Dictionary<int, string> DataStrings;
     [ProtoMember(7)] public Dictionary<int, RefObjWrapper> DataObjects;
+    [ProtoMember(9)] public Dictionary<int, ProfilerEventsRecordingGroup> Groups;
+
+#pragma warning disable IDE0051 // Remove unused private members
+
+    [ProtoMember(4)] Dictionary<int, ProfilerEventsRecordingGroup> Legacy_Groups { get => Groups; set => Groups = value; }
+
+#pragma warning restore IDE0051
 
     public TimeSpan ElapsedTime
     {
