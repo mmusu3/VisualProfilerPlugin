@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
 using System.Windows.Forms;
 using ParallelTasks;
 using ProtoBuf;
@@ -59,17 +60,14 @@ public class Plugin : IPlugin
             filePayload = null;
 
             MyLog.Default.Error("VProfiler Plugin: Exception while deserializing file payload.\r\n" + ex.ToString());
+            MyAPIGateway.Utilities.ShowMessage("VProfiler", "Error while receiving recording file. See log for details.");
         }
 
         if (filePayload == null)
             return;
 
-        Parallel.Start(WorkPriority.VeryLow, () => SaveFile(filePayload), Parallel.DefaultOptions);
-    }
-
-    static void SaveFile(FilePayload filePayload)
-    {
-        var recordingsFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SpaceEngineers", "ProfilerRecordings");
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var recordingsFolder = Path.Combine(appData, "SpaceEngineers", "ProfilerRecordings");
 
         Directory.CreateDirectory(recordingsFolder);
 
@@ -82,11 +80,19 @@ public class Plugin : IPlugin
             FileName = filePayload.FileName
         };
 
-        var mainWindow = MyRenderProxy.RenderThread.RenderWindow;
-        var result = diag.ShowDialog((IWin32Window)mainWindow);
+        //var mainWindow = (Form)MyRenderProxy.RenderThread.RenderWindow;
 
-        if (result is DialogResult.OK or DialogResult.Yes)
-            File.WriteAllBytes(diag.FileName, filePayload.RecordingFile);
+        var t = new Thread(() =>
+        {
+            var result = diag.ShowDialog(/*mainWindow*/);
+
+            if (result is DialogResult.OK or DialogResult.Yes)
+                Parallel.Start(WorkPriority.VeryLow, () => File.WriteAllBytes(diag.FileName, filePayload.RecordingFile), Parallel.DefaultOptions);
+        });
+
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        t.Join();
     }
 
     [ProtoContract]

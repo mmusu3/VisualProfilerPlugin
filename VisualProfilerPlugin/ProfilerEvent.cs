@@ -149,7 +149,7 @@ public struct ProfilerEvent
     [ProtoMember(5)] public long MemoryBefore;
     [ProtoMember(6)] public long MemoryAfter;
     [ProtoMember(7)] public int Depth;
-    [ProtoMember(8)] public ExtraData ExtraValue; // TOOD: Perhaps allocate from separate array
+    [ProtoMember(8)] public ExtraData ExtraValue; // TODO: Perhaps allocate from separate array
 
     // TODO: Event chains for async task tracking
     // public int Next;

@@ -5,12 +5,10 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Security.Cryptography;
 using Torch.Managers.PatchManager.MSIL;
-using static VisualProfiler.TranspileHelper;
 
 namespace VisualProfiler.Patches;
 
 // Fix exception in Torch code patcher
-// TODO: Submit fix to Torch
 static class Torch_MethodContext_Patches
 {
     public static void Patch()
