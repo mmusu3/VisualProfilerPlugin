@@ -452,7 +452,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         gridsList.ItemsSource = null;
         programmableBlocksList.ItemsSource = null;
 
-        var analysis = ProfilerHelper.AnalyzeRecording(recording);
+        var analysis = RecordingAnalysis.AnalyzeRecording(recording);
 
         statisticsLabel.Content =
             $"""

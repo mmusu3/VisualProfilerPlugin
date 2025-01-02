@@ -142,7 +142,6 @@ static class MyPhysics_Patches
 
     static void InitProfiling(HkJobQueue m_jobQueue, HkJobThreadPool m_threadPool)
     {
-        // TODO: May add too much overhead
         HkTaskProfiler.HookJobQueue(m_jobQueue);
 
         Profiler.SetSortingGroupOrderPriority("Havok", 50);
