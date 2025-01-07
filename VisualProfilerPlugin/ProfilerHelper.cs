@@ -579,15 +579,32 @@ static class ProfilerHelper
         public override string ToString() => $"{NameKey}, Children: {Children.Count}";
     }
 
+    struct CustomKey : IEquatable<CustomKey>
+    {
+        public int BaseKey;
+        public string CustomName;
+
+        public CustomKey(int baseKey, string customName)
+        {
+            BaseKey = baseKey;
+            CustomName = customName;
+        }
+
+        public readonly bool Equals(CustomKey other) => BaseKey == other.BaseKey && CustomName == other.CustomName;
+        public override readonly bool Equals(object? obj) => obj is CustomKey other && Equals(other);
+        public override readonly int GetHashCode() => (BaseKey * 397) ^ CustomName.GetHashCode();
+    }
+
     internal static CombinedFrameEvents CombineFrames(ProfilerEventsRecording recording)
     {
         var combinedGroups = new CombinedFrameEvents.Group[recording.Groups.Count];
         var combinedEvents = new List<ProfilerEvent>();
         var timers = new Dictionary<int, AccumTimer>();
+        var customKeys = new Dictionary<CustomKey, int>();
 
         AccumTimer? activeTimer;
 
-        AccumTimer GetOrAddTimer(int key, int depthDir)
+        AccumTimer GetOrAddTimer(ProfilerKey key, int depthDir)
         {
             if (depthDir < 0)
             {
@@ -603,20 +620,20 @@ static class ProfilerHelper
 
             if (activeTimer != null)
             {
-                if (!activeTimer.Children.TryGetValue(key, out var subTimer))
+                if (!activeTimer.Children.TryGetValue(key.GlobalIndex, out var subTimer))
                 {
-                    subTimer = new(new(key)) { Parent = activeTimer };
-                    activeTimer.Children.Add(key, subTimer);
+                    subTimer = new(key) { Parent = activeTimer };
+                    activeTimer.Children.Add(key.GlobalIndex, subTimer);
                 }
 
                 return subTimer;
             }
             else
             {
-                if (!timers.TryGetValue(key, out var timer))
+                if (!timers.TryGetValue(key.GlobalIndex, out var timer))
                 {
-                    timer = new(new(key));
-                    timers.Add(key, timer);
+                    timer = new(key);
+                    timers.Add(key.GlobalIndex, timer);
                 }
 
                 return timer;
@@ -643,9 +660,41 @@ static class ProfilerHelper
                 long elapsedTime = _event.EndTime - _event.StartTime;
                 long allocdMem = _event.MemoryAfter - _event.MemoryBefore;
 
-                activeTimer = GetOrAddTimer(_event.NameKey, _event.Depth - prevDepth);
-
                 var category = GetCategory(ref _event);
+                var nameKey = new ProfilerKey(_event.NameKey);
+
+                if (Patches.MyParallelEntityUpdateOrchestrator_Patches.UseLiteProfiling)
+                {
+                    if (category == ProfilerEvent.EventCategory.Blocks)
+                    {
+                        if (_event.ExtraValue.Type
+                            is ProfilerEvent.ExtraValueTypeOption.Object
+                            or ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+                        {
+                            if (_event.ExtraValue.Object is CubeBlockInfoProxy.Snapshot block)
+                                nameKey = ProfilerKeyCache.GetOrAdd(block.Block.BlockType.Type.Name);
+                        }
+                    }
+                    else if (category == ProfilerEvent.EventCategory.Grids)
+                    {
+                        if (_event.ExtraValue.Type
+                            is ProfilerEvent.ExtraValueTypeOption.Object
+                            or ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+                        {
+                            if (_event.ExtraValue.Object is CubeGridInfoProxy.MotionSnapshot)
+                            {
+                                var customKey = new CustomKey(nameKey.GlobalIndex, "MyCubeGrid");
+
+                                if (customKeys.TryGetValue(customKey, out int key))
+                                    nameKey = new(key);
+                                else
+                                    customKeys[customKey] = (nameKey = ProfilerKeyCache.GetOrAdd("MyCubeGrid " + nameKey.ToString())).GlobalIndex;
+                            }
+                        }
+                    }
+                }
+
+                activeTimer = GetOrAddTimer(nameKey, _event.Depth - prevDepth);
 
                 if (category != ProfilerEvent.EventCategory.Other)
                     activeTimer.Category = category;
@@ -678,7 +727,7 @@ static class ProfilerHelper
 
             long groupTime = 0;
 
-            foreach (var item in timers.Values)
+            foreach (var item in timers.Values.OrderByDescending(t => t.ElapsedTime))
             {
                 DescendTimer(item, groupTime, 0);
 
@@ -707,7 +756,7 @@ static class ProfilerHelper
 
                 long s = startTime;
 
-                foreach (var item in timer.Children.Values)
+                foreach (var item in timer.Children.Values.OrderByDescending(t => t.ElapsedTime))
                 {
                     DescendTimer(item, s, depth + 1);
                     s += item.ElapsedTime;
@@ -827,8 +876,8 @@ static class ProfilerHelper
                     Call Count: {CallCount}
                     Min ms: {MillisecondsMin:N3}
                     Max ms: {MillisecondsMax:N3}
-                    Average ms: {MillisecondsAverage:N2}
-                    StdDev ms: {Math.Sqrt(MillisecondsVariance):N2}
+                    Average ms: {MillisecondsAverage:N3}
+                    StdDev ms: {Math.Sqrt(MillisecondsVariance):N3}
                     """;
         }
     }
