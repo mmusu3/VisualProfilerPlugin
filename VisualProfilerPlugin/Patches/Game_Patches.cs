@@ -199,6 +199,7 @@ static class Game_Patches
 
         ref var _event = ref Profiler.StartEvent("Profiler EndFrame");
 
+        _event.Flags = ProfilerEvent.EventFlags.MemoryTracked;
         _event.StartTime = startTime;
         _event.EndTime = endTime;
         _event.MemoryBefore = memoryBefore;
