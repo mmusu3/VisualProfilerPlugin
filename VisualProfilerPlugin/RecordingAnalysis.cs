@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using VisualProfiler;
 using VRage.Game;
 using VRageMath;
 
@@ -12,7 +11,8 @@ static class RecordingAnalysis
 {
     public static RecordingAnalysisInfo AnalyzeRecording(ProfilerEventsRecording recording)
     {
-        var frameTimes = new List<long>();
+        int numFrames = recording.NumFrames;
+        var frameTimes = new long[numFrames];
         var clusters = new Dictionary<int, PhysicsClusterAnalysisInfo.Builder>();
         var grids = new Dictionary<long, CubeGridAnalysisInfo.Builder>();
         var allBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
@@ -22,31 +22,20 @@ static class RecordingAnalysis
 
         foreach (var (groupId, group) in recording.Groups)
         {
-            if (group.FrameStartEventIndices.Length == 0
-                || group.FrameEndEventIndices.Length == 0)
+            if (group.NumRecordedFrames == 0)
                 continue;
 
-            for (int f = 0; f < group.FrameStartEventIndices.Length; f++)
+            for (int f = 0; f < group.NumRecordedFrames; f++)
             {
-                if (f >= group.FrameStartEventIndices.Length
-                    || f >= group.FrameEndEventIndices.Length)
-                    break;
+                var events = group.GetEventsForFrame(f);
 
-                int startEventIndex = group.FrameStartEventIndices[f];
-                int endEventIndex = group.FrameEndEventIndices[f];
-
-                if (endEventIndex < startEventIndex)
+                if (events.Length == 0)
                     continue;
-
-                var events = group.Events.AsSpan(startEventIndex, endEventIndex + 1 - startEventIndex);
 
                 {
                     long startTime = events[0].StartTime;
                     long endTime = events[^1].EndTime;
                     long frameTime = endTime - startTime;
-
-                    while (frameTimes.Count <= f)
-                        frameTimes.Add(0);
 
                     frameTimes[f] = Math.Max(frameTimes[f], frameTime);
                 }
@@ -102,10 +91,10 @@ static class RecordingAnalysis
             frameTimeInfo.StdDev += frameMilliseconds * frameMilliseconds;
         }
 
-        if (frameTimes.Count > 0)
+        if (numFrames > 0)
         {
-            frameTimeInfo.Mean /= frameTimes.Count;
-            frameTimeInfo.StdDev = Math.Sqrt(frameTimeInfo.StdDev / frameTimes.Count - frameTimeInfo.Mean * frameTimeInfo.Mean);
+            frameTimeInfo.Mean /= numFrames;
+            frameTimeInfo.StdDev = Math.Sqrt(frameTimeInfo.StdDev / numFrames - frameTimeInfo.Mean * frameTimeInfo.Mean);
         }
         else
         {

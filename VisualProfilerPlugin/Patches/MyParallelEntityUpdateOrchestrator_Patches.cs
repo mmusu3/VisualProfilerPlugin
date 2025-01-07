@@ -20,7 +20,7 @@ namespace VisualProfiler.Patches;
 [PatchShim]
 static class MyParallelEntityUpdateOrchestrator_Patches
 {
-    static bool useLiteProfiling = true;
+    internal static bool UseLiteProfiling = true;
 
     public static void Patch(PatchContext ctx)
     {
@@ -208,7 +208,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         MsilLocal dataLocal;
         MsilLocal handleLocal;
 
-        if (useLiteProfiling)
+        if (UseLiteProfiling)
         {
             timerLocal2 = null!;
             dataLocal = __localCreator(typeof(ProfilerEvent.ExtraData));
@@ -228,7 +228,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
             if (ins.OpCode == Ldloc_1 && instructions[i + 1].OpCode == Callvirt
                 && instructions[i + 1].Operand is MsilOperandInline<MethodBase> call1 && call1.Value == simulateMethod)
             {
-                if (useLiteProfiling)
+                if (UseLiteProfiling)
                 {
                     e.EmitProfilerStartLiteObjExtra(Keys.EntitySimulate,
                         ProfilerTimerOptions.ProfileMemory, null, [
@@ -476,7 +476,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
         MsilLocal dataLocal;
         MsilLocal handleLocal;
 
-        if (useLiteProfiling)
+        if (UseLiteProfiling)
         {
             timerLocal2 = null!;
             dataLocal = __localCreator(typeof(ProfilerEvent.ExtraData));
@@ -499,7 +499,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
             if ((ins.OpCode == Ldloc_1 || (numParts > 1 && ins.OpCode == Ldloc_2)) && instructions[i + 1].OpCode == Callvirt
                 && instructions[i + 1].Operand is MsilOperandInline<MethodBase> call && call.Value == updateMethod)
             {
-                if (useLiteProfiling)
+                if (UseLiteProfiling)
                 {
                     e.EmitProfilerStartLiteObjExtra(key2, ProfilerTimerOptions.ProfileMemory, null, [
                         new(ins.OpCode) // entity

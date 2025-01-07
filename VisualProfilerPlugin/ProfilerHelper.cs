@@ -378,11 +378,7 @@ static class ProfilerHelper
         GeneralStringCache.Clear();
         GeneralStringCache.Init(recording.DataStrings);
 
-        if (recording.Version < 2)
-        {
-            FixObjects();
-            recording.Version = 2;
-        }
+        UpgradeRecordingVersion(recording);
 
         foreach (var (_, group) in recording.Groups)
         {
@@ -423,8 +419,41 @@ static class ProfilerHelper
                 }
             }
         }
+    }
 
-        void FixObjects()
+    static void UpgradeRecordingVersion(ProfilerEventsRecording recording)
+    {
+        if (recording.Version < 2)
+        {
+            UpgradeGridSnapshots();
+            recording.Version = 2;
+        }
+
+        if (recording.Version < 3)
+        {
+            foreach (var group in recording.Groups.Values)
+            {
+                var startIndices = group.FrameStartEventIndices;
+                var endIndices = group.FrameEndEventIndices;
+
+                if (endIndices.Length == 0)
+                    continue;
+
+                if (startIndices.Length == 0 || endIndices[0] < startIndices[0])
+                {
+                    group.FrameStartEventIndices = [-1, ..startIndices];
+
+                    var outliers = group.OutlierFrames;
+
+                    for (int i = 0; i < outliers.Length; i++)
+                        outliers[i]++;
+                }
+            }
+
+            recording.Version = 3;
+        }
+
+        void UpgradeGridSnapshots()
         {
             var objectsToIds = new Dictionary<object, int>(recording.DataObjects.Count);
 
@@ -601,16 +630,7 @@ static class ProfilerHelper
         {
             activeTimer = null;
 
-            int startEventIndex = 0;
-            int endEventIndex = -1;
-
-            if (group.FrameStartEventIndices.Length > 0)
-                startEventIndex = group.FrameStartEventIndices[0];
-
-            if (group.FrameEndEventIndices.Length > 0)
-                endEventIndex = group.FrameEndEventIndices[^1];
-
-            var events = group.Events.AsSpan(startEventIndex, endEventIndex + 1 - startEventIndex);
+            var events = group.GetAllFrameEvents();
             int prevDepth = 0;
 
             for (int e = 0; e < events.Length; e++)

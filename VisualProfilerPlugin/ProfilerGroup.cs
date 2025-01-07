@@ -39,8 +39,8 @@ public class ProfilerGroup
 
     ProfilerEventsAllocator currentEvents = new();
 
-    int frameStartEventIndex = -1;
     int prevFrameEndEventIndex = -1;
+    int frameStartEventIndex = 0;
 
     List<int> frameStartEventIndices = [];
     List<int> frameEndEventIndices = [];
@@ -414,13 +414,12 @@ public class ProfilerGroup
 
             if (Profiler.IsRecordingEvents)
             {
-                if (frameStartEventIndex != -1)
-                    frameEndEventIndices.Add(endIndex);
+                if (frameStartEventIndices.Count == 0)
+                    frameStartEventIndices.Add(-1);
 
+                frameEndEventIndices.Add(endIndex);
                 prevFrameEndEventIndex = endIndex;
             }
-
-            frameStartEventIndex = -1;
 
             var eventObjectResolver = Profiler.EventObjectResolver;
 
@@ -439,7 +438,7 @@ public class ProfilerGroup
 
             if (Profiler.IsRecordingEvents)
             {
-                if (hasOutliers && frameStartEventIndices.Count > 0)
+                if (hasOutliers && frameStartEventIndices.Count > 1 || frameStartEventIndices[0] != -1)
                     outlierFrameIndices.Add(frameStartEventIndices.Count - 1);
             }
             else
@@ -475,6 +474,7 @@ public class ProfilerGroup
                 }
 
                 prevFrameEndEventIndex = -1;
+                frameStartEventIndex = 0;
                 events.NextIndex = 0;
             }
 
@@ -614,28 +614,5 @@ public class ProfilerGroup
         }
     }
 
-    internal int NumRecordedFrames => GetNumRecordedFrames(currentEvents);
-
-    public int GetNumRecordedFrames(ProfilerEventsAllocator events)
-    {
-        int numStart = frameStartEventIndices.Count;
-        int numEnd = frameEndEventIndices.Count;
-
-        if (numStart == 0 || numEnd == 0)
-            return 0;
-
-        int firstStart = frameStartEventIndices[0];
-        int firstEnd = frameEndEventIndices[0];
-
-        if (events.GetEvent(firstEnd).EndTime < events.GetEvent(firstStart).StartTime)
-            numEnd--; // Start of first frame is cut off
-
-        int lastStart = frameStartEventIndices[^1];
-        int lastEnd = frameEndEventIndices[^1];
-
-        if (events.GetEvent(lastStart).StartTime > events.GetEvent(lastEnd).EndTime)
-            numStart--; // End of last frame is cut off
-
-        return Math.Min(numStart, numEnd);
-    }
+    internal int NumRecordedFrames => frameEndEventIndices.Count;
 }

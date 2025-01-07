@@ -641,7 +641,7 @@ public static class Profiler
             int numRecordedFrames = 0;
 
             for (int i = 0; i < groupsRecordings.Count; i++)
-                numRecordedFrames = Math.Max(numRecordedFrames, groupsRecordings[i].Item2.GetNumRecordedFrames());
+                numRecordedFrames = Math.Max(numRecordedFrames, groupsRecordings[i].Item2.NumRecordedFrames);
 
             var groupRecsArray = groupsRecordings.ToArray();
 
@@ -875,7 +875,7 @@ public class ProfilerEventsAllocator
 [ProtoContract]
 public class ProfilerEventsRecording
 {
-    [ProtoMember(8)] public int Version = 2;
+    [ProtoMember(8)] public int Version;
     [ProtoMember(1)] public string SessionName;
     [ProtoMember(2)] public DateTime StartTime;
     [ProtoMember(3)] public int NumFrames;
@@ -919,6 +919,7 @@ public class ProfilerEventsRecording
 
     public ProfilerEventsRecording(DateTime startTime, int numFrames, (int GroupId, ProfilerEventsRecordingGroup Recording)[] groups)
     {
+        Version = 3;
         SessionName = "";
         StartTime = startTime;
         NumFrames = numFrames;
@@ -959,25 +960,12 @@ public class ProfilerEventsRecording
         long startTime = long.MaxValue;
         long endTime = long.MinValue;
 
-        foreach (var item in Groups)
+        foreach (var group in Groups.Values)
         {
-            var g = item.Value;
+            var (start, end) = group.GetTimeBoundsForFrame(frameIndex);
 
-            if (frameIndex >= g.FrameStartEventIndices.Length
-                || frameIndex >= g.FrameEndEventIndices.Length)
+            if (start == long.MaxValue || end == long.MinValue)
                 continue;
-
-            int startIndex = g.FrameStartEventIndices[frameIndex];
-            int endIndex = g.FrameEndEventIndices[frameIndex];
-
-            // Empty frame
-            if (endIndex < startIndex)
-                continue;
-
-            long start = g.GetEvent(startIndex).StartTime;
-            long end = g.GetEvent(endIndex).EndTime;
-
-            Debug.Assert(end >= start);
 
             if (start < startTime)
                 startTime = start;
@@ -985,9 +973,6 @@ public class ProfilerEventsRecording
             if (end > endTime)
                 endTime = end;
         }
-
-        if (startTime > endTime)
-            (startTime, endTime) = (endTime, startTime);
 
         return (startTime, endTime);
     }
@@ -1054,6 +1039,8 @@ public class ProfilerEventsRecordingGroup
     [ProtoMember(5)] public int[] FrameEndEventIndices;
     [ProtoMember(6)] public int[] OutlierFrames;
 
+    public int NumRecordedFrames => FrameEndEventIndices.Length;
+
     public ProfilerEventsRecordingGroup(string name, ProfilerEvent[][] events, int eventCount,
         int[] frameStartIndices, int[] frameEndIndices, int[] outlierFrames)
     {
@@ -1083,7 +1070,7 @@ public class ProfilerEventsRecordingGroup
 
             if (segment[endIndexInSegment].Depth != 0)
             {
-                for (int i = endIndexInSegment - 1; i >= 0; i--)
+                for (int i = endIndexInSegment - 2; i >= 0; i--)
                 {
                     ref var e = ref segment[i];
 
@@ -1145,26 +1132,79 @@ public class ProfilerEventsRecordingGroup
 
     public ref ProfilerEvent GetEvent(int index) => ref events[index];
 
-    public int GetNumRecordedFrames()
+    public Span<ProfilerEvent> GetEventsForFrame(int frameIndex)
     {
-        int numStart = FrameStartEventIndices.Length;
-        int numEnd = FrameEndEventIndices.Length;
+        if (frameIndex < 0) throw new ArgumentOutOfRangeException(nameof(frameIndex), "Frame index must be greater than or equal to zero.");
 
-        if (numStart == 0 || numEnd == 0)
-            return 0;
+        if (frameIndex >= FrameEndEventIndices.Length)
+            return [];
 
-        int firstStart = FrameStartEventIndices[0];
-        int firstEnd = FrameEndEventIndices[0];
+        Assert.True(FrameStartEventIndices.Length > frameIndex);
 
-        if (firstEnd == -1 || events[firstEnd].EndTime < events[firstStart].StartTime)
-            numEnd--; // Start of first frame is cut off
+        int frameStart = FrameStartEventIndices[frameIndex];
+        int frameEnd = FrameEndEventIndices[frameIndex];
 
-        int lastStart = FrameStartEventIndices[^1];
-        int lastEnd = FrameEndEventIndices[^1];
+        if (frameStart == -1 || frameEnd < frameStart)
+            return [];
 
-        if (events[lastStart].StartTime > events[lastEnd].EndTime)
-            numStart--; // End of last frame is cut off
+        return events.AsSpan(frameStart, frameEnd + 1 - frameStart);
+    }
 
-        return Math.Min(numStart, numEnd);
+    public Span<ProfilerEvent> GetAllFrameEvents()
+    {
+        if (FrameEndEventIndices.Length == 0)
+            return [];
+
+        Assert.True(FrameStartEventIndices.Length > 0);
+
+        int s = 0;
+        int frameStart = -1;
+
+        for (; s < FrameStartEventIndices.Length; s++)
+        {
+            frameStart = FrameStartEventIndices[s];
+
+            if (frameStart != -1)
+                break;
+        }
+
+        int frameEnd = FrameEndEventIndices[^1];
+
+        if (frameStart == -1 || frameEnd < frameStart)
+            return [];
+
+        return events.AsSpan(frameStart, frameEnd + 1 - frameStart);
+    }
+
+    public (long StartTime, long EndTime) GetTimeBoundsForFrame(int frameIndex)
+    {
+        var events = GetEventsForFrame(frameIndex);
+
+        if (events.Length == 0)
+            return (long.MaxValue, long.MinValue);
+
+        long startTime = events[0].StartTime;
+        long endTime = events[^1].EndTime;
+
+        // The last event in the array is not always the last to finish.
+        // The parent events usually end after the children but come before
+        // them in the array.
+        if (events[^1].Depth != 0)
+        {
+            for (int i = events.Length - 2; i >= 0; i--)
+            {
+                ref var e = ref events[i];
+
+                if (e.EndTime > endTime)
+                    endTime = e.EndTime;
+
+                if (e.Depth == 0)
+                    break;
+            }
+        }
+
+        Debug.Assert(endTime >= startTime);
+
+        return (startTime, endTime);
     }
 }
