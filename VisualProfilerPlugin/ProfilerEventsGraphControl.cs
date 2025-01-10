@@ -32,6 +32,7 @@ class ProfilerEventsGraphControl : Control
     const int headerHeight = 20;
     const float minBarWidth = 3;
     const float barHeight = 18;
+    const float barStrideY = barHeight + 1;
     const float minBarHeight = 3;
     const float threadGroupPadding = 6;
 
@@ -317,7 +318,7 @@ class ProfilerEventsGraphControl : Control
                 }
 
                 if (groupMaxDepths.TryGetValue(group.ID, out int maxDepth))
-                    y += barHeight * maxDepth + threadGroupPadding;
+                    y += barStrideY * maxDepth + threadGroupPadding;
             }
         }
         else if (recordedEvents != null)
@@ -341,7 +342,7 @@ class ProfilerEventsGraphControl : Control
                 }
 
                 if (groupMaxDepths.TryGetValue(groupId, out int maxDepth))
-                    y += barHeight * maxDepth + threadGroupPadding;
+                    y += barStrideY * maxDepth + threadGroupPadding;
             }
         }
 
@@ -400,7 +401,7 @@ class ProfilerEventsGraphControl : Control
                 if (startX + width < 0 || startX > graphWidth)
                     continue;
 
-                float barY = startY + _event.Depth * barHeight;
+                float barY = startY + _event.Depth * barStrideY;
                 double floorX = Math.Floor(startX);
 
                 if (mousePos.X >= floorX && mousePos.X < floorX + Math.Max(minBarWidth, width)
@@ -657,7 +658,7 @@ class ProfilerEventsGraphControl : Control
 
                 groupMaxDepths[groupId] = maxDepth;
 
-                y += barHeight * maxDepth + threadGroupPadding;
+                y += barStrideY * maxDepth + threadGroupPadding;
             }
         }
 
@@ -795,7 +796,7 @@ class ProfilerEventsGraphControl : Control
 
                 DrawGroupEvents(graphCtx, group.Events, [segment], colorHSV, 0, y);
 
-                y += barHeight * groupMaxDepths[group.ID] + threadGroupPadding;
+                y += barStrideY * groupMaxDepths[group.ID] + threadGroupPadding;
             }
 
             Profiler.Stop();
@@ -813,7 +814,7 @@ class ProfilerEventsGraphControl : Control
 
                 DrawGroupEvents(graphCtx, group.Events, group.EventSegments, colorHSV, startTime, y);
 
-                y += barHeight * groupMaxDepths[groupId] + threadGroupPadding;
+                y += barStrideY * groupMaxDepths[groupId] + threadGroupPadding;
             }
 
             Profiler.Stop();
@@ -1009,6 +1010,8 @@ class ProfilerEventsGraphControl : Control
                 if (width > graphWidth * 2)
                     width = graphWidth * 2;
 
+                width = Math.Max(0, width - 1);
+
                 var hsv = colorHSV;
                 // TODO: Fix double size dark band
                 hsv.Z *= (float)Math.Pow(1 - 2 * Math.Abs(_event.Depth / 25f - Math.Floor(_event.Depth / 25f + 0.5f)), 2); // pow2 triangle wave, period 25
@@ -1019,6 +1022,8 @@ class ProfilerEventsGraphControl : Control
 
                 if (!_event.IsSinglePoint)
                     barBrush = GetBrushForColor(rgb);
+
+                float barY = y + _event.Depth * barStrideY;
 
                 ref var minif = ref minifiedDrawStack[_event.Depth];
 
@@ -1038,7 +1043,7 @@ class ProfilerEventsGraphControl : Control
 
                         if (tooFar || tooFull)
                         {
-                            var miniArea = new Rect(minif.StartX, y + _event.Depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
+                            var miniArea = new Rect(minif.StartX, barY, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
 
                             if (tooFull && !tooFar)
                                 miniArea.Height = barHeight;
@@ -1056,7 +1061,7 @@ class ProfilerEventsGraphControl : Control
 
                 if (minif.FillPercent > 0)
                 {
-                    var miniArea = new Rect(minif.StartX, y + _event.Depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
+                    var miniArea = new Rect(minif.StartX, barY, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
 
                     drawCtx.DrawRectangle(barBrush, null, miniArea);
 
@@ -1064,7 +1069,7 @@ class ProfilerEventsGraphControl : Control
                     minif.FillPercent = 0;
                 }
 
-                var area = new Rect(startX, y + _event.Depth * barHeight, width, barHeight);
+                var area = new Rect(startX, barY, width, barHeight);
 
                 if (_event.IsSinglePoint)
                 {
@@ -1103,7 +1108,12 @@ class ProfilerEventsGraphControl : Control
                         };
 
                         if (ft.Width <= w)
-                            drawCtx.DrawText(ft, area.Location);
+                        {
+                            var loc = area.Location;
+                            loc.Y -= 2;
+
+                            drawCtx.DrawText(ft, loc);
+                        }
                     }
                 }
             }
@@ -1115,7 +1125,7 @@ class ProfilerEventsGraphControl : Control
 
             if (minif.FillPercent > 0)
             {
-                var miniArea = new Rect(minif.StartX, y + depth * barHeight, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
+                var miniArea = new Rect(minif.StartX, y + depth * barStrideY, minBarWidth, Math.Max(minBarHeight, barHeight * minif.FillPercent));
 
                 var hsv = colorHSV;
                 // TODO: Fix double size dark band
