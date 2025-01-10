@@ -292,7 +292,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.DispatchSimulate)}. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.DispatchSimulate)}. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else
@@ -547,7 +547,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.{methodName}. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.{methodName}. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else
@@ -630,7 +630,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.PerformParallelUpdate. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.PerformParallelUpdate. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else
@@ -702,7 +702,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.ParallelUpdateHandlerBeforeSimulation. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.ParallelUpdateHandlerBeforeSimulation. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else
@@ -756,7 +756,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.ParallelUpdateHandlerAfterSimulation. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.ParallelUpdateHandlerAfterSimulation. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else
@@ -863,7 +863,7 @@ static class MyParallelEntityUpdateOrchestrator_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater)}. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MyParallelEntityUpdateOrchestrator)}.{nameof(MyParallelEntityUpdateOrchestrator.ProcessInvokeLater)}. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else

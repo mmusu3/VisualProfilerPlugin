@@ -189,7 +189,7 @@ static class MySandboxGame_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MySandboxGame)}.ProcessInvoke. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MySandboxGame)}.ProcessInvoke. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else

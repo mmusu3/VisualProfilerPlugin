@@ -101,7 +101,7 @@ static class MyEntityCreationThread_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MyEntityCreationThread)}.ThreadProc. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MyEntityCreationThread)}.ThreadProc. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else

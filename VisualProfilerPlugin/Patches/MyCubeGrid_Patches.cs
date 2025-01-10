@@ -144,7 +144,7 @@ static class MyCubeGrid_Patches
 
         if (patchedParts != expectedParts)
         {
-            Plugin.Log.Fatal($"Failed to patch {nameof(MyCubeGrid)}.Dispatch. {patchedParts} out of {expectedParts} code parts matched.");
+            Plugin.Log.Error($"Failed to patch {nameof(MyCubeGrid)}.Dispatch. {patchedParts} out of {expectedParts} code parts matched.");
             return instructions;
         }
         else
