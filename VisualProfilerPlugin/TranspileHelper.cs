@@ -10,6 +10,16 @@ static class TranspileHelper
 {
     static readonly FieldInfo instructionOffsetField = typeof(MsilInstruction).GetField("<Offset>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
+    public static bool OperandIsField(this MsilInstruction instruction, FieldInfo field)
+    {
+        return instruction.Operand is MsilOperandInline<FieldInfo> ldFld && ldFld.Value == field;
+    }
+
+    public static bool OperandIsMethod(this MsilInstruction instruction, MethodInfo method)
+    {
+        return instruction.Operand is MsilOperandInline<MethodBase> call && call.Value == method;
+    }
+
     static MsilInstruction CloneInstruction(MsilInstruction instruction)
     {
         var newI = instruction.CopyWith(instruction.OpCode);

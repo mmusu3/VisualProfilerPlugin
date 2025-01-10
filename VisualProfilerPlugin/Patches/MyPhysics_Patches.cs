@@ -40,6 +40,7 @@ static class MyPhysics_Patches
         Transpile(ctx, "UnloadData", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "SimulateInternal", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "ExecuteParallelRayCasts", _public: false, _static: false);
+        Transpile(ctx, "StepWorldsInternal", _public: false, _static: false);
         //PatchPrefixSuffixPair(ctx, "StepSingleWorld", _public: false, _static: false);
         Transpile(ctx, "StepWorldsParallel", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "EnableOptimizations", _public: false, _static: false);
@@ -47,10 +48,10 @@ static class MyPhysics_Patches
         PatchPrefixSuffixPair(ctx, "UpdateActiveRigidBodies", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "UpdateCharacters", _public: false, _static: false);
 
-        var stepWorldsInternal = GetSourceMethod("StepWorldsInternal", _public: false, _static: false);
-        var replacement = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("StepWorldsInternal");
+        //var stepWorldsInternal = GetSourceMethod("StepWorldsInternal", _public: false, _static: false);
+        //var replacement = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("StepWorldsInternal");
 
-        ctx.GetPattern(stepWorldsInternal).Prefixes.Add(replacement);
+        //ctx.GetPattern(stepWorldsInternal).Prefixes.Add(replacement);
     }
 
     static MethodInfo GetSourceMethod(string methodName, bool _public, bool _static)
@@ -378,13 +379,13 @@ static class MyPhysics_Patches
         {
             StepWorldsMeasured(__instance, timings);
         }
-        else if (!MyFakes.ENABLE_HAVOK_PARALLEL_SCHEDULING || (Profiler.IsRecordingEvents && ProfileEachCluster))
+        else if (MyFakes.ENABLE_HAVOK_PARALLEL_SCHEDULING && !(Profiler.IsRecordingEvents && ProfileEachCluster))
         {
-            StepWorldsSequential(__instance);
+            StepWorldsParallel(__instance);
         }
         else
         {
-            StepWorldsParallel(__instance);
+            StepWorldsSequential(__instance);
         }
 
         if (HkBaseSystem.IsOutOfMemory)
@@ -425,6 +426,73 @@ static class MyPhysics_Patches
                 using (Profiler.Start(0, "MyPhysics.StepSingleWorld", ProfilerTimerOptions.ProfileMemory, new(cluster)))
                     StepSingleWorld(__instance, world);
             }
+        }
+    }
+
+    static IEnumerable<MsilInstruction> Transpile_StepWorldsInternal(IEnumerable<MsilInstruction> instructionStream)
+    {
+        var instructions = instructionStream.ToArray();
+        var newInstructions = new List<MsilInstruction>((int)(instructions.Length * 1.1f));
+        var e = newInstructions;
+
+        Plugin.Log.Debug($"Patching {nameof(MyPhysics)}.StepWorldsInternal.");
+
+        const int expectedParts = 3;
+        int patchedParts = 0;
+
+        var stepWorldsMeasuredMethod = typeof(MyPhysics).GetNonPublicInstanceMethod("StepWorldsMeasured");
+        var stepWorldsMeasuredReplacementMethod = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("StepWorldsMeasured");
+
+        var stepWorldsSequentialMethod = typeof(MyPhysics).GetNonPublicInstanceMethod("StepWorldsSequential");
+        var stepWorldsSequentialReplacementMethod = typeof(MyPhysics_Patches).GetNonPublicStaticMethod("StepWorldsSequential");
+
+        var parallelSchedulingField = typeof(MyFakes).GetField("ENABLE_HAVOK_PARALLEL_SCHEDULING", BindingFlags.Static | BindingFlags.Public)!;
+        var profileEachClusterField = typeof(MyPhysics_Patches).GetField(nameof(ProfileEachCluster), BindingFlags.Static | BindingFlags.NonPublic)!;
+        var isRecordingEventsGetter = typeof(Profiler).GetProperty(nameof(Profiler.IsRecordingEvents))!.GetMethod!;
+
+        Span<OpCode> pattern = [OpCodes.Ldsfld, OpCodes.Brfalse_S];
+
+        for (int i = 0; i < instructions.Length; i++)
+        {
+            var ins = instructions[i];
+
+            if (ins.OpCode == OpCodes.Call && ins.OperandIsMethod(stepWorldsMeasuredMethod))
+            {
+                e.Call(stepWorldsMeasuredReplacementMethod);
+                patchedParts++;
+            }
+            else if (ins.OpCode == OpCodes.Call && ins.OperandIsMethod(stepWorldsSequentialMethod))
+            {
+                e.Call(stepWorldsSequentialReplacementMethod);
+                patchedParts++;
+            }
+            else
+            {
+                e.Emit(ins);
+            }
+
+            if (MatchOpCodes(instructions, i, pattern) && ins.OperandIsField(parallelSchedulingField)
+                && instructions[i + 1].Operand is MsilOperandBrTarget brTarget)
+            {
+                e.Emit(instructions[++i]);
+
+                e.Emit(LoadStaticField(profileEachClusterField));
+                e.Emit(Call(isRecordingEventsGetter));
+                e.Emit(new(OpCodes.And));
+                e.Emit(new MsilInstruction(OpCodes.Brtrue_S).InlineTarget(brTarget.Target));
+                patchedParts++;
+            }
+        }
+
+        if (patchedParts != expectedParts)
+        {
+            Plugin.Log.Error($"Failed to patch {nameof(MyPhysics)}.StepWorldsInternal. {patchedParts} out of {expectedParts} code parts matched.");
+            return instructions;
+        }
+        else
+        {
+            Plugin.Log.Debug("Patch successful.");
+            return newInstructions;
         }
     }
 }
