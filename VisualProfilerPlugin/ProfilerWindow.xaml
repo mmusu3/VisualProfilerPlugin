@@ -79,8 +79,8 @@
                 <RowDefinition Height="auto"/>
                 <RowDefinition Height="12*" MinHeight="27" Name="outlierFramesRow"/>
                 <RowDefinition Height="20*" MinHeight="27" Name="physicsClustersRow"/>
-                <RowDefinition Height="38*" MinHeight="27" Name="cubeGridsRow"/>
-                <RowDefinition Height="30*" MinHeight="27" Name="programmableBlocksRow"/>
+                <RowDefinition Height="38*" MinHeight="110" Name="cubeGridsRow"/>
+                <RowDefinition Height="30*" MinHeight="80" Name="programmableBlocksRow"/>
             </Grid.RowDefinitions>
 
             <Expander ExpandDirection="Down" Grid.Row="0" IsExpanded="True" Margin="0,0,0,4"
@@ -149,8 +149,8 @@
 
             <Expander Name="gridListExpander" ExpandDirection="Down" Grid.Row="3" IsExpanded="True" Header="Cube Grids" Margin="0,0,0,4" FontWeight="Bold"
                         Expanded="CubeGridsExpander_Expanded" Collapsed="CubeGridsExpander_Collapsed">
-                <DockPanel VerticalAlignment="Top">
-                    <DockPanel DockPanel.Dock="Top"  HorizontalAlignment="Stretch">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" HorizontalAlignment="Stretch">
                         <Label DockPanel.Dock="Left" Content="Filter:" FontWeight="Regular"/>
                         <TextBox Name="gridListFilterTextBox" VerticalContentAlignment="Center" BorderThickness="1,1,0,0" FontWeight="Regular" TextChanged="GridListFilterTextBox_TextChanged"/>
                     </DockPanel>

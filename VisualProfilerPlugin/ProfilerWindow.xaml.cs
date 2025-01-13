@@ -751,6 +751,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
     void ProgrammableBlocksExpander_Collapsed(object sender, RoutedEventArgs e)
     {
+        programmableBlocksRow.MinHeight = 27;
         programmableBlocksRow.Height = GridLength.Auto;
 
         if (outlierFramesRow.Height.IsStar)
@@ -762,7 +763,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         if (cubeGridsRow.Height.IsAbsolute)
             cubeGridsRow.Height = new GridLength(1, GridUnitType.Star);
 
-        programmableBlocksRow.MinHeight = 27;
         gridListSplitter.IsEnabled = false;
     }
 
