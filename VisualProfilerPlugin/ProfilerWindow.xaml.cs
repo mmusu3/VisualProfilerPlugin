@@ -741,7 +741,7 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
 
         programmableBlocksRow.MinHeight = 80;
 
-        if (outlierFramesRow.Height.IsAbsolute || physicsClustersRow.Height.IsAbsolute || cubeGridsRow.Height.IsAbsolute)
+        if (/*outlierFramesRow.Height.IsAbsolute || */physicsClustersRow.Height.IsAbsolute || cubeGridsRow.Height.IsAbsolute)
             programmableBlocksRow.Height = new GridLength(expander.ActualHeight + programmableBlocksList.ActualHeight + 4);
         else
             programmableBlocksRow.Height = new GridLength(1, GridUnitType.Star);
@@ -754,8 +754,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         programmableBlocksRow.MinHeight = 27;
         programmableBlocksRow.Height = GridLength.Auto;
 
-        if (outlierFramesRow.Height.IsStar)
-            outlierFramesRow.Height = new GridLength(outlierFramesRow.ActualHeight, GridUnitType.Pixel);
+        //if (outlierFramesRow.Height.IsStar)
+        //    outlierFramesRow.Height = new GridLength(outlierFramesRow.ActualHeight, GridUnitType.Pixel);
 
         if (physicsClustersRow.Height.IsStar)
             physicsClustersRow.Height = new GridLength(physicsClustersRow.ActualHeight, GridUnitType.Pixel);
