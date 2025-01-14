@@ -875,20 +875,14 @@ public class ProfilerEventsAllocator
 [ProtoContract]
 public class ProfilerEventsRecording
 {
-    [ProtoMember(8)] public int Version;
-    [ProtoMember(1)] public string SessionName;
-    [ProtoMember(2)] public DateTime StartTime;
-    [ProtoMember(3)] public int NumFrames;
-    [ProtoMember(5)] public Dictionary<int, string> EventStrings;
-    [ProtoMember(6)] public Dictionary<int, string> DataStrings;
-    [ProtoMember(7)] public Dictionary<int, RefObjWrapper> DataObjects;
-    [ProtoMember(9)] public Dictionary<int, ProfilerEventsRecordingGroup> Groups;
-
-#pragma warning disable IDE0051 // Remove unused private members
-
-    [ProtoMember(4)] Dictionary<int, ProfilerEventsRecordingGroup> Legacy_Groups { get => Groups; set => Groups = value; }
-
-#pragma warning restore IDE0051
+    [ProtoMember(1)] public int Version { get; set; }
+    [ProtoMember(2)] public string SessionName { get; set; }
+    [ProtoMember(3)] public DateTime StartTime { get; set; }
+    [ProtoMember(4)] public int NumFrames { get; set; }
+    [ProtoMember(5)] public Dictionary<int, string> EventStrings { get; set; }
+    [ProtoMember(6)] public Dictionary<int, string> DataStrings { get; set; }
+    [ProtoMember(7)] public Dictionary<int, RefObjWrapper> DataObjects { get; set; }
+    [ProtoMember(8)] public Dictionary<int, ProfilerEventsRecordingGroup> Groups { get; set; }
 
     public TimeSpan ElapsedTime
     {
@@ -917,9 +911,11 @@ public class ProfilerEventsRecording
         }
     }
 
+    public const int CurrentVersion = 1;
+
     public ProfilerEventsRecording(DateTime startTime, int numFrames, (int GroupId, ProfilerEventsRecordingGroup Recording)[] groups)
     {
-        Version = 3;
+        Version = CurrentVersion;
         SessionName = "";
         StartTime = startTime;
         NumFrames = numFrames;
@@ -998,46 +994,13 @@ public class ProfilerEventsRecordingGroup
         [ProtoMember(3)] public long EndTime;
     }
 
-    [ProtoMember(1)] public string Name;
-
-    [ProtoMember(2), Obsolete("Use Events Property instead.")]
-    public LegacySegment[]? LegacySegments;
-
-#pragma warning disable CS0618 // Type or member is obsolete
-    [ProtoMember(7)]
-    public ProfilerEvent[] Events
-    {
-        get
-        {
-            if (LegacySegments != null)
-                LoadLegacyEvents(ref LegacySegments);
-
-            return events;
-        }
-        set => events = value;
-    }
-
-    [ProtoMember(8)]
-    public ProfilerEventsSegment[] EventSegments
-    {
-        get
-        {
-            if (LegacySegments != null)
-                LoadLegacyEvents(ref LegacySegments);
-
-            return eventSegments;
-        }
-        set => eventSegments = value;
-    }
-#pragma warning restore CS0618
-
-    ProfilerEvent[] events;
-    ProfilerEventsSegment[] eventSegments;
-
-    [ProtoMember(3)] public int EventCount;
-    [ProtoMember(4)] public int[] FrameStartEventIndices;
-    [ProtoMember(5)] public int[] FrameEndEventIndices;
-    [ProtoMember(6)] public int[] OutlierFrames;
+    [ProtoMember(1)] public string Name { get; set; }
+    [ProtoMember(2)] public ProfilerEvent[] Events { get; set; }
+    [ProtoMember(3)] public ProfilerEventsSegment[] EventSegments { get; set; }
+    [ProtoMember(4)] public int EventCount { get; set; }
+    [ProtoMember(5)] public int[] FrameStartEventIndices { get; set; }
+    [ProtoMember(6)] public int[] FrameEndEventIndices { get; set; }
+    [ProtoMember(7)] public int[] OutlierFrames { get; set; }
 
     public int NumRecordedFrames => FrameEndEventIndices.Length;
 
@@ -1053,12 +1016,12 @@ public class ProfilerEventsRecordingGroup
         const int ss = ProfilerEventsAllocator.SegmentSize;
         int numSegments = (eventCount + ss - 1) / ss;
 
-        this.events = new ProfilerEvent[eventCount];
-        eventSegments = new ProfilerEventsSegment[numSegments];
+        Events = new ProfilerEvent[eventCount];
+        EventSegments = new ProfilerEventsSegment[numSegments];
 
         int ei = 0;
 
-        for (int s = 0; s < eventSegments.Length; s++)
+        for (int s = 0; s < EventSegments.Length; s++)
         {
             var segment = events[s];
             int endIndexInSegment = Math.Min(segment.Length - 1, (eventCount - 1) - s * ss);
@@ -1082,7 +1045,7 @@ public class ProfilerEventsRecordingGroup
                 }
             }
 
-            eventSegments[s] = new() {
+            EventSegments[s] = new() {
                 StartTime = segment[0].StartTime,
                 EndTime = endTime,
                 StartIndex = ei,
@@ -1090,47 +1053,21 @@ public class ProfilerEventsRecordingGroup
             };
 
             for (int i = 0; i <= endIndexInSegment; i++)
-                this.events[ei++] = segment[i];
+                Events[ei++] = segment[i];
         }
     }
 
     public ProfilerEventsRecordingGroup()
     {
         Name = "";
-        events = [];
-        eventSegments = [];
+        Events = [];
+        EventSegments = [];
         FrameStartEventIndices = [];
         FrameEndEventIndices = [];
         OutlierFrames = [];
     }
 
-    void LoadLegacyEvents([MaybeNull] ref LegacySegment[] legacySegments)
-    {
-        events = new ProfilerEvent[EventCount];
-        eventSegments = new ProfilerEventsSegment[legacySegments.Length];
-
-        int e = 0;
-
-        for (int i = 0; i < legacySegments.Length; i++)
-        {
-            var segment = legacySegments[i];
-            int segmentLen = Math.Min(segment.Events.Length, EventCount - e);
-
-            eventSegments[i] = new() {
-                StartTime = segment.StartTime,
-                EndTime = segment.EndTime,
-                StartIndex = e,
-                Length = segmentLen
-            };
-
-            Array.Copy(segment.Events, 0, events, e, segmentLen);
-            e += segment.Events.Length;
-        }
-
-        legacySegments = null;
-    }
-
-    public ref ProfilerEvent GetEvent(int index) => ref events[index];
+    public ref ProfilerEvent GetEvent(int index) => ref Events[index];
 
     public Span<ProfilerEvent> GetEventsForFrame(int frameIndex)
     {
@@ -1147,7 +1084,7 @@ public class ProfilerEventsRecordingGroup
         if (frameStart == -1 || frameEnd < frameStart)
             return [];
 
-        return events.AsSpan(frameStart, frameEnd + 1 - frameStart);
+        return Events.AsSpan(frameStart, frameEnd + 1 - frameStart);
     }
 
     public Span<ProfilerEvent> GetAllFrameEvents()
@@ -1173,7 +1110,7 @@ public class ProfilerEventsRecordingGroup
         if (frameStart == -1 || frameEnd < frameStart)
             return [];
 
-        return events.AsSpan(frameStart, frameEnd + 1 - frameStart);
+        return Events.AsSpan(frameStart, frameEnd + 1 - frameStart);
     }
 
     public (long StartTime, long EndTime) GetTimeBoundsForFrame(int frameIndex)

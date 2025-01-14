@@ -378,8 +378,6 @@ static class ProfilerHelper
         GeneralStringCache.Clear();
         GeneralStringCache.Init(recording.DataStrings);
 
-        UpgradeRecordingVersion(recording);
-
         foreach (var (_, group) in recording.Groups)
         {
             for (int i = 0; i < group.Events.Length; i++)
@@ -416,144 +414,6 @@ static class ProfilerHelper
                     }
 
                     _event.ExtraValue.Object = obj.Object;
-                }
-            }
-        }
-    }
-
-    static void UpgradeRecordingVersion(ProfilerEventsRecording recording)
-    {
-        if (recording.Version < 2)
-        {
-            UpgradeGridSnapshots();
-            recording.Version = 2;
-        }
-
-        if (recording.Version < 3)
-        {
-            foreach (var group in recording.Groups.Values)
-            {
-                var startIndices = group.FrameStartEventIndices;
-                var endIndices = group.FrameEndEventIndices;
-
-                if (endIndices.Length == 0)
-                    continue;
-
-                if (startIndices.Length == 0 || endIndices[0] < startIndices[0])
-                {
-                    group.FrameStartEventIndices = [-1, ..startIndices];
-
-                    var outliers = group.OutlierFrames;
-
-                    for (int i = 0; i < outliers.Length; i++)
-                        outliers[i]++;
-                }
-            }
-
-            recording.Version = 3;
-        }
-
-        void UpgradeGridSnapshots()
-        {
-            var objectsToIds = new Dictionary<object, int>(recording.DataObjects.Count);
-
-            foreach (var item in recording.DataObjects)
-                objectsToIds.Add(item.Value.Object, item.Key);
-
-            var fixedGrids = new HashSet<CubeGridInfoProxy>();
-
-            foreach (int id in objectsToIds.Values)
-            {
-                var obj = recording.DataObjects[id].Object;
-                var newObj = FixObject(obj);
-
-                if (newObj != obj)
-                    recording.DataObjects[id] = new(newObj);
-            }
-
-            object FixObject(object obj)
-            {
-                switch (obj)
-                {
-                case CubeGridInfoProxy.Snapshot gridSnapshot:
-                    {
-                        var info = gridSnapshot.Grid;
-
-                        if (fixedGrids.Add(info))
-                            FixGridInfo(info);
-
-                        break;
-                    }
-                case CubeBlockInfoProxy.Snapshot blockSnapshot:
-                    {
-                        var oldGridSS = blockSnapshot.GridSnapshot;
-                        var gridInfo = oldGridSS.Grid;
-
-                        if (fixedGrids.Add(gridInfo))
-                            FixGridInfo(gridInfo);
-
-                        // Grid snapshot was removed
-                        if (oldGridSS.LegacyState != null)
-                        {
-                            int baseIndex = 0;
-
-                            for (int i = 0; i < gridInfo.Snapshots.Count; i++)
-                            {
-                                var gridSS = gridInfo.Snapshots[i].Object;
-
-                                if (gridSS.FrameIndex > oldGridSS.FrameIndex)
-                                    break;
-
-                                baseIndex = i;
-                            }
-
-                            blockSnapshot.GridSnapshot = gridInfo.Snapshots[baseIndex].Object;
-                        }
-
-                        break;
-                    }
-                }
-
-                return obj;
-            }
-
-            void FixGridInfo(CubeGridInfoProxy info)
-            {
-                var baseSnapshot = info.Snapshots[0].Object;
-                var motionSS = new CubeGridInfoProxy.MotionSnapshot(baseSnapshot, baseSnapshot.FrameIndex, baseSnapshot.LegacyState!);
-
-                baseSnapshot.MotionSnapshots.Add(new(motionSS));
-                baseSnapshot.LegacyState = null;
-
-                if (objectsToIds.TryGetValue(baseSnapshot, out int id))
-                    recording.DataObjects[id] = new(motionSS);
-
-                for (int i = 1; i < info.Snapshots.Count; i++)
-                {
-                    var ss = info.Snapshots[i].Object;
-
-                    if (ss.Equals(baseSnapshot))
-                    {
-                        if (ss.LegacyState!.Position != motionSS.Position
-                            || ss.LegacyState.Speed != motionSS.Speed
-                            || ss.LegacyState.PhysicsCluster != motionSS.PhysicsCluster)
-                        {
-                            motionSS = new CubeGridInfoProxy.MotionSnapshot(baseSnapshot, ss.FrameIndex, ss.LegacyState!);
-                            baseSnapshot.MotionSnapshots.Add(new(motionSS));
-                        }
-
-                        info.Snapshots.RemoveAt(i--);
-                    }
-                    else
-                    {
-                        baseSnapshot = ss;
-                        motionSS = new CubeGridInfoProxy.MotionSnapshot(baseSnapshot, ss.FrameIndex, ss.LegacyState!);
-                        baseSnapshot.MotionSnapshots.Add(new(motionSS));
-                        baseSnapshot.LegacyState = null;
-                    }
-
-                    if (objectsToIds.TryGetValue(ss, out id))
-                        recording.DataObjects[id] = new(motionSS);
                 }
             }
         }
@@ -1036,63 +896,29 @@ class PhysicsClusterInfoProxy
 [ProtoContract]
 class CubeGridInfoProxy
 {
-    // NOTE: ProtoMember IDs must be preserved. Fields are in display
-    // order so Proto IDs are not sequential due to field additions.
-    [ProtoMember(1)] public long EntityId;
-    [ProtoMember(2)] public MyCubeSize GridSize;
+    [ProtoMember(1)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
+    [ProtoMember(2)] public long EntityId;
+    [ProtoMember(3)] public MyCubeSize GridSize;
     [ProtoMember(4)] public bool IsNPC;
     [ProtoMember(5)] public bool IsPreview;
-    [ProtoMember(3)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
 
     [ProtoContract]
     public class Snapshot
     {
         [ProtoMember(1, AsReference = true)] public CubeGridInfoProxy Grid;
-        [ProtoMember(2)] public ulong FrameIndex;
-        [ProtoMember(8)] public bool IsStatic;
-        [ProtoMember(3)] public string Name;
-        [ProtoMember(4)] public long OwnerId;
-        [ProtoMember(5)] public StringId OwnerName;
-        [ProtoMember(6)] public int BlockCount;
-        [ProtoMember(10)] public Vector3I Size;
-        [ProtoMember(11)] public int PCU;
-        [ProtoMember(12)] public bool IsPowered;
-        [ProtoMember(14)] public int ConnectedGrids;
-        [ProtoMember(15)] public int GroupId;
-        [ProtoMember(16)] public int GroupSize;
-        [ProtoMember(17)] public List<RefObjWrapper<MotionSnapshot>> MotionSnapshots = [];
-
-        internal class LegacyStateItems
-        {
-            [ProtoMember(7)] public Vector3D Position;
-            [ProtoMember(13)] public int PhysicsCluster;
-            [ProtoMember(9)] public float Speed;
-        }
-
-        internal LegacyStateItems? LegacyState;
-
-#pragma warning disable IDE0051 // Remove unused private members
-        [ProtoMember(7)]
-        Vector3D Legacy_Position
-        {
-            get => LegacyState?.Position ?? default;
-            set => (LegacyState ??= new()).Position = value;
-        }
-
-        [ProtoMember(9)]
-        float Legacy_Speed
-        {
-            get => LegacyState?.Speed ?? 0;
-            set => (LegacyState ??= new()).Speed = value;
-        }
-
-        [ProtoMember(13)]
-        int Legacy_PhysicsCluster
-        {
-            get => LegacyState?.PhysicsCluster ?? -1;
-            set => (LegacyState ??= new()).PhysicsCluster = value;
-        }
-#pragma warning restore IDE0051
+        [ProtoMember(2)] public List<RefObjWrapper<MotionSnapshot>> MotionSnapshots = [];
+        [ProtoMember(3)] public ulong FrameIndex;
+        [ProtoMember(4)] public bool IsStatic;
+        [ProtoMember(5)] public string Name;
+        [ProtoMember(6)] public long OwnerId;
+        [ProtoMember(7)] public StringId OwnerName;
+        [ProtoMember(8)] public int BlockCount;
+        [ProtoMember(9)] public Vector3I Size;
+        [ProtoMember(10)] public int PCU;
+        [ProtoMember(11)] public bool IsPowered;
+        [ProtoMember(12)] public int ConnectedGrids;
+        [ProtoMember(13)] public int GroupId;
+        [ProtoMember(14)] public int GroupSize;
 
         public Snapshot(CubeGridInfoProxy gridInfo, MyCubeGrid grid, Dictionary<GridGroup, int> gridGroupsToIds)
         {
@@ -1239,15 +1065,6 @@ class CubeGridInfoProxy
             PhysicsCluster = PhysicsHelper.GetClusterIdForObject(grid.Physics);
         }
 
-        public MotionSnapshot(Snapshot baseSnapshot, ulong frameIndex, Snapshot.LegacyStateItems legacyState)
-        {
-            BaseSnapshot = baseSnapshot;
-            FrameIndex = frameIndex;
-            Position = legacyState.Position;
-            Speed = legacyState.Speed;
-            PhysicsCluster = legacyState.PhysicsCluster;
-        }
-
         public bool Equals(MyCubeGrid grid)
         {
             // Grid info is captured at the end of the frame. State changes within the frame are not seen.
@@ -1340,9 +1157,9 @@ class CubeGridInfoProxy
 [ProtoContract]
 class CubeBlockInfoProxy
 {
-    [ProtoMember(1)] public long EntityId;
-    [ProtoMember(2)] public TypeProxy BlockType;
-    [ProtoMember(3)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
+    [ProtoMember(1)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
+    [ProtoMember(2)] public long EntityId;
+    [ProtoMember(3)] public TypeProxy BlockType;
 
     [ProtoContract]
     public class Snapshot
@@ -1353,8 +1170,7 @@ class CubeBlockInfoProxy
         [ProtoMember(4)] public string? CustomName;
         [ProtoMember(5)] public long OwnerId;
         [ProtoMember(6)] public StringId OwnerName;
-        //[ProtoMember(7)] public Vector3D Position;
-        [ProtoMember(8)] public Vector3I LocalPosition;
+        [ProtoMember(7)] public Vector3I LocalPosition;
 
         public Vector3D LastWorldPosition
         {
@@ -1469,11 +1285,11 @@ class CubeBlockInfoProxy
 [ProtoContract]
 class CharacterInfoProxy
 {
-    [ProtoMember(1)] public long EntityId;
-    [ProtoMember(2)] public long IdentityId;
-    [ProtoMember(3)] public ulong PlatformId;
-    [ProtoMember(4)] public string Name;
-    [ProtoMember(5)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
+    [ProtoMember(1)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
+    [ProtoMember(2)] public long EntityId;
+    [ProtoMember(3)] public long IdentityId;
+    [ProtoMember(4)] public ulong PlatformId;
+    [ProtoMember(5)] public string Name;
 
     [ProtoContract]
     public class Snapshot
@@ -1542,10 +1358,10 @@ class CharacterInfoProxy
 [ProtoContract]
 class FloatingObjectInfoProxy
 {
-    [ProtoMember(1)] public long EntityId;
-    [ProtoMember(2)] public StringId ItemTypeId;
-    [ProtoMember(3)] public StringId ItemSubtypeId;
-    [ProtoMember(4)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
+    [ProtoMember(1)] public List<RefObjWrapper<Snapshot>> Snapshots = [];
+    [ProtoMember(2)] public long EntityId;
+    [ProtoMember(3)] public StringId ItemTypeId;
+    [ProtoMember(4)] public StringId ItemSubtypeId;
 
     [ProtoContract]
     public class Snapshot
