@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using Torch.Managers.PatchManager;
 using Torch.Managers.PatchManager.MSIL;
 
 namespace VisualProfiler;
@@ -139,6 +141,15 @@ static class TranspileHelper
         };
     }
 
+    public static MsilInstruction LoadLocal(MsilLocal local)
+    {
+        var ins = local.Index < 256
+            ? new MsilInstruction(OpCodes.Ldloc_S)
+            : new MsilInstruction(OpCodes.Ldloc);
+
+        return ins.InlineValue(local);
+    }
+
     public static MsilInstruction LoadLocal       (LocalVariableInfo local) => LoadLocal(local.LocalIndex);
     public static MsilInstruction LoadField       (FieldInfo field) => new MsilInstruction(OpCodes.Ldfld).InlineValue(field);
     public static MsilInstruction LoadFieldAddress(FieldInfo field) => new MsilInstruction(OpCodes.Ldflda).InlineValue(field);
@@ -146,6 +157,15 @@ static class TranspileHelper
     public static MsilInstruction Call            (MethodInfo method) => new MsilInstruction(OpCodes.Call).InlineValue(method);
     public static MsilInstruction CallVirt        (MethodInfo method) => new MsilInstruction(OpCodes.Callvirt).InlineValue(method);
     public static MsilInstruction NewObj          (ConstructorInfo ctor) => new MsilInstruction(OpCodes.Newobj).InlineValue(ctor);
+
+    public static MsilInstruction StoreLocal(MsilLocal local)
+    {
+        var ins = local.Index < 256
+            ? new MsilInstruction(OpCodes.Stloc_S)
+            : new MsilInstruction(OpCodes.Stloc);
+
+        return ins.InlineValue(local);
+    }
 
     public static void Emit            (this List<MsilInstruction> instructions, MsilInstruction instruction) => instructions.Add(instruction);
     public static void LoadConst       (this List<MsilInstruction> instructions, int value) => instructions.Add(LoadConst(value));
@@ -211,6 +231,23 @@ static class TranspileHelper
         instructions.Add(Call(ProfilerMembers.StartIndexMethod));
 
         return instructions.AsSpan()[^3..];
+    }
+
+    public static ReadOnlySpan<MsilInstruction> EmitProfilerStartLongExtra(this List<MsilInstruction> instructions, int index, string name,
+        ProfilerTimerOptions timerOptions, string? formatString, ReadOnlySpan<MsilInstruction> dataInstructions)
+    {
+        instructions.Add(LoadConst(index));
+        instructions.Add(LoadString(name));
+        instructions.Add(LoadConst((int)timerOptions));
+
+        for (int i = 0; i < dataInstructions.Length; i++)
+            instructions.Add(dataInstructions[i]);
+
+        instructions.Add(formatString != null ? LoadString(formatString) : new MsilInstruction(OpCodes.Ldnull));
+        instructions.Add(NewObj(ProfilerMembers.ExtraDataLongCtor));
+        instructions.Add(Call(ProfilerMembers.StartIndexExtraMethod));
+
+        return instructions.AsSpan()[^(6 + dataInstructions.Length)..];
     }
 
     public static ReadOnlySpan<MsilInstruction> EmitProfilerStartObjExtra(this List<MsilInstruction> instructions, int index, string name,
@@ -390,5 +427,76 @@ static class TranspileHelper
         instructions.Add(Call(ProfilerMembers.StopMethod));
 
         return instructions.AsSpan()[^1..];
+    }
+
+    public static MsilInstruction[] ReplaceMethodInstructions(MethodBase originalMethod, MethodInfo replacementMethod, Func<Type, MsilLocal> localCreator)
+    {
+        var instructions = PatchUtilities.ReadInstructions(replacementMethod).ToArray();
+        var localsByType = originalMethod.GetMethodBody()!.LocalVariables.ToDictionary(l => l.LocalType, l => new MsilLocal(l.LocalIndex));
+        var localsMap = new Dictionary<int, MsilLocal>();
+
+        foreach (var local in replacementMethod.GetMethodBody()!.LocalVariables)
+        {
+            if (localsByType.TryGetValue(local.LocalType, out var newLocal))
+                localsByType.Remove(local.LocalType);
+            else
+                newLocal = localCreator(local.LocalType);
+
+            localsMap[local.LocalIndex] = newLocal;
+        }
+
+        var labelsMap = new Dictionary<MsilLabel, MsilLabel>();
+        var labelsToRemove = new List<MsilLabel>();
+
+        foreach (var ins in instructions)
+        {
+            labelsToRemove.EnsureCapacity(ins.Labels.Count);
+            labelsToRemove.AddRange(ins.Labels);
+
+            foreach (var label in labelsToRemove)
+            {
+                var newLabel = new MsilLabel();
+                labelsMap[label] = newLabel;
+
+                ins.Labels.Remove(label);
+                ins.Labels.Add(newLabel);
+            }
+
+            labelsToRemove.Clear();
+        }
+
+        for (int i = 0; i < instructions.Length; i++)
+        {
+            ref var ins = ref instructions[i];
+
+            if (ins.OpCode == OpCodes.Ldloc_0)
+                ins = LoadLocal(localsMap[0]).CopyLabelsAndTryCatchOperations(ins);
+            else if (ins.OpCode == OpCodes.Ldloc_1)
+                ins = LoadLocal(localsMap[1]).CopyLabelsAndTryCatchOperations(ins);
+            else if (ins.OpCode == OpCodes.Ldloc_2)
+                ins = LoadLocal(localsMap[2]).CopyLabelsAndTryCatchOperations(ins);
+            else if (ins.OpCode == OpCodes.Ldloc_3)
+                ins = LoadLocal(localsMap[3]).CopyLabelsAndTryCatchOperations(ins);
+            else if (ins.OpCode == OpCodes.Stloc_0)
+                ins = StoreLocal(localsMap[0]).CopyLabelsAndTryCatchOperations(ins);
+            else if (ins.OpCode == OpCodes.Stloc_1)
+                ins = StoreLocal(localsMap[1]).CopyLabelsAndTryCatchOperations(ins);
+            else if (ins.OpCode == OpCodes.Stloc_2)
+                ins = StoreLocal(localsMap[2]).CopyLabelsAndTryCatchOperations(ins);
+            else if (ins.OpCode == OpCodes.Stloc_3)
+                ins = StoreLocal(localsMap[3]).CopyLabelsAndTryCatchOperations(ins);
+            else if (ins.Operand is MsilOperandInline<MsilLocal> local)
+                ins.InlineValue(localsMap[local.Value.Index]);
+
+            else if (ins.Operand is MsilOperandBrTarget brTarget)
+            {
+                if (!labelsMap.TryGetValue(brTarget.Target, out var newLabel))
+                    labelsMap[brTarget.Target] = newLabel = new MsilLabel();
+
+                ins.InlineTarget(newLabel);
+            }
+        }
+
+        return instructions;
     }
 }
