@@ -462,7 +462,7 @@ public class ProfilerGroup
                         for (int j = startEventIndex; j <= endEventIndex; j++)
                         {
                             eventsArray[eIndex++] = segment[j];
-                            segment[j].ExtraValue.Object = null;
+                            segment[j].DataObject = null;
                         }
                     }
 
@@ -509,7 +509,7 @@ public class ProfilerGroup
             int endEventIndex = Math.Min(segment.Length - 1, endIndex - i * ss);
 
             for (int j = startEventIndex; j <= endEventIndex; j++)
-                segment[j].ExtraValue.Object = null;
+                segment[j].DataObject = null;
         }
     }
 
@@ -605,10 +605,10 @@ public class ProfilerGroup
             {
                 ref var _event = ref segment[j];
 
-                if (_event.ExtraValue.Type is ProfilerEvent.ExtraValueTypeOption.Object or ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+                if (_event.DataType is ProfilerEvent.DataTypeOption.Object or ProfilerEvent.DataTypeOption.ObjectAndCategory)
                 {
-                    if (_event.ExtraValue.Object != null)
-                        objectResolver.Resolve(ref _event.ExtraValue);
+                    if (_event.DataObject != null)
+                        objectResolver.Resolve(ref _event);
                 }
             }
         }

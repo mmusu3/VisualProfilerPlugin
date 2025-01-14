@@ -7,18 +7,18 @@ using VRageMath;
 
 namespace VisualProfiler;
 
-[ProtoContract]
+[ProtoContract(UseProtoMembersOnly = true)]
 public struct ProfilerEvent
 {
     [Flags]
-    public enum EventFlags : byte
+    public enum EventFlags : uint
     {
         None = 0,
         MemoryTracked = 1,
         SinglePoint = 2
     }
 
-    public enum ExtraValueTypeOption
+    public enum DataTypeOption : byte
     {
         None = 0,
         Object = 1,
@@ -28,7 +28,7 @@ public struct ProfilerEvent
         ObjectAndCategory = 5
     }
 
-    public enum EventCategory
+    public enum EventCategory : uint
     {
         Other       = 0,
         Wait        = 1,
@@ -48,14 +48,14 @@ public struct ProfilerEvent
         CategoryCount
     }
 
-    [ProtoContract]
     public struct ExtraValueUnion
     {
-        [ProtoMember(1)] public ulong DataField;
-        [ProtoIgnore] public readonly long LongValue => (long)DataField;
-        [ProtoIgnore] public double DoubleValue => Unsafe.As<ulong, double>(ref DataField);
-        [ProtoIgnore] public float FloatValue => Unsafe.As<ulong, float>(ref DataField);
-        [ProtoIgnore] public readonly EventCategory CategoryValue => (EventCategory)(DataField >> 32);
+        public ulong DataField;
+
+        public readonly long LongValue => (long)DataField;
+        public double DoubleValue => Unsafe.As<ulong, double>(ref DataField);
+        public float FloatValue => Unsafe.As<ulong, float>(ref DataField);
+        public readonly EventCategory CategoryValue => (EventCategory)(DataField >> 32);
 
         public ExtraValueUnion(long value)
         {
@@ -80,27 +80,17 @@ public struct ProfilerEvent
         }
     }
 
-    [ProtoContract]
     public struct ExtraData
     {
-        [ProtoMember(1)] public ExtraValueTypeOption Type;
-        [ProtoMember(2)] public ExtraValueUnion Value;
-
-        [ProtoIgnore] public object? Object;
-
-        [ProtoIgnore] // Was ProtoMember(3)
-        public ObjectId ObjectKey
-        {
-            readonly get => new ObjectId((int)(uint)Value.DataField);
-            set => Value.DataField = (Value.DataField & ~0xFFFFFFFFUL) | (uint)value.ID;
-        }
-
-        [ProtoMember(4)] public string? Format;
+        public DataTypeOption Type;
+        public ExtraValueUnion Value;
+        public object? Object;
+        public string? Format;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(object? obj, string? format = null)
         {
-            Type = ExtraValueTypeOption.Object;
+            Type = DataTypeOption.Object;
             Value = default;
             Object = obj;
             Format = format;
@@ -109,7 +99,7 @@ public struct ProfilerEvent
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(EventCategory category, object? obj = null, string? format = null)
         {
-            Type = ExtraValueTypeOption.ObjectAndCategory;
+            Type = DataTypeOption.ObjectAndCategory;
             Value = new(category);
             Object = obj;
             Format = format;
@@ -118,7 +108,7 @@ public struct ProfilerEvent
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(long value, string? format = null)
         {
-            Type = ExtraValueTypeOption.Long;
+            Type = DataTypeOption.Long;
             Value = new(value);
             Format = format;
         }
@@ -126,7 +116,7 @@ public struct ProfilerEvent
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(double value, string? format = null)
         {
-            Type = ExtraValueTypeOption.Double;
+            Type = DataTypeOption.Double;
             Value = new(value);
             Format = format;
         }
@@ -134,22 +124,71 @@ public struct ProfilerEvent
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ExtraData(float value, string? format = null)
         {
-            Type = ExtraValueTypeOption.Float;
+            Type = DataTypeOption.Float;
             Value = new(value);
             Format = format;
         }
     }
 
-    public readonly string Name => ProfilerKeyCache.GetName(new(NameKey));
-
     [ProtoMember(1)] public int NameKey;
-    [ProtoMember(2)] public EventFlags Flags; // TODO: Move ExtraValueTypeOption here as byte size
+    [ProtoMember(2)] internal uint FlagsField;
     [ProtoMember(3)] public long StartTime;
     [ProtoMember(4)] public long EndTime;
     [ProtoMember(5)] public long MemoryBefore;
     [ProtoMember(6)] public long MemoryAfter;
     [ProtoMember(7)] public int Depth;
-    [ProtoMember(8)] public ExtraData ExtraValue; // TODO: Perhaps allocate from separate array
+    [ProtoMember(8)] internal ulong DataValueField;
+    /*            */ public object? DataObject; // Serialized as DataObjectKey via DataValueField
+    [ProtoMember(9)] public string? DataFormat;
+
+    public readonly string Name => ProfilerKeyCache.GetName(new(NameKey));
+
+    public EventFlags Flags
+    {
+        readonly get => (EventFlags)(FlagsField & 0x00FFFFFF);
+        set => FlagsField = (FlagsField & 0xFF000000) | (uint)value;
+    }
+
+    public DataTypeOption DataType
+    {
+        readonly get => (DataTypeOption)((FlagsField >> 24) & 0xFF);
+        set => FlagsField = (FlagsField & 0x00FFFFFF) | ((uint)value << 24);
+    }
+
+    public ExtraValueUnion DataValue
+    {
+        readonly get => new ExtraValueUnion { DataField = DataValueField };
+        set => DataValueField = value.DataField;
+    }
+
+    public readonly EventCategory Category => DataValue.CategoryValue;
+
+    public ObjectId DataObjectKey
+    {
+        readonly get => new ObjectId((int)(uint)DataValueField);
+        set => DataValueField = (DataValueField & ~0xFFFFFFFFUL) | (uint)value.ID;
+    }
+
+    public ExtraData ExtraValue
+    {
+        readonly get
+        {
+            ExtraData data;
+            data.Type = DataType;
+            data.Format = DataFormat;
+            data.Object = DataObject;
+            data.Value.DataField = DataValueField;
+
+            return data;
+        }
+        set
+        {
+            DataType = value.Type;
+            DataFormat = value.Format;
+            DataObject = value.Object;
+            DataValueField = value.Value.DataField;
+        }
+    }
 
     // TODO: Event chains for async task tracking
     // public int Next;

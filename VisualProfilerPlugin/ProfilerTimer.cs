@@ -190,10 +190,10 @@ public sealed class ProfilerTimer : IDisposable
             _event.Depth = Depth;
             _event.ExtraValue = extraData;
 
-            if (extraData.Type is ProfilerEvent.ExtraValueTypeOption.Object or ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+            if (extraData.Type is ProfilerEvent.DataTypeOption.Object or ProfilerEvent.DataTypeOption.ObjectAndCategory)
             {
                 if (!group.IsRealtimeThread && extraData.Object != null)
-                    Profiler.EventObjectResolver?.ResolveNonCached(ref _event.ExtraValue);
+                    Profiler.EventObjectResolver?.ResolveNonCached(ref _event);
             }
         }
 

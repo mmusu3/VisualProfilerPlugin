@@ -38,28 +38,31 @@ static class ProfilerHelper
             gridGroupsToIds.Clear();
         }
 
-        public void Resolve(ref ProfilerEvent.ExtraData data)
+        public void Resolve(ref ProfilerEvent _event)
         {
-            switch (data.Object)
+            ref var obj = ref _event.DataObject;
+            ref var format = ref _event.DataFormat;
+
+            switch (obj)
             {
             case GCEventInfo:
                 break;
             case Type type:
                 {
-                    data.Format = "Type: {0}";
+                    format = "Type: {0}";
 
                     if (objectCache.TryGetValue(type, out var cachedObj))
                     {
-                        data.Object = (string)cachedObj;
+                        obj = (string)cachedObj;
                         break;
                     }
 
-                    objectCache[type] = data.Object = type.FullName!;
+                    objectCache[type] = obj = type.FullName!;
                 }
                 break;
             case Delegate @delegate:
                 {
-                    data.Format = "Declaring Type: {0}";
+                    format = "Declaring Type: {0}";
 
                     Type type;
 
@@ -70,14 +73,14 @@ static class ProfilerHelper
                         type = @delegate.Method.DeclaringType!;
 
                     if (objectCache.TryGetValue(type, out var cachedObj))
-                        data.Object = (string)cachedObj;
+                        obj = (string)cachedObj;
                     else
-                        objectCache[type] = data.Object = type.FullName!;
+                        objectCache[type] = obj = type.FullName!;
                 }
                 break;
             case MyClusterTree.MyCluster cluster:
                 {
-                    data.Format = "{0}";
+                    format = "{0}";
 
                     PhysicsClusterInfoProxy clusterInfo;
 
@@ -91,18 +94,18 @@ static class ProfilerHelper
                         objectCache.Add(cluster, clusterInfo);
                     }
 
-                    data.Object = clusterInfo.GetSnapshot(cluster);
+                    obj = clusterInfo.GetSnapshot(cluster);
                 }
                 break;
             case MyCubeGrid grid:
                 {
-                    data.Format = "{0}";
-                    data.Object = GetGridSnapshot(grid).GetMotionSnapshot(grid);
+                    format = "{0}";
+                    obj = GetGridSnapshot(grid).GetMotionSnapshot(grid);
                 }
                 break;
             case MyCubeBlock block:
                 {
-                    data.Format = "{0}";
+                    format = "{0}";
 
                     CubeBlockInfoProxy? blockInfo;
 
@@ -114,12 +117,12 @@ static class ProfilerHelper
 
                     var gridSnapshot = GetGridSnapshot(block.CubeGrid);
 
-                    data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
+                    obj = blockInfo.GetSnapshot(gridSnapshot, block);
                 }
                 break;
             case MyCharacter character:
                 {
-                    data.Format = "{0}";
+                    format = "{0}";
 
                     CharacterInfoProxy charInfo;
 
@@ -133,12 +136,12 @@ static class ProfilerHelper
                         objectCache.Add(character, charInfo);
                     }
 
-                    data.Object = charInfo.GetSnapshot(character);
+                    obj = charInfo.GetSnapshot(character);
                 }
                 break;
             case MyFloatingObject floatingObj:
                 {
-                    data.Format = "{0}";
+                    format = "{0}";
 
                     FloatingObjectInfoProxy floatObjInfo;
 
@@ -152,7 +155,7 @@ static class ProfilerHelper
                         objectCache.Add(floatingObj, floatObjInfo);
                     }
 
-                    data.Object = floatObjInfo.GetSnapshot(floatingObj);
+                    obj = floatObjInfo.GetSnapshot(floatingObj);
                 }
                 break;
             case MyExternalReplicable<MyCubeGrid> gridRepl:
@@ -161,13 +164,13 @@ static class ProfilerHelper
 
                     if (grid == null)
                     {
-                        data.Object = null;
-                        data.Format = "Empty cube grid replicable{0}";
+                        obj = null;
+                        format = "Empty cube grid replicable{0}";
                         break;
                     }
 
-                    data.Format = "{0}";
-                    data.Object = GetGridSnapshot(grid).GetMotionSnapshot(grid);
+                    format = "{0}";
+                    obj = GetGridSnapshot(grid).GetMotionSnapshot(grid);
                 }
                 break;
             case MyExternalReplicable<MySyncedBlock> blockRepl:
@@ -176,12 +179,12 @@ static class ProfilerHelper
 
                     if (block == null)
                     {
-                        data.Object = null;
-                        data.Format = "Empty cube block replicable{0}";
+                        obj = null;
+                        format = "Empty cube block replicable{0}";
                         break;
                     }
 
-                    data.Format = "{0}";
+                    format = "{0}";
 
                     CubeBlockInfoProxy? blockInfo;
 
@@ -193,7 +196,7 @@ static class ProfilerHelper
 
                     var gridSnapshot = GetGridSnapshot(block.CubeGrid);
 
-                    data.Object = blockInfo.GetSnapshot(gridSnapshot, block);
+                    obj = blockInfo.GetSnapshot(gridSnapshot, block);
                 }
                 break;
             case MyExternalReplicable<MyCharacter> charRepl:
@@ -202,12 +205,12 @@ static class ProfilerHelper
 
                     if (character == null)
                     {
-                        data.Object = null;
-                        data.Format = "Empty character replicable{0}";
+                        obj = null;
+                        format = "Empty character replicable{0}";
                         break;
                     }
 
-                    data.Format = "{0}";
+                    format = "{0}";
 
                     CharacterInfoProxy charInfo;
 
@@ -221,7 +224,7 @@ static class ProfilerHelper
                         objectCache.Add(character, charInfo);
                     }
 
-                    data.Object = charInfo.GetSnapshot(character);
+                    obj = charInfo.GetSnapshot(character);
                 }
                 break;
             case MyExternalReplicable<MyFloatingObject> floatObjRepl:
@@ -230,12 +233,12 @@ static class ProfilerHelper
 
                     if (floatingObj == null)
                     {
-                        data.Object = null;
-                        data.Format = "Empty floating object replicable{0}";
+                        obj = null;
+                        format = "Empty floating object replicable{0}";
                         break;
                     }
 
-                    data.Format = "{0}";
+                    format = "{0}";
 
                     FloatingObjectInfoProxy floatObjInfo;
 
@@ -249,39 +252,39 @@ static class ProfilerHelper
                         objectCache.Add(floatingObj, floatObjInfo);
                     }
 
-                    data.Object = floatObjInfo.GetSnapshot(floatingObj);
+                    obj = floatObjInfo.GetSnapshot(floatingObj);
                 }
                 break;
             case MyExternalReplicable<MyVoxelBase> voxelRepl:
                 {
-                    data.Format = "{0}";
-
                     var voxel = voxelRepl.Instance;
 
                     if (voxel == null)
                     {
-                        data.Object = null;
-                        data.Object = "Empty voxel replicable{0}";
+                        obj = null;
+                        format = "Empty voxel replicable{0}";
                         break;
                     }
+
+                    format = "{0}";
 
                     if (objectCache.TryGetValue(voxel, out var cachedObj))
                     {
-                        data.Object = (VoxelInfoProxy)cachedObj;
+                        obj = (VoxelInfoProxy)cachedObj;
                         break;
                     }
 
-                    objectCache[voxel] = data.Object = new VoxelInfoProxy(voxel);
+                    objectCache[voxel] = obj = new VoxelInfoProxy(voxel);
                 }
                 break;
             case IMyReplicable replicable:
                 {
-                    data.Object = null;
-                    data.Format = replicable.GetType().Name;
+                    obj = null;
+                    format = replicable.GetType().Name;
                 }
                 break;
             default:
-                data.Object = GeneralStringCache.Intern(data.Object?.ToString());
+                obj = GeneralStringCache.Intern(obj?.ToString());
                 break;
             }
         }
@@ -299,21 +302,24 @@ static class ProfilerHelper
             return gridInfo.GetSnapshot(grid, gridGroupsToIds);
         }
 
-        public void ResolveNonCached(ref ProfilerEvent.ExtraData data)
+        public void ResolveNonCached(ref ProfilerEvent _event)
         {
-            switch (data.Object)
+            ref var obj = ref _event.DataObject;
+            ref var format = ref _event.DataFormat;
+
+            switch (obj)
             {
             case GCEventInfo:
                 break;
             case Type type:
                 {
-                    data.Format = "Type: {0}";
-                    data.Object = type.FullName!;
+                    format = "Type: {0}";
+                    obj = type.FullName!;
                 }
                 break;
             case Delegate @delegate:
                 {
-                    data.Format = "Declaring Type: {0}";
+                    format = "Declaring Type: {0}";
 
                     Type type;
 
@@ -323,11 +329,11 @@ static class ProfilerHelper
                     else
                         type = @delegate.Method.DeclaringType!;
 
-                    data.Object = type.FullName!;
+                    obj = type.FullName!;
                 }
                 break;
             default:
-                data.Object = GeneralStringCache.Intern(data.Object?.ToString());
+                obj = GeneralStringCache.Intern(obj?.ToString());
                 break;
             }
         }
@@ -343,12 +349,12 @@ static class ProfilerHelper
             {
                 ref var _event = ref group.Events[i];
 
-                if (_event.ExtraValue.Type
-                    is not ProfilerEvent.ExtraValueTypeOption.Object
-                    and not ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+                if (_event.DataType
+                    is not ProfilerEvent.DataTypeOption.Object
+                    and not ProfilerEvent.DataTypeOption.ObjectAndCategory)
                     continue;
 
-                _event.ExtraValue.ObjectKey = GetObjId(_event.ExtraValue.Object);
+                _event.DataObjectKey = GetObjId(_event.DataObject);
             }
         }
 
@@ -387,11 +393,11 @@ static class ProfilerHelper
                 if (_event.NameKey != 0)
                     _event.NameKey = ProfilerKeyCache.GetOrAdd(recording.EventStrings[_event.NameKey]).GlobalIndex;
 
-                if (_event.ExtraValue.Type is not ProfilerEvent.ExtraValueTypeOption.Object
-                    and not ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+                if (_event.DataType is not ProfilerEvent.DataTypeOption.Object
+                    and not ProfilerEvent.DataTypeOption.ObjectAndCategory)
                     continue;
 
-                int objId = _event.ExtraValue.ObjectKey.ID;
+                int objId = _event.DataObjectKey.ID;
 
                 if (objId == 0)
                 {
@@ -404,7 +410,7 @@ static class ProfilerHelper
                         // Assert?
                     }
 
-                    _event.ExtraValue.Object = str;
+                    _event.DataObject = str;
                 }
                 else
                 {
@@ -413,7 +419,7 @@ static class ProfilerHelper
                         // Assert?
                     }
 
-                    _event.ExtraValue.Object = obj.Object;
+                    _event.DataObject = obj.Object;
                 }
             }
         }
@@ -527,21 +533,21 @@ static class ProfilerHelper
                 {
                     if (category == ProfilerEvent.EventCategory.Blocks)
                     {
-                        if (_event.ExtraValue.Type
-                            is ProfilerEvent.ExtraValueTypeOption.Object
-                            or ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+                        if (_event.DataType
+                            is ProfilerEvent.DataTypeOption.Object
+                            or ProfilerEvent.DataTypeOption.ObjectAndCategory)
                         {
-                            if (_event.ExtraValue.Object is CubeBlockInfoProxy.Snapshot block)
+                            if (_event.DataObject is CubeBlockInfoProxy.Snapshot block)
                                 nameKey = ProfilerKeyCache.GetOrAdd(block.Block.BlockType.Type.Name);
                         }
                     }
                     else if (category == ProfilerEvent.EventCategory.Grids)
                     {
-                        if (_event.ExtraValue.Type
-                            is ProfilerEvent.ExtraValueTypeOption.Object
-                            or ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
+                        if (_event.DataType
+                            is ProfilerEvent.DataTypeOption.Object
+                            or ProfilerEvent.DataTypeOption.ObjectAndCategory)
                         {
-                            if (_event.ExtraValue.Object is CubeGridInfoProxy.MotionSnapshot)
+                            if (_event.DataObject is CubeGridInfoProxy.MotionSnapshot)
                             {
                                 var customKey = new CustomKey(nameKey.GlobalIndex, "MyCubeGrid");
 
@@ -639,12 +645,12 @@ static class ProfilerHelper
 
         static ProfilerEvent.EventCategory GetCategory(ref ProfilerEvent _event)
         {
-            if (_event.ExtraValue.Type == ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory)
-                return _event.ExtraValue.Value.CategoryValue;
+            if (_event.DataType == ProfilerEvent.DataTypeOption.ObjectAndCategory)
+                return _event.Category;
 
-            if (_event.ExtraValue.Type == ProfilerEvent.ExtraValueTypeOption.Object)
+            if (_event.DataType == ProfilerEvent.DataTypeOption.Object)
             {
-                switch (_event.ExtraValue.Object)
+                switch (_event.DataObject)
                 {
                 case CubeGridInfoProxy.MotionSnapshot:
                     return ProfilerEvent.EventCategory.Grids;
@@ -679,10 +685,10 @@ static class ProfilerHelper
         for (int i = 0; i < mainGroup.Events.Length; i++)
         {
             ref var _event = ref mainGroup.Events[i];
-            ref var t = ref times[(int)_event.ExtraValue.Value.CategoryValue];
+            ref var t = ref times[(int)_event.Category];
 
             t.TotalTime += _event.ElapsedTime.TotalMilliseconds;
-            t.AvgTime += ((CombinedEventInfo)_event.ExtraValue.Object!).MillisecondsAverage;
+            t.AvgTime += ((CombinedEventInfo)_event.DataObject!).MillisecondsAverage;
         }
 
         Array.Sort(times, (a, b) => b.TotalTime.CompareTo(a.TotalTime));

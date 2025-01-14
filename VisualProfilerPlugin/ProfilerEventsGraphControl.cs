@@ -879,29 +879,29 @@ class ProfilerEventsGraphControl : Control
 
             var extraString = stringBuilder3;
 
-            if (_event.ExtraValue.Type != ProfilerEvent.ExtraValueTypeOption.None)
+            if (_event.DataType != ProfilerEvent.DataTypeOption.None)
             {
-                var formatString = _event.ExtraValue.Format ?? "Extra Value: {0:n0}";
+                var formatString = _event.DataFormat ?? "Extra Value: {0:n0}";
 
-                switch (_event.ExtraValue.Type)
+                switch (_event.DataType)
                 {
-                case ProfilerEvent.ExtraValueTypeOption.Object:
-                    extraString.AppendFormat(formatString, _event.ExtraValue.Object);
+                case ProfilerEvent.DataTypeOption.Object:
+                    extraString.AppendFormat(formatString, _event.DataObject);
                     break;
-                case ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory:
-                    extraString.AppendFormat("Category: {0}", _event.ExtraValue.Value.CategoryValue);
+                case ProfilerEvent.DataTypeOption.ObjectAndCategory:
+                    extraString.AppendFormat("Category: {0}", _event.Category);
 
-                    if (_event.ExtraValue.Object != null)
-                        extraString.AppendLine().AppendFormat(formatString, _event.ExtraValue.Object);
+                    if (_event.DataObject != null)
+                        extraString.AppendLine().AppendFormat(formatString, _event.DataObject);
                     break;
-                case ProfilerEvent.ExtraValueTypeOption.Long:
-                    extraString.AppendFormat(formatString, _event.ExtraValue.Value.LongValue);
+                case ProfilerEvent.DataTypeOption.Long:
+                    extraString.AppendFormat(formatString, _event.DataValue.LongValue);
                     break;
-                case ProfilerEvent.ExtraValueTypeOption.Double:
-                    extraString.AppendFormat(formatString, _event.ExtraValue.Value.DoubleValue);
+                case ProfilerEvent.DataTypeOption.Double:
+                    extraString.AppendFormat(formatString, _event.DataValue.DoubleValue);
                     break;
-                case ProfilerEvent.ExtraValueTypeOption.Float:
-                    extraString.AppendFormat(formatString, _event.ExtraValue.Value.FloatValue);
+                case ProfilerEvent.DataTypeOption.Float:
+                    extraString.AppendFormat(formatString, _event.DataValue.FloatValue);
                     break;
                 default:
                     break;

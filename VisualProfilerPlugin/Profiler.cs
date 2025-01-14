@@ -752,9 +752,9 @@ public enum ProfilerTimerOptions
 
 public interface IProfilerEventDataObjectResolver
 {
-    void Resolve(ref ProfilerEvent.ExtraData data);
+    void Resolve(ref ProfilerEvent _event);
 
-    void ResolveNonCached(ref ProfilerEvent.ExtraData data);
+    void ResolveNonCached(ref ProfilerEvent _event);
 
     void ClearCache();
 }

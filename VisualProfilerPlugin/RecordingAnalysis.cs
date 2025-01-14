@@ -44,15 +44,15 @@ static class RecordingAnalysis
                 {
                     ref var _event = ref events[e];
 
-                    switch (_event.ExtraValue.Type)
+                    switch (_event.DataType)
                     {
-                    case ProfilerEvent.ExtraValueTypeOption.Object:
-                    case ProfilerEvent.ExtraValueTypeOption.ObjectAndCategory:
+                    case ProfilerEvent.DataTypeOption.Object:
+                    case ProfilerEvent.DataTypeOption.ObjectAndCategory:
                         {
                             // TODO: Record list of event IDs per object for highlighting events in graph when object selected
 
                             // NOTE: This can analyze the same snapshots multiple times
-                            switch (_event.ExtraValue.Object)
+                            switch (_event.DataObject)
                             {
                             case PhysicsClusterInfoProxy.Snapshot clusterInfo:
                                 AnalyzePhysicsCluster(clusterInfo, in _event, groupId, f);
@@ -69,9 +69,9 @@ static class RecordingAnalysis
                             }
                         }
                         break;
-                    case ProfilerEvent.ExtraValueTypeOption.Long:
-                    case ProfilerEvent.ExtraValueTypeOption.Double:
-                    case ProfilerEvent.ExtraValueTypeOption.Float:
+                    case ProfilerEvent.DataTypeOption.Long:
+                    case ProfilerEvent.DataTypeOption.Double:
+                    case ProfilerEvent.DataTypeOption.Float:
                         break;
                     }
                 }
