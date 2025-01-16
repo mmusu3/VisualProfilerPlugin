@@ -120,10 +120,10 @@
                                 <GridViewColumnHeader Name="physicsClusterCountedFramesColumn" Content=" NF " ToolTip="Number of frames that the cluster was timed in."/>
                             </GridViewColumn>
                             <GridViewColumn DisplayMemberBinding="{Binding Path=AverageTimePerFrame, StringFormat=N3}">
-                                <GridViewColumnHeader Name="physicsClusterAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame."/>
+                                <GridViewColumnHeader Name="physicsClusterAverageTimeColumn" Content=" Avg. ms/F " ToolTip="Average time in milliseconds per frame. Only accurate when 'Profile Physics Clusters' is enabled."/>
                             </GridViewColumn>
                             <GridViewColumn DisplayMemberBinding="{Binding Path=TotalTime, StringFormat=N2}">
-                                <GridViewColumnHeader Name="physicsClusterTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames."/>
+                                <GridViewColumnHeader Name="physicsClusterTotalTimeColumn" Content=" Total ms " ToolTip="Total time in milliseconds over all frames. Only accurate when 'Profile Physics Clusters' is enabled."/>
                             </GridViewColumn>
                             <GridViewColumn DisplayMemberBinding="{Binding Path=ID}">
                                 <GridViewColumnHeader Name="physicsClusterIdColumn" Content=" ID "/>

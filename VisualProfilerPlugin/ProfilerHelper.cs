@@ -608,7 +608,7 @@ static class ProfilerHelper
                 if (timer.Category == ProfilerEvent.EventCategory.Wait)
                     return;
 
-                var eventInfo = new CombinedEventInfo(timer);
+                var eventInfo = new CombinedEventInfo(timer, recording.NumFrames);
 
                 combinedEvents.Add(new ProfilerEvent {
                     NameKey = timer.NameKey.GlobalIndex,
@@ -652,14 +652,10 @@ static class ProfilerHelper
             {
                 switch (_event.DataObject)
                 {
-                case CubeGridInfoProxy.MotionSnapshot:
-                    return ProfilerEvent.EventCategory.Grids;
-                case CubeBlockInfoProxy.Snapshot:
-                    return ProfilerEvent.EventCategory.Blocks;
-                case CharacterInfoProxy.Snapshot:
-                    return ProfilerEvent.EventCategory.Characters;
-                case FloatingObjectInfoProxy.Snapshot:
-                    return ProfilerEvent.EventCategory.FloatingObjects;
+                case CubeGridInfoProxy.MotionSnapshot: return ProfilerEvent.EventCategory.Grids;
+                case CubeBlockInfoProxy.Snapshot:      return ProfilerEvent.EventCategory.Blocks;
+                case CharacterInfoProxy.Snapshot:      return ProfilerEvent.EventCategory.Characters;
+                case FloatingObjectInfoProxy.Snapshot: return ProfilerEvent.EventCategory.FloatingObjects;
                 }
             }
 
@@ -677,7 +673,7 @@ static class ProfilerHelper
             return header;
 
         var mainGroup = groups[0];
-        var times = new (ProfilerEvent.EventCategory Category, double AvgTime, double TotalTime)[(int)ProfilerEvent.EventCategory.CategoryCount];
+        var times = new (ProfilerEvent.EventCategory Category, double TotalTime)[(int)ProfilerEvent.EventCategory.CategoryCount];
 
         for (int i = 0; i < times.Length; i++)
             times[i].Category = (ProfilerEvent.EventCategory)i;
@@ -685,10 +681,8 @@ static class ProfilerHelper
         for (int i = 0; i < mainGroup.Events.Length; i++)
         {
             ref var _event = ref mainGroup.Events[i];
-            ref var t = ref times[(int)_event.Category];
 
-            t.TotalTime += _event.ElapsedTime.TotalMilliseconds;
-            t.AvgTime += ((CombinedEventInfo)_event.DataObject!).MillisecondsAverage;
+            times[(int)_event.Category].TotalTime += _event.ElapsedTime.TotalMilliseconds;
         }
 
         Array.Sort(times, (a, b) => b.TotalTime.CompareTo(a.TotalTime));
@@ -709,7 +703,7 @@ static class ProfilerHelper
             var cat = t.Category != ProfilerEvent.EventCategory.FloatingObjects ? t.Category.ToString() : "FloatObjs";
 
             sb.Append(cat).Append(':').Append(' ', Math.Max(0, 10 - cat.Length)).Append("  ")
-                .AppendFormat("{0:N2}  -  ", t.AvgTime)
+                .AppendFormat("{0:N2}  -  ", t.TotalTime / recording.NumFrames)
                 .AppendFormat("{0:N1}", t.TotalTime);
 
             if (i < times.Length - 1 && (i > times.Length - 2 || times[i + 1].TotalTime != 0))
@@ -721,14 +715,16 @@ static class ProfilerHelper
 
     class CombinedEventInfo
     {
+        public double MillisecondsAveragePerFrame;
         public int CallCount;
         public double MillisecondsMin;
         public double MillisecondsMax;
         public double MillisecondsAverage;
         public double MillisecondsVariance;
 
-        public CombinedEventInfo(AccumTimer timer)
+        public CombinedEventInfo(AccumTimer timer, int frameCount)
         {
+            MillisecondsAveragePerFrame = ProfilerTimer.MillisecondsFromTicks(timer.ElapsedTime) / frameCount;
             CallCount = timer.AccumCount;
             MillisecondsMin = ProfilerTimer.MillisecondsFromTicks(timer.MinElapsedTime);
             MillisecondsMax = ProfilerTimer.MillisecondsFromTicks(timer.MaxElapsedTime);
@@ -739,10 +735,12 @@ static class ProfilerHelper
         public override string ToString()
         {
             return $"""
+                    Avg ms/frame: {MillisecondsAveragePerFrame:N3}
+
                     Call Count: {CallCount}
                     Min ms: {MillisecondsMin:N3}
                     Max ms: {MillisecondsMax:N3}
-                    Average ms: {MillisecondsAverage:N3}
+                    Avg ms: {MillisecondsAverage:N3}
                     StdDev ms: {Math.Sqrt(MillisecondsVariance):N3}
                     """;
         }

@@ -30,15 +30,16 @@ static class RecordingAnalysis
                 var events = group.GetEventsForFrame(f);
 
                 if (events.Length == 0)
-                    continue;
-
                 {
-                    long startTime = events[0].StartTime;
-                    long endTime = events[^1].EndTime;
-                    long frameTime = endTime - startTime;
-
-                    frameTimes[f] = Math.Max(frameTimes[f], frameTime);
+                    frameTimes[f] = -1;
+                    continue;
                 }
+
+                long startTime = events[0].StartTime;
+                long endTime = events[^1].EndTime;
+                long frameTime = endTime - startTime;
+
+                frameTimes[f] = Math.Max(frameTimes[f], frameTime);
 
                 for (int e = 0; e < events.Length; e++)
                 {
@@ -83,6 +84,9 @@ static class RecordingAnalysis
 
         foreach (long frameTime in frameTimes)
         {
+            if (frameTime == -1)
+                continue;
+
             double frameMilliseconds = ProfilerTimer.MillisecondsFromTicks(frameTime);
 
             frameTimeInfo.Min = Math.Min(frameTimeInfo.Min, frameMilliseconds);
