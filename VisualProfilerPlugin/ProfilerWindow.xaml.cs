@@ -1303,6 +1303,13 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             propName = nameof(CubeBlockAnalysisInfo.AverageTimePerFrame);
             defaultDir = ListSortDirection.Descending;
             break;
+        case nameof(blockCustomNamesColumn):
+            propName = nameof(CubeBlockAnalysisInfo.CustomNamesForColumn);
+            break;
+        case nameof(pbRunCountColumn):
+            propName = nameof(ProgrammableBlockAnalysisInfo.RunCount);
+            defaultDir = ListSortDirection.Descending;
+            break;
         case nameof(blockGridSizeColumn):
             propName = nameof(CubeGridAnalysisInfo.GridSize);
             break;
@@ -1312,9 +1319,6 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
         case nameof(blockGridIdColumn):
             propName = nameof(CubeBlockAnalysisInfo.GridIdsForColumn);
             comparers = CubeBlockGridIDsComparer.Instances;
-            break;
-        case nameof(blockCustomNamesColumn):
-            propName = nameof(CubeBlockAnalysisInfo.CustomNamesForColumn);
             break;
         case nameof(blockOwnerIdsColumn):
             propName = nameof(CubeBlockAnalysisInfo.OwnerIDsForColumn);

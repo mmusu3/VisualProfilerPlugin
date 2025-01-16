@@ -16,7 +16,7 @@ static class RecordingAnalysis
         var clusters = new Dictionary<int, PhysicsClusterAnalysisInfo.Builder>();
         var grids = new Dictionary<long, CubeGridAnalysisInfo.Builder>();
         var allBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
-        var progBlocks = new Dictionary<long, CubeBlockAnalysisInfo.Builder>();
+        var progBlocks = new Dictionary<long, ProgrammableBlockAnalysisInfo.PBBuilder>();
         var blockTimesByType = new Dictionary<Type, long>();
         var floatingObjs = new HashSet<long>();
 
@@ -165,16 +165,37 @@ static class RecordingAnalysis
         void AnalyzeBlock(CubeBlockInfoProxy.Snapshot snapshot, ref readonly ProfilerEvent _event, int groupId, int frameIndex)
         {
             long eid = snapshot.Block.EntityId;
-
-            if (allBlocks.TryGetValue(eid, out var info))
-                info.Add(snapshot);
-            else
-                allBlocks.Add(eid, info = new(snapshot));
-
             var type = snapshot.Block.BlockType.Type;
 
+            CubeBlockAnalysisInfo.Builder? info;
+
             if (type == typeof(Sandbox.Game.Entities.Blocks.MyProgrammableBlock))
-                progBlocks[eid] = info;
+            {
+                ProgrammableBlockAnalysisInfo.PBBuilder? pbInfo;
+
+                if (progBlocks.TryGetValue(eid, out pbInfo))
+                {
+                    pbInfo.Add(snapshot);
+                }
+                else
+                {
+                    pbInfo = new(snapshot);
+                    progBlocks.Add(eid, pbInfo);
+                    allBlocks.Add(eid, pbInfo);
+                }
+
+                if (_event.Category == ProfilerEvent.EventCategory.Scripts)
+                    pbInfo.RunCount++;
+
+                info = pbInfo;
+            }
+            else
+            {
+                if (allBlocks.TryGetValue(eid, out info))
+                    info.Add(snapshot);
+                else
+                    allBlocks.Add(eid, info = new(snapshot));
+            }
 
             // TODO: Filter parent events to prevent time overlap
             //switch (_event.Name)
@@ -733,7 +754,7 @@ class CubeBlockAnalysisInfo
 {
     public class Builder
     {
-        HashSet<CubeBlockInfoProxy.Snapshot> snapshots = [];
+        protected HashSet<CubeBlockInfoProxy.Snapshot> snapshots = [];
 
         public long EntityId;
         public MyCubeSize CubeSize;
@@ -771,7 +792,7 @@ class CubeBlockAnalysisInfo
             LastWorldPosition = snapshot.LastWorldPosition;
         }
 
-        public CubeBlockAnalysisInfo Finish()
+        public virtual CubeBlockAnalysisInfo Finish()
         {
             return new CubeBlockAnalysisInfo(snapshots.Count, EntityId, CubeSize, GridIds.ToArray(), BlockType,
                 CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(), LastWorldPosition,
@@ -860,5 +881,35 @@ class CubeBlockAnalysisInfo
             sb.AppendLine($"Processed over {IncludedInNumProfilerGroups} threads");
 
         return sb.ToString();
+    }
+}
+
+class ProgrammableBlockAnalysisInfo : CubeBlockAnalysisInfo
+{
+    public class PBBuilder : Builder
+    {
+        public int RunCount;
+
+        public PBBuilder(CubeBlockInfoProxy.Snapshot snapshot)
+            : base(snapshot) { }
+
+        public override CubeBlockAnalysisInfo Finish()
+        {
+            return new ProgrammableBlockAnalysisInfo(RunCount, snapshots.Count, EntityId, CubeSize, GridIds.ToArray(), BlockType,
+                CustomNames.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(), LastWorldPosition,
+                TotalTime, AverageTimePerFrame, IncludedInProfilerGroups.Count, FramesCounted.Count);
+        }
+    }
+
+    public int RunCount { get; set; }
+
+    public ProgrammableBlockAnalysisInfo(
+        int runCount, int snapshotCount, long entityId, MyCubeSize cubeSize, long[] gridIds, Type blockType,
+        string[] customNames, (long ID, string? Name)[] owners, Vector3D lastWorldPosition,
+        double totalTime, double averageTimePerFrame, int includedInNumProfilerGroups, int numFramesCounted)
+        : base(snapshotCount, entityId, cubeSize, gridIds, blockType, customNames, owners, lastWorldPosition,
+            totalTime, averageTimePerFrame, includedInNumProfilerGroups, numFramesCounted)
+    {
+        RunCount = runCount;
     }
 }

@@ -248,6 +248,9 @@
                             <GridViewColumn DisplayMemberBinding="{Binding Path=CustomNamesForColumn}">
                                 <GridViewColumnHeader Name="blockCustomNamesColumn" Content=" Block Names " ToolTip="Player assigned names of the block.&#10;Can be multiple values if the name was changed over time."/>
                             </GridViewColumn>
+                            <GridViewColumn DisplayMemberBinding="{Binding Path=RunCount}">
+                                <GridViewColumnHeader Name="pbRunCountColumn" Content=" Run Count " ToolTip="Number of times the programmable block script was run."/>
+                            </GridViewColumn>
                             <GridViewColumn DisplayMemberBinding="{Binding Path=CubeSize}">
                                 <GridViewColumnHeader Name="blockGridSizeColumn" Content=" Cube Size "/>
                             </GridViewColumn>
