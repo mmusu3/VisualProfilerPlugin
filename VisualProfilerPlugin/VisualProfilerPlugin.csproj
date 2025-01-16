@@ -87,6 +87,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="VProfilerIcon.ico" />
     <None Update="manifest.xml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
@@ -94,11 +95,10 @@
 
   <Target Name="CopyToServer" AfterTargets="AfterBuild" Condition="$(TargetFramework) == 'net48'">
     <ItemGroup>
-      <OutputFiles Include="$(OutputPath)\*.*"/>
+      <OutputFiles Include="$(OutputPath)\*.*" />
     </ItemGroup>
 
-    <Copy SourceFiles="@(OutputFiles)"
-          DestinationFolder="G:\torch-server\Plugins\VisualProfiler" />
+    <Copy SourceFiles="@(OutputFiles)" DestinationFolder="G:\torch-server\Plugins\VisualProfiler" />
   </Target>
 
 </Project>

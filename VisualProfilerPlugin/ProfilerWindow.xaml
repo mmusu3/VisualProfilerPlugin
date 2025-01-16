@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:VisualProfiler"
         mc:Ignorable="d"
         Title="Profiler" Width="1200" Height="750"
+        Icon="/VisualProfiler;component/VProfilerIcon.ico"
         DataContext="{Binding RelativeSource={RelativeSource Self}}">
     <Window.Resources>
         <ResourceDictionary>
