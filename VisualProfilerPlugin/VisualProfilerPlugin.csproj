@@ -32,7 +32,7 @@
     </PackageReference>
     <PackageReference Include="IndexRange" Version="1.0.3" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
-    <PackageReference Include="System.Memory" Version="4.5.5" />
+    <PackageReference Include="System.Memory" Version="4.5.2" />
     <PackageReference Include="NLog" Version="4.4.12" ExcludeAssets="runtime" />
   </ItemGroup>
 
