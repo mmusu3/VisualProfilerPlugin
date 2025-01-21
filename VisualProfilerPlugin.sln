@@ -6,6 +6,7 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{07EF721F-CE4A-4714-9AE2-99D67575F9AA}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VisualProfilerPlugin", "VisualProfilerPlugin\VisualProfilerPlugin.csproj", "{73AE126A-21AA-4A34-B444-931B12345B57}"
