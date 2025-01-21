@@ -10,6 +10,7 @@
     <RootNamespace>VisualProfiler</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <WarningsAsErrors>nullable</WarningsAsErrors>
+    <Version>1.0.0</Version>
     <OutputPath>bin\</OutputPath>
   </PropertyGroup>
 
@@ -93,12 +94,12 @@
     </None>
   </ItemGroup>
 
-  <Target Name="CopyToServer" AfterTargets="AfterBuild" Condition="$(TargetFramework) == 'net48'">
+  <!--<Target Name="CopyToServer" AfterTargets="AfterBuild" Condition="$(TargetFramework) == 'net48'">
     <ItemGroup>
       <OutputFiles Include="$(OutputPath)\*.*" />
     </ItemGroup>
 
     <Copy SourceFiles="@(OutputFiles)" DestinationFolder="G:\torch-server\Plugins\VisualProfiler" />
-  </Target>
+  </Target>-->
 
 </Project>
