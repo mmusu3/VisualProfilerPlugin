@@ -3,7 +3,8 @@ It features a visual timeline of captured timing events and detailed entity metr
 
 ![A screenshot of the main interface.](VProfilerSS.png)
 
-This is an instrumentation profiler, each event has been manually patched into the game code. These patches do not cover everything in detail, more may be added in future versions.
+This is an instrumentation profiler, each event has been manually patched into the game code. These patches do not cover everything in detail, more may be added in future versions.  
+Due to the large number of code patches there is a possibility of conflicts with other plugins. If you encounter such a conflict please open an issue.
 
 ## Usage Notes
 The main profiler window is opened by the button in the "Visual Profiler" page in the Torch Plugins tab.  
