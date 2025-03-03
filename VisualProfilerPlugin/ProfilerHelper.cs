@@ -930,8 +930,9 @@ class CubeGridInfoProxy
             FrameIndex = MySandboxGame.Static.SimulationFrameCounter;
             IsStatic = grid.IsStatic;
 
-            long ownerId = grid.BigOwners.Count > 0 ? grid.BigOwners[0] : 0;
-            var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
+            var bigOwners = grid.BigOwners;
+            long ownerId = bigOwners != null && bigOwners.Count > 0 ? bigOwners[0] : 0;
+            var ownerIdentity = ownerId != 0 ? MySession.Static.Players.TryGetIdentity(ownerId) : null;
 
             Name = grid.DisplayName;
             OwnerId = ownerId;
@@ -943,11 +944,20 @@ class CubeGridInfoProxy
 
             var groupNode = MyCubeGridGroups.Static.Physical.GetNode(grid);
 
-            if (!gridGroupsToIds.TryGetValue(groupNode.Group, out GroupId))
-                gridGroupsToIds.Add(groupNode.Group, GroupId = gridGroupsToIds.Count + 1);
+            if (groupNode != null)
+            {
+                if (!gridGroupsToIds.TryGetValue(groupNode.Group, out GroupId))
+                    gridGroupsToIds.Add(groupNode.Group, GroupId = gridGroupsToIds.Count + 1);
 
-            GroupSize = groupNode.Group.Nodes.Count;
-            ConnectedGrids = groupNode.LinkCount;
+                GroupSize = groupNode.Group.Nodes.Count;
+                ConnectedGrids = groupNode.LinkCount;
+            }
+            else
+            {
+                GroupId = -1;
+                GroupSize = 0;
+                ConnectedGrids = 0;
+            }
 
             _ = GetMotionSnapshot(grid);
         }
@@ -978,7 +988,8 @@ class CubeGridInfoProxy
             if (MySandboxGame.Static.SimulationFrameCounter == FrameIndex)
                 return true;
 
-            long ownerId = grid.BigOwners.Count > 0 ? grid.BigOwners[0] : 0;
+            var bigOwners = grid.BigOwners;
+            long ownerId = bigOwners != null && bigOwners.Count > 0 ? bigOwners[0] : 0;
             var groupNode = MyCubeGridGroups.Static.Physical.GetNode(grid);
 
             return IsStatic == grid.IsStatic
@@ -988,9 +999,9 @@ class CubeGridInfoProxy
                 && PCU == grid.BlocksPCU
                 && Size == (grid.Max - grid.Min + Vector3I.One)
                 && IsPowered == grid.IsPowered
-                && ConnectedGrids == groupNode.LinkCount
-                && GroupId == gridGroupsToIds.GetValueOrDefault(groupNode.Group, -1)
-                && GroupSize == groupNode.Group.Nodes.Count;
+                && ConnectedGrids == (groupNode?.LinkCount ?? 0)
+                && GroupId == (groupNode != null ? gridGroupsToIds.GetValueOrDefault(groupNode.Group, -1) : -1)
+                && GroupSize == (groupNode?.Group.Nodes.Count ?? 0);
         }
 
         public bool Equals(Snapshot other)
@@ -1194,7 +1205,7 @@ class CubeBlockInfoProxy
             FrameIndex = MySandboxGame.Static.SimulationFrameCounter;
 
             long ownerId = block.OwnerId;
-            var ownerIdentity = MySession.Static.Players.TryGetIdentity(ownerId);
+            var ownerIdentity = ownerId != 0 ? MySession.Static.Players.TryGetIdentity(ownerId) : null;
 
             CustomName = (block as MyTerminalBlock)?.CustomName.ToString();
             OwnerId = ownerId;
