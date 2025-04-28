@@ -13,13 +13,20 @@ static class MyProgrammableBlock_Patches
     {
         Keys.Init();
 
-        var source = typeof(MyProgrammableBlock).GetPublicInstanceMethod(nameof(MyProgrammableBlock.RunSandboxedProgramAction));
-        var prefix = typeof(MyProgrammableBlock_Patches).GetNonPublicStaticMethod(nameof(Prefix_RunSandboxedProgramAction));
-        var suffix = typeof(MyProgrammableBlock_Patches).GetNonPublicStaticMethod(nameof(Suffix_RunSandboxedProgramAction));
+        try
+        {
+            var source = typeof(MyProgrammableBlock).GetNonPublicInstanceMethod("RunSandboxedProgramAction");
+            var prefix = typeof(MyProgrammableBlock_Patches).GetNonPublicStaticMethod(nameof(Prefix_RunSandboxedProgramAction));
+            var suffix = typeof(MyProgrammableBlock_Patches).GetNonPublicStaticMethod(nameof(Suffix_RunSandboxedProgramAction));
 
-        var pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
+            var pattern = ctx.GetPattern(source);
+            pattern.Prefixes.Add(prefix);
+            pattern.Suffixes.Add(suffix);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Error($"Failed to patch MyProgrammableBlock.RunSandboxedProgramAction{Environment.NewLine}{ex}");
+        }
     }
 
     static class Keys
