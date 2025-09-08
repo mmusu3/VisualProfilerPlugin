@@ -12,19 +12,26 @@ static class MyScriptManager_Patches
     {
         Keys.Init();
 
-        PatchPrefixSuffixPair(ctx, nameof(MyScriptManager.LoadData), _public: true, _static: false);
+        PatchPrefixSuffixPair(ctx, "LoadData", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "LoadScripts", _public: false, _static: false);
     }
 
-    static void PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
+    static bool PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
     {
-        var source = typeof(MyScriptManager).GetMethod(methodName, _public, _static);
+        if (!typeof(MyScriptManager).TryGetMethod(methodName, _public, _static, out var source))
+        {
+            Plugin.Log.Error($"Failed to patch MyScriptManager.{methodName}");
+            return false;
+        }
+
         var prefix = typeof(MyScriptManager_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
         var suffix = typeof(MyScriptManager_Patches).GetNonPublicStaticMethod(nameof(Suffix));
 
         var pattern = patchContext.GetPattern(source);
         pattern.Prefixes.Add(prefix);
         pattern.Suffixes.Add(suffix);
+
+        return true;
     }
 
     static class Keys

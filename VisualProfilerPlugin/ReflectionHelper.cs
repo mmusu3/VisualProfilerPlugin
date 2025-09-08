@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -20,6 +21,13 @@ static class ReflectionHelper
     public static MethodInfo GetMethod(this Type type, string methodName, bool _public, bool _static)
     {
         return ThrowIfNull(type.GetMethod(methodName, (_public ? BindingFlags.Public : BindingFlags.NonPublic) | (_static ? BindingFlags.Static : BindingFlags.Instance)), type, methodName);
+    }
+
+    public static bool TryGetMethod(this Type type, string methodName, bool _public, bool _static, [NotNullWhen(true)] out MethodInfo? method)
+    {
+        method = type.GetMethod(methodName, (_public ? BindingFlags.Public : BindingFlags.NonPublic) | (_static ? BindingFlags.Static : BindingFlags.Instance));
+
+        return method != null;
     }
 
     public static MethodInfo GetPublicStaticMethod(this Type type, string methodName)
