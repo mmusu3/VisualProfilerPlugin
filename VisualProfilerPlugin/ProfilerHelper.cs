@@ -919,7 +919,7 @@ class CubeGridInfoProxy
         [ProtoMember(8)] public int BlockCount;
         [ProtoMember(9)] public Vector3I Size;
         [ProtoMember(10)] public int PCU;
-        [ProtoMember(11)] public bool IsPowered;
+        [ProtoMember(11)] public bool IsPowerSwitchOn;
         [ProtoMember(12)] public int ConnectedGrids;
         [ProtoMember(13)] public int GroupId;
         [ProtoMember(14)] public int GroupSize;
@@ -940,7 +940,7 @@ class CubeGridInfoProxy
             BlockCount = grid.BlocksCount;
             PCU = grid.BlocksPCU;
             Size = grid.Max - grid.Min + Vector3I.One;
-            IsPowered = grid.IsPowered;
+            IsPowerSwitchOn = grid.IsPowerSwitchOn;
 
             var groupNode = MyCubeGridGroups.Static.Physical.GetNode(grid);
 
@@ -998,7 +998,7 @@ class CubeGridInfoProxy
                 && BlockCount == grid.BlocksCount
                 && PCU == grid.BlocksPCU
                 && Size == (grid.Max - grid.Min + Vector3I.One)
-                && IsPowered == grid.IsPowered
+                && IsPowerSwitchOn == grid.IsPowerSwitchOn
                 && ConnectedGrids == (groupNode?.LinkCount ?? 0)
                 && GroupId == (groupNode != null ? gridGroupsToIds.GetValueOrDefault(groupNode.Group, -1) : -1)
                 && GroupSize == (groupNode?.Group.Nodes.Count ?? 0);
@@ -1013,7 +1013,7 @@ class CubeGridInfoProxy
                 && BlockCount == other.BlockCount
                 && Size == other.Size
                 && PCU == other.PCU
-                && IsPowered == other.IsPowered
+                && IsPowerSwitchOn == other.IsPowerSwitchOn
                 && ConnectedGrids == other.ConnectedGrids
                 && GroupId == other.GroupId
                 && GroupSize == other.GroupSize;
@@ -1043,7 +1043,7 @@ class CubeGridInfoProxy
             sb.AppendLine($"    Blocks: {BlockCount}");
             sb.AppendLine($"    PCU: {PCU}");
             sb.AppendLine($"    Size: {Size}");
-            sb.AppendLine($"    Is Powered: {IsPowered}");
+            sb.AppendLine($"    Is Power Switch On: {IsPowerSwitchOn}");
 
             if (GroupSize > 1)
             {
@@ -1129,7 +1129,7 @@ class CubeGridInfoProxy
                     sb.AppendLine($"    Speed: {roundSpeed}");
             }
 
-            sb.AppendLine($"    Is Powered: {b.IsPowered}");
+            sb.AppendLine($"    Is Power Switch On: {b.IsPowerSwitchOn}");
 
             if (b.GroupSize > 1)
             {

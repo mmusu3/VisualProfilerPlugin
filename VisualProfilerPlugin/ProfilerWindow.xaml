@@ -203,8 +203,8 @@
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=AverageSpeedForColumn}">
                                     <GridViewColumnHeader Name="gridAverageSpeedColumn" Content=" Avg. Speed " ToolTip="Average speed of the grid over all the recorded frames."/>
                                 </GridViewColumn>
-                                <GridViewColumn DisplayMemberBinding="{Binding Path=IsPoweredForColumn}">
-                                    <GridViewColumnHeader Name="gridIsPoweredColumn" Content=" Is Powered " ToolTip="Whether the grid is marked as being powered.&#10;Will be * if the value changed over time."/>
+                                <GridViewColumn DisplayMemberBinding="{Binding Path=IsPowerSwitchOnForColumn}">
+                                    <GridViewColumnHeader Name="gridIsPowerSwitchOnColumn" Content=" Is Power Switch On " ToolTip="Whether the grid's power switch is on.&#10;Will be * if the value changed over time."/>
                                 </GridViewColumn>
                                 <GridViewColumn DisplayMemberBinding="{Binding Path=GroupIdForColumn}">
                                     <GridViewColumnHeader Name="gridGroupIdColumn" Content=" Group ID " ToolTip="Unique (to this recording) ID of the connection group that grid is in (connections by connector, rotor, etc).&#10;Can be multiple values if grids were connected/disconnected over time."/>

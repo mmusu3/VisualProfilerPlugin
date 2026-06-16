@@ -14,24 +14,11 @@ static class MyScriptManager_Patches
 
         PatchPrefixSuffixPair(ctx, "LoadData", _public: false, _static: false);
         PatchPrefixSuffixPair(ctx, "LoadScripts", _public: false, _static: false);
-    }
 
-    static bool PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
-    {
-        if (!typeof(MyScriptManager).TryGetMethod(methodName, _public, _static, out var source))
+        static bool PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
         {
-            Plugin.Log.Error($"Failed to patch MyScriptManager.{methodName}");
-            return false;
+            return PatchHelper.PatchPrefixSuffixPair(typeof(MyScriptManager), typeof(MyScriptManager_Patches), patchContext, methodName, _public, _static);
         }
-
-        var prefix = typeof(MyScriptManager_Patches).GetNonPublicStaticMethod("Prefix_" + methodName);
-        var suffix = typeof(MyScriptManager_Patches).GetNonPublicStaticMethod(nameof(Suffix));
-
-        var pattern = patchContext.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
-
-        return true;
     }
 
     static class Keys
@@ -45,9 +32,6 @@ static class MyScriptManager_Patches
             LoadScripts = ProfilerKeyCache.GetOrAdd("MyScriptManager.LoadScripts");
         }
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix(ref ProfilerTimer __local_timer) { __local_timer.Stop(); }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool Prefix_LoadData(ref ProfilerTimer __local_timer)

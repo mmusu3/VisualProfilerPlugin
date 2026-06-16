@@ -917,8 +917,8 @@ public partial class ProfilerWindow : Window, INotifyPropertyChanged
             comparers = CubeGridAverageSpeedComparer.Instances;
             defaultDir = ListSortDirection.Descending;
             break;
-        case nameof(gridIsPoweredColumn):
-            propName = nameof(CubeGridAnalysisInfo.IsPoweredForColumn);
+        case nameof(gridIsPowerSwitchOnColumn):
+            propName = nameof(CubeGridAnalysisInfo.IsPowerSwitchOnForColumn);
             break;
         case nameof(gridConnectedGridsColumn):
             propName = nameof(CubeGridAnalysisInfo.ConnectedGridsForColumn);

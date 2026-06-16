@@ -460,7 +460,7 @@ class CubeGridAnalysisInfo
         public HashSet<int> BlockCounts = [];
         public HashSet<int> PCUs = [];
         public HashSet<Vector3I> Sizes = [];
-        public bool? IsPowered; // Null value means mixed
+        public bool? IsPowerSwitchOn; // Null value means mixed
         public HashSet<int> GroupIds = [];
         public HashSet<int> GroupSizes = [];
         public HashSet<int> ConnectedGrids = [];
@@ -487,7 +487,7 @@ class CubeGridAnalysisInfo
             IsNPC = g.IsNPC;
             IsPreview = g.IsPreview;
             IsStatic = b.IsStatic;
-            IsPowered = b.IsPowered;
+            IsPowerSwitchOn = b.IsPowerSwitchOn;
 
             Add(snapshot);
         }
@@ -507,8 +507,8 @@ class CubeGridAnalysisInfo
             PCUs.Add(b.PCU);
             Sizes.Add(b.Size);
 
-            if (IsPowered != null && b.IsPowered != IsPowered)
-                IsPowered = null;
+            if (IsPowerSwitchOn != null && b.IsPowerSwitchOn != IsPowerSwitchOn)
+                IsPowerSwitchOn = null;
 
             GroupIds.Add(b.GroupId);
             GroupSizes.Add(b.GroupSize);
@@ -523,7 +523,7 @@ class CubeGridAnalysisInfo
         {
             return new CubeGridAnalysisInfo(snapshots.Count, EntityId, GridSize, IsNPC, IsPreview, IsStatic,
                 Names.ToArray(), Owners.Select(o => (o.Key, o.Value)).ToArray(),
-                BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), IsPowered, GroupIds.ToArray(), GroupSizes.ToArray(),
+                BlockCounts.ToArray(), PCUs.ToArray(), Sizes.ToArray(), IsPowerSwitchOn, GroupIds.ToArray(), GroupSizes.ToArray(),
                 ConnectedGrids.ToArray(), Positions.ToArray(), Speeds.ToArray(), PhysicsClusters.ToArray(),
                 TotalTime, AverageTimePerFrame, IncludedInGroups.Count, FramesCounted.Count);
         }
@@ -543,7 +543,7 @@ class CubeGridAnalysisInfo
     public Vector3D[] Positions;
     public int[] PhysicsClusters;
     public float[] Speeds;
-    public bool? IsPowered;
+    public bool? IsPowerSwitchOn;
     public int[] GroupIds;
     public int[] GroupSizes;
     public int[] ConnectedGrids;
@@ -596,7 +596,7 @@ class CubeGridAnalysisInfo
         }
     }
 
-    public string IsPoweredForColumn => IsPowered == null ? "*" : IsPowered.Value.ToString();
+    public string IsPowerSwitchOnForColumn => IsPowerSwitchOn == null ? "*" : IsPowerSwitchOn.Value.ToString();
     public string GroupIdForColumn => GroupIds.Length == 1 ? GroupIds[0].ToString() : string.Join(",\n", GroupIds);
     public string GroupSizeForColumn => GroupSizes.Length == 1 ? GroupSizes[0].ToString() : string.Join(",\n", GroupSizes);
     public string ConnectedGridsForColumn => ConnectedGrids.Length == 1 ? ConnectedGrids[0].ToString() : string.Join(",\n", ConnectedGrids);
@@ -622,7 +622,7 @@ class CubeGridAnalysisInfo
     public CubeGridAnalysisInfo(
         int snapshotCount, long entityId, MyCubeSize gridSize, bool isNpc, bool isPreview, bool? isStatic,
         string[] names, (long ID, string? Name)[] owners, int[] blockCounts, int[] pcus, Vector3I[] sizes,
-        bool? isPowered, int[] groupIds, int[] groupSizes, int[] connectedGrids,
+        bool? isPowerSwitchOn, int[] groupIds, int[] groupSizes, int[] connectedGrids,
         Vector3D[] positions, float[] speeds, int[] physicsClusters,
         double totalTime, double averageTimePerFrame, int includedInNumProfilerGroups, int numFramesCounted)
     {
@@ -637,7 +637,7 @@ class CubeGridAnalysisInfo
         BlockCounts = blockCounts;
         PCUs = pcus;
         Sizes = sizes;
-        IsPowered = isPowered;
+        IsPowerSwitchOn = isPowerSwitchOn;
         GroupIds = groupIds;
         GroupSizes = groupSizes;
         ConnectedGrids = connectedGrids;
@@ -738,7 +738,7 @@ class CubeGridAnalysisInfo
             sb.AppendLine($"    Connected Grid Counts: {string.Join(", ", ConnectedGrids)}");
         }
 
-        sb.AppendLine($"    IsPowered: {(IsPowered != null ? IsPowered : "*")}");
+        sb.AppendLine($"    Is Power Switch On: {(IsPowerSwitchOn != null ? IsPowerSwitchOn : "*")}");
         sb.AppendLine($"Total Time: {TotalTime:N1}ms");
         sb.AppendLine($"Average Time: {AverageTimePerFrame:N2}ms");
         sb.AppendLine($"Counted Frames: {NumFramesCounted}");

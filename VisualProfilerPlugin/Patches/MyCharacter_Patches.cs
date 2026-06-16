@@ -11,23 +11,79 @@ static class MyCharacter_Patches
     {
         Keys.Init();
 
-        var source = typeof(MyCharacter).GetNonPublicInstanceMethod("RigidBody_ContactPointCallback");
-        var prefix = typeof(MyCharacter_Patches).GetNonPublicStaticMethod(nameof(Prefix_RigidBody_ContactPointCallback));
-        var suffix = typeof(MyCharacter_Patches).GetNonPublicStaticMethod(nameof(Suffix));
+        // TODO: Use transpilers to profile individual components
+        PatchPrefixSuffixPair(ctx, "UpdateComponentsBeforeSimulation", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, "UpdateComponentsBeforeSimulation100", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, "SimulateComponents", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, "UpdateComponentsAfterSimulation", _public: false, _static: false);
+        PatchPrefixSuffixPair(ctx, "UpdateComponentsAfterSimulation10", _public: false, _static: false);
 
-        var pattern = ctx.GetPattern(source);
-        pattern.Prefixes.Add(prefix);
-        pattern.Suffixes.Add(suffix);
+        PatchPrefixSuffixPair(ctx, "RigidBody_ContactPointCallback", _public: false, _static: false);
+
+        static bool PatchPrefixSuffixPair(PatchContext patchContext, string methodName, bool _public, bool _static)
+        {
+            return PatchHelper.PatchPrefixSuffixPair(typeof(MyCharacter), typeof(MyCharacter_Patches), patchContext, methodName, _public, _static);
+        }
     }
 
     static class Keys
     {
+        internal static ProfilerKey UpdateComponentsBeforeSimulation;
+        internal static ProfilerKey UpdateComponentsBeforeSimulation100;
+        internal static ProfilerKey SimulateComponents;
+        internal static ProfilerKey UpdateComponentsAfterSimulation;
+        internal static ProfilerKey UpdateComponentsAfterSimulation10;
         internal static ProfilerKey RigidBody_ContactPointCallback;
 
         internal static void Init()
         {
+            UpdateComponentsBeforeSimulation = ProfilerKeyCache.GetOrAdd("MyCharacter.UpdateComponentsBeforeSimulation");
+            UpdateComponentsBeforeSimulation100 = ProfilerKeyCache.GetOrAdd("MyCharacter.UpdateComponentsBeforeSimulation100");
+            SimulateComponents = ProfilerKeyCache.GetOrAdd("MyCharacter.SimulateComponents");
+            UpdateComponentsAfterSimulation = ProfilerKeyCache.GetOrAdd("MyCharacter.UpdateComponentsAfterSimulation");
+            UpdateComponentsAfterSimulation10 = ProfilerKeyCache.GetOrAdd("MyCharacter.UpdateComponentsAfterSimulation10");
             RigidBody_ContactPointCallback = ProfilerKeyCache.GetOrAdd("MyCharacter.RigidBody_ContactPointCallback");
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_UpdateComponentsBeforeSimulation(ref ProfilerTimer __local_timer, MyCharacter __instance)
+    {
+        __local_timer = Profiler.Start(Keys.UpdateComponentsBeforeSimulation, ProfilerTimerOptions.ProfileMemory, new(__instance));
+
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_UpdateComponentsBeforeSimulation100(ref ProfilerTimer __local_timer, MyCharacter __instance)
+    {
+        __local_timer = Profiler.Start(Keys.UpdateComponentsBeforeSimulation100, ProfilerTimerOptions.ProfileMemory, new(__instance));
+
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_SimulateComponents(ref ProfilerTimer __local_timer, MyCharacter __instance)
+    {
+        __local_timer = Profiler.Start(Keys.SimulateComponents, ProfilerTimerOptions.ProfileMemory, new(__instance));
+
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_UpdateComponentsAfterSimulation(ref ProfilerTimer __local_timer, MyCharacter __instance)
+    {
+        __local_timer = Profiler.Start(Keys.UpdateComponentsAfterSimulation, ProfilerTimerOptions.ProfileMemory, new(__instance));
+
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool Prefix_UpdateComponentsAfterSimulation10(ref ProfilerTimer __local_timer, MyCharacter __instance)
+    {
+        __local_timer = Profiler.Start(Keys.UpdateComponentsAfterSimulation10, ProfilerTimerOptions.ProfileMemory, new(__instance));
+
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -37,8 +93,4 @@ static class MyCharacter_Patches
 
         return true;
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void Suffix(ref ProfilerTimer __local_timer)
-    { __local_timer.Stop(); }
 }
